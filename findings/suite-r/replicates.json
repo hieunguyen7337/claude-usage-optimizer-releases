@@ -1,0 +1,1145 @@
+{
+  "excluded_partial": [
+    "opus-max-claude-fable-5-1"
+  ],
+  "holdout": {
+    "heldout_pooled_arms": [
+      "astra|gpt-6-astra|max",
+      "astra|gpt-6-astra|xhigh",
+      "luna|gpt-6-luna|high",
+      "luna|gpt-6-luna|low",
+      "luna|gpt-6-luna|max",
+      "luna|gpt-6-luna|medium",
+      "luna|gpt-6-luna|xhigh",
+      "sol|gpt-6.1-sol|high",
+      "sol|gpt-6.1-sol|low",
+      "sol|gpt-6.1-sol|max",
+      "sol|gpt-6.1-sol|medium",
+      "sol|gpt-6.1-sol|xhigh"
+    ],
+    "heldout_reps": [
+      3,
+      4
+    ],
+    "max_rep": 2,
+    "mean_difference": 0.026315789473684213,
+    "panels": [
+      {
+        "cost_points_per_item": 0.00035564273313492054,
+        "difference": 0.11842105263157898,
+        "has_heldout_member": true,
+        "heldout_false_alarms_per_item": 0.19444444444444445,
+        "heldout_recall": 0.631578947368421,
+        "in_sample_false_alarms_per_item": 0.18055555555555555,
+        "in_sample_recall": 0.513157894736842,
+        "member_detail": [
+          {
+            "heldout": true,
+            "key": "luna|gpt-6-luna|medium",
+            "reps_used": [
+              3,
+              4
+            ]
+          }
+        ],
+        "members": [
+          "luna|gpt-6-luna|medium"
+        ],
+        "roles": [
+          "frontier"
+        ],
+        "size": 1
+      },
+      {
+        "cost_points_per_item": 0.0005177755208333333,
+        "difference": 0.06578947368421051,
+        "has_heldout_member": true,
+        "heldout_false_alarms_per_item": 0.2222222222222222,
+        "heldout_recall": 0.75,
+        "in_sample_false_alarms_per_item": 0.2222222222222222,
+        "in_sample_recall": 0.6842105263157895,
+        "member_detail": [
+          {
+            "heldout": true,
+            "key": "luna|gpt-6-luna|high",
+            "reps_used": [
+              3,
+              4
+            ]
+          }
+        ],
+        "members": [
+          "luna|gpt-6-luna|high"
+        ],
+        "roles": [
+          "frontier"
+        ],
+        "size": 1
+      },
+      {
+        "cost_points_per_item": 0.0005368257559198544,
+        "difference": 0.0,
+        "has_heldout_member": false,
+        "heldout_false_alarms_per_item": 0.25,
+        "heldout_recall": 0.8947368421052632,
+        "in_sample_false_alarms_per_item": 0.25,
+        "in_sample_recall": 0.8947368421052632,
+        "member_detail": [
+          {
+            "heldout": false,
+            "key": "haiku|claude-haiku-5-5|low",
+            "reps_used": [
+              1
+            ]
+          }
+        ],
+        "members": [
+          "haiku|claude-haiku-5-5|low"
+        ],
+        "roles": [
+          "frontier"
+        ],
+        "size": 1
+      },
+      {
+        "cost_points_per_item": 0.0007372791621129326,
+        "difference": 0.0,
+        "has_heldout_member": false,
+        "heldout_false_alarms_per_item": 0.3888888888888889,
+        "heldout_recall": 0.9473684210526315,
+        "in_sample_false_alarms_per_item": 0.3888888888888889,
+        "in_sample_recall": 0.9473684210526315,
+        "member_detail": [
+          {
+            "heldout": false,
+            "key": "haiku|claude-haiku-5-5|medium",
+            "reps_used": [
+              1
+            ]
+          }
+        ],
+        "members": [
+          "haiku|claude-haiku-5-5|medium"
+        ],
+        "roles": [
+          "frontier"
+        ],
+        "size": 1
+      },
+      {
+        "cost_points_per_item": 0.0010929218952478532,
+        "difference": 0.0,
+        "has_heldout_member": true,
+        "heldout_false_alarms_per_item": 0.5833333333333334,
+        "heldout_recall": 0.9605263157894737,
+        "in_sample_false_alarms_per_item": 0.5694444444444444,
+        "in_sample_recall": 0.9605263157894737,
+        "member_detail": [
+          {
+            "heldout": false,
+            "key": "haiku|claude-haiku-5-5|medium",
+            "reps_used": [
+              1
+            ]
+          },
+          {
+            "heldout": true,
+            "key": "luna|gpt-6-luna|medium",
+            "reps_used": [
+              3,
+              4
+            ]
+          }
+        ],
+        "members": [
+          "haiku|claude-haiku-5-5|medium",
+          "luna|gpt-6-luna|medium"
+        ],
+        "roles": [
+          "frontier",
+          "target 0.95 size 2"
+        ],
+        "size": 2
+      },
+      {
+        "cost_points_per_item": 0.001255054682946266,
+        "difference": 0.0,
+        "has_heldout_member": true,
+        "heldout_false_alarms_per_item": 0.6111111111111112,
+        "heldout_recall": 0.9736842105263158,
+        "in_sample_false_alarms_per_item": 0.6111111111111112,
+        "in_sample_recall": 0.9736842105263158,
+        "member_detail": [
+          {
+            "heldout": false,
+            "key": "haiku|claude-haiku-5-5|medium",
+            "reps_used": [
+              1
+            ]
+          },
+          {
+            "heldout": true,
+            "key": "luna|gpt-6-luna|high",
+            "reps_used": [
+              3,
+              4
+            ]
+          }
+        ],
+        "members": [
+          "haiku|claude-haiku-5-5|medium",
+          "luna|gpt-6-luna|high"
+        ],
+        "roles": [
+          "frontier",
+          "target 0.97 size 2"
+        ],
+        "size": 2
+      },
+      {
+        "cost_points_per_item": 0.0018360829508196725,
+        "difference": 0.0,
+        "has_heldout_member": false,
+        "heldout_false_alarms_per_item": 1.2222222222222223,
+        "heldout_recall": 1.0,
+        "in_sample_false_alarms_per_item": 1.2222222222222223,
+        "in_sample_recall": 1.0,
+        "member_detail": [
+          {
+            "heldout": false,
+            "key": "haiku|claude-haiku-5-5|high",
+            "reps_used": [
+              1
+            ]
+          },
+          {
+            "heldout": false,
+            "key": "haiku|claude-haiku-5-5|medium",
+            "reps_used": [
+              1
+            ]
+          }
+        ],
+        "members": [
+          "haiku|claude-haiku-5-5|high",
+          "haiku|claude-haiku-5-5|medium"
+        ],
+        "roles": [
+          "frontier",
+          "target 1.00 size 2"
+        ],
+        "size": 2
+      },
+      {
+        "cost_points_per_item": 0.0033189615118397087,
+        "difference": 0.0,
+        "has_heldout_member": false,
+        "heldout_false_alarms_per_item": 1.0,
+        "heldout_recall": 1.0,
+        "in_sample_false_alarms_per_item": 1.0,
+        "in_sample_recall": 1.0,
+        "member_detail": [
+          {
+            "heldout": false,
+            "key": "haiku|claude-haiku-5-5|xhigh",
+            "reps_used": [
+              1
+            ]
+          }
+        ],
+        "members": [
+          "haiku|claude-haiku-5-5|xhigh"
+        ],
+        "roles": [
+          "target 0.95 size 1",
+          "target 0.97 size 1",
+          "target 1.00 size 1"
+        ],
+        "size": 1
+      },
+      {
+        "cost_points_per_item": 0.0015558622970335675,
+        "difference": 0.0,
+        "has_heldout_member": true,
+        "heldout_false_alarms_per_item": 0.7361111111111112,
+        "heldout_recall": 0.9605263157894737,
+        "in_sample_false_alarms_per_item": 0.6944444444444444,
+        "in_sample_recall": 0.9605263157894737,
+        "member_detail": [
+          {
+            "heldout": false,
+            "key": "haiku|claude-haiku-5-5|medium",
+            "reps_used": [
+              1
+            ]
+          },
+          {
+            "heldout": true,
+            "key": "luna|gpt-6-luna|low",
+            "reps_used": [
+              3,
+              4
+            ]
+          },
+          {
+            "heldout": true,
+            "key": "luna|gpt-6-luna|medium",
+            "reps_used": [
+              3,
+              4
+            ]
+          }
+        ],
+        "members": [
+          "haiku|claude-haiku-5-5|medium",
+          "luna|gpt-6-luna|low",
+          "luna|gpt-6-luna|medium"
+        ],
+        "roles": [
+          "target 0.95 size 3"
+        ],
+        "size": 3
+      },
+      {
+        "cost_points_per_item": 0.0016106974160811866,
+        "difference": 0.0,
+        "has_heldout_member": true,
+        "heldout_false_alarms_per_item": 0.8055555555555556,
+        "heldout_recall": 0.9736842105263158,
+        "in_sample_false_alarms_per_item": 0.7916666666666667,
+        "in_sample_recall": 0.9736842105263158,
+        "member_detail": [
+          {
+            "heldout": false,
+            "key": "haiku|claude-haiku-5-5|medium",
+            "reps_used": [
+              1
+            ]
+          },
+          {
+            "heldout": true,
+            "key": "luna|gpt-6-luna|high",
+            "reps_used": [
+              3,
+              4
+            ]
+          },
+          {
+            "heldout": true,
+            "key": "luna|gpt-6-luna|medium",
+            "reps_used": [
+              3,
+              4
+            ]
+          }
+        ],
+        "members": [
+          "haiku|claude-haiku-5-5|medium",
+          "luna|gpt-6-luna|high",
+          "luna|gpt-6-luna|medium"
+        ],
+        "roles": [
+          "target 0.97 size 3"
+        ],
+        "size": 3
+      },
+      {
+        "cost_points_per_item": 0.002191725683954593,
+        "difference": 0.0,
+        "has_heldout_member": true,
+        "heldout_false_alarms_per_item": 1.4166666666666667,
+        "heldout_recall": 1.0,
+        "in_sample_false_alarms_per_item": 1.402777777777778,
+        "in_sample_recall": 1.0,
+        "member_detail": [
+          {
+            "heldout": false,
+            "key": "haiku|claude-haiku-5-5|high",
+            "reps_used": [
+              1
+            ]
+          },
+          {
+            "heldout": false,
+            "key": "haiku|claude-haiku-5-5|medium",
+            "reps_used": [
+              1
+            ]
+          },
+          {
+            "heldout": true,
+            "key": "luna|gpt-6-luna|medium",
+            "reps_used": [
+              3,
+              4
+            ]
+          }
+        ],
+        "members": [
+          "haiku|claude-haiku-5-5|high",
+          "haiku|claude-haiku-5-5|medium",
+          "luna|gpt-6-luna|medium"
+        ],
+        "roles": [
+          "target 1.00 size 3"
+        ],
+        "size": 3
+      }
+    ],
+    "panels_with_heldout_member": 7,
+    "targets": {
+      "0.95": {
+        "by_size": {
+          "1": {
+            "cost_points_per_item": 0.0033189615118397087,
+            "has_heldout_member": false,
+            "heldout_recall": 1.0,
+            "in_sample_false_alarms_per_item": 1.0,
+            "in_sample_recall": 1.0,
+            "meets_heldout": true,
+            "meets_in_sample": true,
+            "members": [
+              "haiku|claude-haiku-5-5|xhigh"
+            ]
+          },
+          "2": {
+            "cost_points_per_item": 0.0010929218952478532,
+            "has_heldout_member": true,
+            "heldout_recall": 0.9605263157894737,
+            "in_sample_false_alarms_per_item": 0.5694444444444444,
+            "in_sample_recall": 0.9605263157894737,
+            "meets_heldout": true,
+            "meets_in_sample": true,
+            "members": [
+              "haiku|claude-haiku-5-5|medium",
+              "luna|gpt-6-luna|medium"
+            ]
+          },
+          "3": {
+            "cost_points_per_item": 0.0015558622970335675,
+            "has_heldout_member": true,
+            "heldout_recall": 0.9605263157894737,
+            "in_sample_false_alarms_per_item": 0.6944444444444444,
+            "in_sample_recall": 0.9605263157894737,
+            "meets_heldout": true,
+            "meets_in_sample": true,
+            "members": [
+              "haiku|claude-haiku-5-5|medium",
+              "luna|gpt-6-luna|low",
+              "luna|gpt-6-luna|medium"
+            ]
+          }
+        },
+        "pick": {
+          "cost_points_per_item": 0.0010929218952478532,
+          "has_heldout_member": true,
+          "heldout_recall": 0.9605263157894737,
+          "in_sample_false_alarms_per_item": 0.5694444444444444,
+          "in_sample_recall": 0.9605263157894737,
+          "meets_heldout": true,
+          "meets_in_sample": true,
+          "members": [
+            "haiku|claude-haiku-5-5|medium",
+            "luna|gpt-6-luna|medium"
+          ]
+        }
+      },
+      "0.97": {
+        "by_size": {
+          "1": {
+            "cost_points_per_item": 0.0033189615118397087,
+            "has_heldout_member": false,
+            "heldout_recall": 1.0,
+            "in_sample_false_alarms_per_item": 1.0,
+            "in_sample_recall": 1.0,
+            "meets_heldout": true,
+            "meets_in_sample": true,
+            "members": [
+              "haiku|claude-haiku-5-5|xhigh"
+            ]
+          },
+          "2": {
+            "cost_points_per_item": 0.001255054682946266,
+            "has_heldout_member": true,
+            "heldout_recall": 0.9736842105263158,
+            "in_sample_false_alarms_per_item": 0.6111111111111112,
+            "in_sample_recall": 0.9736842105263158,
+            "meets_heldout": true,
+            "meets_in_sample": true,
+            "members": [
+              "haiku|claude-haiku-5-5|medium",
+              "luna|gpt-6-luna|high"
+            ]
+          },
+          "3": {
+            "cost_points_per_item": 0.0016106974160811866,
+            "has_heldout_member": true,
+            "heldout_recall": 0.9736842105263158,
+            "in_sample_false_alarms_per_item": 0.7916666666666667,
+            "in_sample_recall": 0.9736842105263158,
+            "meets_heldout": true,
+            "meets_in_sample": true,
+            "members": [
+              "haiku|claude-haiku-5-5|medium",
+              "luna|gpt-6-luna|high",
+              "luna|gpt-6-luna|medium"
+            ]
+          }
+        },
+        "pick": {
+          "cost_points_per_item": 0.001255054682946266,
+          "has_heldout_member": true,
+          "heldout_recall": 0.9736842105263158,
+          "in_sample_false_alarms_per_item": 0.6111111111111112,
+          "in_sample_recall": 0.9736842105263158,
+          "meets_heldout": true,
+          "meets_in_sample": true,
+          "members": [
+            "haiku|claude-haiku-5-5|medium",
+            "luna|gpt-6-luna|high"
+          ]
+        }
+      },
+      "1.00": {
+        "by_size": {
+          "1": {
+            "cost_points_per_item": 0.0033189615118397087,
+            "has_heldout_member": false,
+            "heldout_recall": 1.0,
+            "in_sample_false_alarms_per_item": 1.0,
+            "in_sample_recall": 1.0,
+            "meets_heldout": true,
+            "meets_in_sample": true,
+            "members": [
+              "haiku|claude-haiku-5-5|xhigh"
+            ]
+          },
+          "2": {
+            "cost_points_per_item": 0.0018360829508196725,
+            "has_heldout_member": false,
+            "heldout_recall": 1.0,
+            "in_sample_false_alarms_per_item": 1.2222222222222223,
+            "in_sample_recall": 1.0,
+            "meets_heldout": true,
+            "meets_in_sample": true,
+            "members": [
+              "haiku|claude-haiku-5-5|high",
+              "haiku|claude-haiku-5-5|medium"
+            ]
+          },
+          "3": {
+            "cost_points_per_item": 0.002191725683954593,
+            "has_heldout_member": true,
+            "heldout_recall": 1.0,
+            "in_sample_false_alarms_per_item": 1.402777777777778,
+            "in_sample_recall": 1.0,
+            "meets_heldout": true,
+            "meets_in_sample": true,
+            "members": [
+              "haiku|claude-haiku-5-5|high",
+              "haiku|claude-haiku-5-5|medium",
+              "luna|gpt-6-luna|medium"
+            ]
+          }
+        },
+        "pick": {
+          "cost_points_per_item": 0.0018360829508196725,
+          "has_heldout_member": false,
+          "heldout_recall": 1.0,
+          "in_sample_false_alarms_per_item": 1.2222222222222223,
+          "in_sample_recall": 1.0,
+          "meets_heldout": true,
+          "meets_in_sample": true,
+          "members": [
+            "haiku|claude-haiku-5-5|high",
+            "haiku|claude-haiku-5-5|medium"
+          ]
+        }
+      }
+    },
+    "training_reps": [
+      1,
+      2
+    ]
+  },
+  "item_count": 36,
+  "schema_version": 1,
+  "spread": [
+    {
+      "best_partner": {
+        "pair_gain": 0.09210526315789469,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|medium"
+      },
+      "effort": "high",
+      "false_alarms_per_item": 0.3055555555555556,
+      "found_by_any_rep": 36,
+      "found_by_every_rep": 33,
+      "key": "astra|gpt-6-astra|high",
+      "lane": "astra",
+      "max_recall": 0.9210526315789473,
+      "mean_recall": 0.9078947368421053,
+      "min_recall": 0.8947368421052632,
+      "model": "gpt-6-astra",
+      "recall_by_rep": [
+        0.8947368421052632,
+        0.9210526315789473
+      ],
+      "reps": [
+        1,
+        2
+      ],
+      "sd_recall": 0.01860807318911965,
+      "self_gain_minus_partner_gain": -0.052631578947368474,
+      "self_pair_gain": 0.039473684210526216,
+      "self_pair_recall": 0.9473684210526315,
+      "stable_share": 0.9166666666666666
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.07894736842105265,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|medium"
+      },
+      "effort": "low",
+      "false_alarms_per_item": 0.3055555555555556,
+      "found_by_any_rep": 35,
+      "found_by_every_rep": 35,
+      "key": "astra|gpt-6-astra|low",
+      "lane": "astra",
+      "max_recall": 0.9210526315789473,
+      "mean_recall": 0.9210526315789473,
+      "min_recall": 0.9210526315789473,
+      "model": "gpt-6-astra",
+      "recall_by_rep": [
+        0.9210526315789473,
+        0.9210526315789473
+      ],
+      "reps": [
+        1,
+        2
+      ],
+      "sd_recall": 0.0,
+      "self_gain_minus_partner_gain": -0.07894736842105265,
+      "self_pair_gain": 0.0,
+      "self_pair_recall": 0.9210526315789473,
+      "stable_share": 1.0
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.01754385964912275,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|medium"
+      },
+      "effort": "max",
+      "false_alarms_per_item": 0.3148148148148148,
+      "found_by_any_rep": 38,
+      "found_by_every_rep": 37,
+      "key": "astra|gpt-6-astra|max",
+      "lane": "astra",
+      "max_recall": 1.0,
+      "mean_recall": 0.9824561403508772,
+      "min_recall": 0.9736842105263158,
+      "model": "gpt-6-astra",
+      "recall_by_rep": [
+        0.9736842105263158,
+        0.9736842105263158,
+        1.0
+      ],
+      "reps": [
+        1,
+        2,
+        3
+      ],
+      "sd_recall": 0.015193428136569083,
+      "self_gain_minus_partner_gain": -0.00877192982456132,
+      "self_pair_gain": 0.00877192982456143,
+      "self_pair_recall": 0.9912280701754387,
+      "stable_share": 0.9736842105263158
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.10526315789473684,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|medium"
+      },
+      "effort": "medium",
+      "false_alarms_per_item": 0.25,
+      "found_by_any_rep": 34,
+      "found_by_every_rep": 34,
+      "key": "astra|gpt-6-astra|medium",
+      "lane": "astra",
+      "max_recall": 0.8947368421052632,
+      "mean_recall": 0.8947368421052632,
+      "min_recall": 0.8947368421052632,
+      "model": "gpt-6-astra",
+      "recall_by_rep": [
+        0.8947368421052632,
+        0.8947368421052632
+      ],
+      "reps": [
+        1,
+        2
+      ],
+      "sd_recall": 0.0,
+      "self_gain_minus_partner_gain": -0.10526315789473684,
+      "self_pair_gain": 0.0,
+      "self_pair_recall": 0.8947368421052632,
+      "stable_share": 1.0
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.06140350877192979,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|medium"
+      },
+      "effort": "xhigh",
+      "false_alarms_per_item": 0.35185185185185186,
+      "found_by_any_rep": 37,
+      "found_by_every_rep": 34,
+      "key": "astra|gpt-6-astra|xhigh",
+      "lane": "astra",
+      "max_recall": 0.9736842105263158,
+      "mean_recall": 0.9385964912280702,
+      "min_recall": 0.8947368421052632,
+      "model": "gpt-6-astra",
+      "recall_by_rep": [
+        0.9473684210526315,
+        0.9736842105263158,
+        0.8947368421052632
+      ],
+      "reps": [
+        1,
+        2,
+        3
+      ],
+      "sd_recall": 0.04019803241189334,
+      "self_gain_minus_partner_gain": -0.03508771929824561,
+      "self_pair_gain": 0.02631578947368418,
+      "self_pair_recall": 0.9649122807017544,
+      "stable_share": 0.918918918918919
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.2828947368421053,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|xhigh"
+      },
+      "effort": "high",
+      "false_alarms_per_item": 0.2222222222222222,
+      "found_by_any_rep": 32,
+      "found_by_every_rep": 19,
+      "key": "luna|gpt-6-luna|high",
+      "lane": "luna",
+      "max_recall": 0.7894736842105263,
+      "mean_recall": 0.7171052631578947,
+      "min_recall": 0.6052631578947368,
+      "model": "gpt-6-luna",
+      "recall_by_rep": [
+        0.6052631578947368,
+        0.7631578947368421,
+        0.7105263157894737,
+        0.7894736842105263
+      ],
+      "reps": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "sd_recall": 0.08146568254827506,
+      "self_gain_minus_partner_gain": -0.19298245614035092,
+      "self_pair_gain": 0.08991228070175439,
+      "self_pair_recall": 0.8070175438596491,
+      "stable_share": 0.59375
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.611842105263158,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|xhigh"
+      },
+      "effort": "low",
+      "false_alarms_per_item": 0.1388888888888889,
+      "found_by_any_rep": 26,
+      "found_by_every_rep": 4,
+      "key": "luna|gpt-6-luna|low",
+      "lane": "luna",
+      "max_recall": 0.5,
+      "mean_recall": 0.3881578947368421,
+      "min_recall": 0.2631578947368421,
+      "model": "gpt-6-luna",
+      "recall_by_rep": [
+        0.4473684210526316,
+        0.34210526315789475,
+        0.5,
+        0.2631578947368421
+      ],
+      "reps": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "sd_recall": 0.10608233879340198,
+      "self_gain_minus_partner_gain": -0.43859649122807015,
+      "self_pair_gain": 0.1732456140350878,
+      "self_pair_recall": 0.5614035087719299,
+      "stable_share": 0.15384615384615385
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.18421052631578938,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|xhigh"
+      },
+      "effort": "max",
+      "false_alarms_per_item": 0.3958333333333333,
+      "found_by_any_rep": 37,
+      "found_by_every_rep": 22,
+      "key": "luna|gpt-6-luna|max",
+      "lane": "luna",
+      "max_recall": 0.868421052631579,
+      "mean_recall": 0.8157894736842106,
+      "min_recall": 0.7894736842105263,
+      "model": "gpt-6-luna",
+      "recall_by_rep": [
+        0.7894736842105263,
+        0.7894736842105263,
+        0.8157894736842105,
+        0.868421052631579
+      ],
+      "reps": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "sd_recall": 0.037216146378239355,
+      "self_gain_minus_partner_gain": -0.08333333333333337,
+      "self_pair_gain": 0.10087719298245601,
+      "self_pair_recall": 0.9166666666666666,
+      "stable_share": 0.5945945945945946
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.4276315789473685,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|xhigh"
+      },
+      "effort": "medium",
+      "false_alarms_per_item": 0.1875,
+      "found_by_any_rep": 31,
+      "found_by_every_rep": 11,
+      "key": "luna|gpt-6-luna|medium",
+      "lane": "luna",
+      "max_recall": 0.631578947368421,
+      "mean_recall": 0.5723684210526315,
+      "min_recall": 0.5,
+      "model": "gpt-6-luna",
+      "recall_by_rep": [
+        0.5263157894736842,
+        0.5,
+        0.631578947368421,
+        0.631578947368421
+      ],
+      "reps": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "sd_recall": 0.06920935893885745,
+      "self_gain_minus_partner_gain": -0.2894736842105262,
+      "self_pair_gain": 0.13815789473684226,
+      "self_pair_recall": 0.7105263157894738,
+      "stable_share": 0.3548387096774194
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.2171052631578948,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|xhigh"
+      },
+      "effort": "xhigh",
+      "false_alarms_per_item": 0.3194444444444444,
+      "found_by_any_rep": 36,
+      "found_by_every_rep": 21,
+      "key": "luna|gpt-6-luna|xhigh",
+      "lane": "luna",
+      "max_recall": 0.8421052631578947,
+      "mean_recall": 0.7828947368421052,
+      "min_recall": 0.7631578947368421,
+      "model": "gpt-6-luna",
+      "recall_by_rep": [
+        0.7631578947368421,
+        0.8421052631578947,
+        0.7631578947368421,
+        0.7631578947368421
+      ],
+      "reps": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "sd_recall": 0.03947368421052627,
+      "self_gain_minus_partner_gain": -0.10964912280701755,
+      "self_pair_gain": 0.10745614035087725,
+      "self_pair_recall": 0.8903508771929824,
+      "stable_share": 0.5833333333333334
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.0964912280701754,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|medium"
+      },
+      "effort": "high",
+      "false_alarms_per_item": 0.3611111111111111,
+      "found_by_any_rep": 35,
+      "found_by_every_rep": 33,
+      "key": "sol|gpt-6.1-sol|high",
+      "lane": "sol",
+      "max_recall": 0.9210526315789473,
+      "mean_recall": 0.9035087719298246,
+      "min_recall": 0.8947368421052632,
+      "model": "gpt-6.1-sol",
+      "recall_by_rep": [
+        0.9210526315789473,
+        0.8947368421052632,
+        0.8947368421052632
+      ],
+      "reps": [
+        1,
+        2,
+        3
+      ],
+      "sd_recall": 0.015193428136569083,
+      "self_gain_minus_partner_gain": -0.07894736842105265,
+      "self_pair_gain": 0.01754385964912275,
+      "self_pair_recall": 0.9210526315789473,
+      "stable_share": 0.9428571428571428
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.1578947368421053,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|xhigh"
+      },
+      "effort": "low",
+      "false_alarms_per_item": 0.26851851851851855,
+      "found_by_any_rep": 33,
+      "found_by_every_rep": 30,
+      "key": "sol|gpt-6.1-sol|low",
+      "lane": "sol",
+      "max_recall": 0.868421052631579,
+      "mean_recall": 0.8421052631578947,
+      "min_recall": 0.8157894736842105,
+      "model": "gpt-6.1-sol",
+      "recall_by_rep": [
+        0.8157894736842105,
+        0.868421052631579,
+        0.8421052631578947
+      ],
+      "reps": [
+        1,
+        2,
+        3
+      ],
+      "sd_recall": 0.026315789473684237,
+      "self_gain_minus_partner_gain": -0.1315789473684209,
+      "self_pair_gain": 0.026315789473684403,
+      "self_pair_recall": 0.8684210526315791,
+      "stable_share": 0.9090909090909091
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.052631578947368474,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|medium"
+      },
+      "effort": "max",
+      "false_alarms_per_item": 0.3148148148148148,
+      "found_by_any_rep": 37,
+      "found_by_every_rep": 35,
+      "key": "sol|gpt-6.1-sol|max",
+      "lane": "sol",
+      "max_recall": 0.9473684210526315,
+      "mean_recall": 0.9473684210526315,
+      "min_recall": 0.9473684210526315,
+      "model": "gpt-6.1-sol",
+      "recall_by_rep": [
+        0.9473684210526315,
+        0.9473684210526315,
+        0.9473684210526315
+      ],
+      "reps": [
+        1,
+        2,
+        3
+      ],
+      "sd_recall": 0.0,
+      "self_gain_minus_partner_gain": -0.03508771929824561,
+      "self_pair_gain": 0.01754385964912286,
+      "self_pair_recall": 0.9649122807017544,
+      "stable_share": 0.9459459459459459
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.12280701754385959,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|xhigh"
+      },
+      "effort": "medium",
+      "false_alarms_per_item": 0.26851851851851855,
+      "found_by_any_rep": 34,
+      "found_by_every_rep": 32,
+      "key": "sol|gpt-6.1-sol|medium",
+      "lane": "sol",
+      "max_recall": 0.8947368421052632,
+      "mean_recall": 0.8771929824561404,
+      "min_recall": 0.868421052631579,
+      "model": "gpt-6.1-sol",
+      "recall_by_rep": [
+        0.8947368421052632,
+        0.868421052631579,
+        0.868421052631579
+      ],
+      "reps": [
+        1,
+        2,
+        3
+      ],
+      "sd_recall": 0.015193428136569083,
+      "self_gain_minus_partner_gain": -0.10526315789473684,
+      "self_pair_gain": 0.01754385964912275,
+      "self_pair_recall": 0.8947368421052632,
+      "stable_share": 0.9411764705882353
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.07894736842105265,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|medium"
+      },
+      "effort": "xhigh",
+      "false_alarms_per_item": 0.3425925925925926,
+      "found_by_any_rep": 36,
+      "found_by_every_rep": 33,
+      "key": "sol|gpt-6.1-sol|xhigh",
+      "lane": "sol",
+      "max_recall": 0.9473684210526315,
+      "mean_recall": 0.9210526315789473,
+      "min_recall": 0.8947368421052632,
+      "model": "gpt-6.1-sol",
+      "recall_by_rep": [
+        0.9473684210526315,
+        0.9210526315789473,
+        0.8947368421052632
+      ],
+      "reps": [
+        1,
+        2,
+        3
+      ],
+      "sd_recall": 0.02631578947368418,
+      "self_gain_minus_partner_gain": -0.052631578947368474,
+      "self_pair_gain": 0.02631578947368418,
+      "self_pair_recall": 0.9473684210526315,
+      "stable_share": 0.9166666666666666
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.10526315789473684,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|xhigh"
+      },
+      "effort": "high",
+      "false_alarms_per_item": 0.1527777777777778,
+      "found_by_any_rep": 35,
+      "found_by_every_rep": 33,
+      "key": "sonnet|claude-sonnet-5-5|high",
+      "lane": "sonnet",
+      "max_recall": 0.9210526315789473,
+      "mean_recall": 0.8947368421052632,
+      "min_recall": 0.868421052631579,
+      "model": "claude-sonnet-5-5",
+      "recall_by_rep": [
+        0.9210526315789473,
+        0.868421052631579
+      ],
+      "reps": [
+        1,
+        2
+      ],
+      "sd_recall": 0.0372161463782393,
+      "self_gain_minus_partner_gain": -0.07894736842105265,
+      "self_pair_gain": 0.02631578947368418,
+      "self_pair_recall": 0.9210526315789473,
+      "stable_share": 0.9428571428571428
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.02631578947368418,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|medium"
+      },
+      "effort": "max",
+      "false_alarms_per_item": 0.2222222222222222,
+      "found_by_any_rep": 37,
+      "found_by_every_rep": 37,
+      "key": "sonnet|claude-sonnet-5-5|max",
+      "lane": "sonnet",
+      "max_recall": 0.9736842105263158,
+      "mean_recall": 0.9736842105263158,
+      "min_recall": 0.9736842105263158,
+      "model": "claude-sonnet-5-5",
+      "recall_by_rep": [
+        0.9736842105263158,
+        0.9736842105263158
+      ],
+      "reps": [
+        1,
+        2
+      ],
+      "sd_recall": 0.0,
+      "self_gain_minus_partner_gain": -0.02631578947368418,
+      "self_pair_gain": 0.0,
+      "self_pair_recall": 0.9736842105263158,
+      "stable_share": 1.0
+    },
+    {
+      "best_partner": {
+        "pair_gain": 0.06578947368421062,
+        "pair_recall": 1.0,
+        "partner": "haiku|claude-haiku-5-5|xhigh"
+      },
+      "effort": "xhigh",
+      "false_alarms_per_item": 0.4583333333333333,
+      "found_by_any_rep": 36,
+      "found_by_every_rep": 35,
+      "key": "sonnet|claude-sonnet-5-5|xhigh",
+      "lane": "sonnet",
+      "max_recall": 0.9473684210526315,
+      "mean_recall": 0.9342105263157894,
+      "min_recall": 0.9210526315789473,
+      "model": "claude-sonnet-5-5",
+      "recall_by_rep": [
+        0.9473684210526315,
+        0.9210526315789473
+      ],
+      "reps": [
+        1,
+        2
+      ],
+      "sd_recall": 0.01860807318911965,
+      "self_gain_minus_partner_gain": -0.052631578947368474,
+      "self_pair_gain": 0.013157894736842146,
+      "self_pair_recall": 0.9473684210526315,
+      "stable_share": 0.9722222222222222
+    }
+  ],
+  "suite": "suite_r",
+  "total_defects": 38
+}

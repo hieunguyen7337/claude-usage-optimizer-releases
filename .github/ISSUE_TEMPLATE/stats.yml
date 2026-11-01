@@ -1,0 +1,13 @@
+name: Weekly statistics
+description: Share anonymous weekly lane totals publicly; these numbers describe reviewed runs and will be public.
+title: "Weekly statistics"
+labels: [stats]
+body:
+  - type: textarea
+    id: statistics
+    attributes:
+      label: Weekly statistics JSON
+      description: Paste the anonymous weekly totals produced by lane-stats. The numbers and this issue are public.
+      render: json
+    validations:
+      required: true

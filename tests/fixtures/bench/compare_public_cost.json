@@ -1,0 +1,14 @@
+[
+  {"lane":"luna","model":"gpt-6-luna","effort":"high","metric":"aa_ii_score","value":30,"source":"fixture"},
+  {"lane":"luna","model":"gpt-6-luna","effort":"high","metric":"aa_ii_cost_per_task_usd","value":0.08,"source":"fixture"},
+  {"lane":"sol","model":"gpt-6.1-sol","effort":"high","metric":"aa_ii_score","value":50,"source":"fixture"},
+  {"lane":"sol","model":"gpt-6.1-sol","effort":"high","metric":"aa_ii_cost_per_task_usd","value":0.20,"source":"fixture"},
+  {"lane":"haiku","model":"claude-haiku-5-5","effort":"low","metric":"aa_ii_score","value":70,"source":"fixture"},
+  {"lane":"haiku","model":"claude-haiku-5-5","effort":"low","metric":"aa_ii_cost_per_task_usd","value":0.30,"source":"fixture"},
+  {"lane":"luna","model":"gpt-6-luna","effort":"high","metric":"aa_cai_index","value":70,"source":"fixture"},
+  {"lane":"luna","model":"gpt-6-luna","effort":"high","metric":"aa_cai_cost_per_task_usd","value":0.10,"source":"fixture"},
+  {"lane":"sol","model":"gpt-6.1-sol","effort":"high","metric":"aa_cai_index","value":50,"source":"fixture"},
+  {"lane":"sol","model":"gpt-6.1-sol","effort":"high","metric":"aa_cai_cost_per_task_usd","value":0.20,"source":"fixture"},
+  {"lane":"haiku","model":"claude-haiku-5-5","effort":"low","metric":"aa_cai_index","value":30,"source":"fixture"},
+  {"lane":"haiku","model":"claude-haiku-5-5","effort":"low","metric":"aa_cai_cost_per_task_usd","value":0.30,"source":"fixture"}
+]

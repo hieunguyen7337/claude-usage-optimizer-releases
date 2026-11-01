@@ -1,0 +1,1279 @@
+#!/usr/bin/env python3
+"""Phone notifications through ntfy for a repository's main Claude Code cloud session.
+
+One stdlib-only file with no kit imports. `install` copies it into a repository as .claude/hooks/cloud-notify.py.
+
+  cloud-notify hook                        Claude Code hook; reads the hook JSON on stdin, always exits 0
+  cloud-notify guard                       Claude Code PreToolUse hook; denies starting another session in the cloud
+  cloud-notify push --title T --message M  send one message when USAGE_OPTIMIZER_NTFY_TOPIC is set
+  cloud-notify mark-main [--dir D]         mark this cloud session as the repository's main session
+  cloud-notify install --repo DIR          copy this file into DIR and register its hooks there
+
+The hook sends only when all three hold: CLAUDE_CODE_REMOTE=true (a cloud session), the untracked marker
+.claude/main-session exists in the project folder (only the main session creates it), and
+USAGE_OPTIMIZER_NTFY_TOPIC is set (in the cloud environment's settings, never in git).
+At most one message per event kind (stop, error, input) every 60 seconds; a new prompt starts those windows over.
+Events from inside a subagent (a payload with agent_id) send nothing. The message names the event kind and the
+repository only, never transcript, question or error text.
+Other settings: USAGE_OPTIMIZER_NTFY_SERVER (default https://ntfy.sh), USAGE_OPTIMIZER_NOTIFY=off,
+USAGE_OPTIMIZER_NOTIFY_DRY_RUN=1 (print the request, topic masked, instead of sending it) and
+USAGE_OPTIMIZER_NOTIFY_DRY_RUN_FILE (append the dry-run requests to this file instead of stderr).
+`guard` denies, in a cloud session (CLAUDE_CODE_REMOTE=true), the session tool create_session and create_trigger with
+create_new_session_on_fire true, subagents included, and a Bash command that runs `claude --cloud` or
+`codex cloud exec`; USAGE_OPTIMIZER_SESSION_GUARD=off turns it off.
+"""
+
+import argparse
+import base64
+import hashlib
+import io
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+import urllib.request
+
+DEFAULT_SERVER = "https://ntfy.sh"
+MARKER_REL = os.path.join(".claude", "main-session")
+HOOK_REL = os.path.join(".claude", "hooks", "cloud-notify.py")
+HOOK_MARK = ".claude/hooks/cloud-notify.py"
+# The shell test keeps the hook a no-op outside the cloud, where `python3` can be a Windows Store stub.
+# `|| true` keeps any failure from blocking a tool or a stop: python's usage error is exit 2, which blocks AskUserQuestion.
+HOOK_COMMAND = '[ "$CLAUDE_CODE_REMOTE" != true ] || python3 "$CLAUDE_PROJECT_DIR/' + HOOK_MARK + '" hook || true'
+# (event, matcher, async). UserPromptSubmit only resets the debounce, so it runs in line and stays ordered.
+HOOK_EVENTS = (("Stop", None, True), ("StopFailure", None, True), ("Notification", None, True),
+               ("PreToolUse", "AskUserQuestion", True), ("UserPromptSubmit", None, False))
+HOOK_TIMEOUT = 15
+# The SessionStart hook that reinstalls the kit after a VM rebuild. It runs in line (the session needs the kit) and
+# gets longer than the others: it fetches a branch and runs install.sh.
+KIT_EVENT = "SessionStart"
+KIT_MATCHER = "startup|resume"
+KIT_COMMAND = HOOK_COMMAND[: -len(' hook || true')] + ' kit-reinstall || true'
+GUARD_MATCHER = "mcp__claude-code-remote__create_session|mcp__claude-code-remote__create_trigger|Bash"
+GUARD_COMMAND = HOOK_COMMAND[: -len(' hook || true')] + ' guard || true'
+GUARD_TOOLS = ("mcp__claude-code-remote__create_session", "mcp__claude-code-remote__create_trigger")
+GUARD_REASON = ("Claude Usage Optimizer: a cloud session never starts another session. Run this unit as a subagent "
+                "of this session (the Agent tool). If it needs its own VM, ask the owner in this chat or push an "
+                "orch: STATUS marker for the local session. The owner can allow it with "
+                "USAGE_OPTIMIZER_SESSION_GUARD=off.")
+GUARD_BASH_REASON = ("Claude Usage Optimizer: a cloud session never starts another session, so this command "
+                     "(claude --cloud or codex cloud exec) is denied. Run the unit as a subagent of this session, or "
+                     "ask the owner or the local session to start it. If the command only quotes that text, write "
+                     "the text with the Write tool instead. USAGE_OPTIMIZER_SESSION_GUARD=off turns the guard off.")
+KIT_TIMEOUT = 120
+KIT_BRANCH = "lane-main/kit"
+# fetch + archive + install stay under KIT_TIMEOUT: a hook killed mid-install would leave a partial kit behind.
+FETCH_TIMEOUT = 20
+INSTALL_TIMEOUT = 70
+POST_TIMEOUT = 10
+DEBOUNCE_SECONDS = 60
+MASK = "***"
+TOPIC_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+# Notification types that do not mean Claude is waiting on the user.
+QUIET_NOTIFICATIONS = {"auth_success", "elicitation_complete", "elicitation_response", "quota_auto_resume_fired",
+                       "agent_completed"}
+# A background task of these types does not make a Stop "paused": monitors are long-lived watchers.
+LONG_LIVED_TASKS = {"monitor"}
+TITLES = {"stop": "finished", "input": "needs input", "error": "stopped with an error"}
+TAGS = {"stop": "white_check_mark", "input": "question", "error": "warning"}
+# The push body is a fixed line per event kind: the event kind and the repository name only, never message text.
+BODIES = {"stop": "The turn ended; Claude is waiting for you.", "error": "The turn stopped on an API error.",
+          "input": "Claude is waiting for your answer."}
+
+
+class CloudNotifyError(Exception):
+    pass
+
+
+def ntfy_topic(env):
+    topic = (env.get("USAGE_OPTIMIZER_NTFY_TOPIC") or "").strip()
+    return topic if TOPIC_RE.match(topic) else None
+
+
+def ntfy_server(env):
+    server = (env.get("USAGE_OPTIMIZER_NTFY_SERVER") or "").strip().rstrip("/") or DEFAULT_SERVER
+    return server if re.match(r"^https?://[^/\s?#]+(/[^\s?#]*)?$", server) else None
+
+
+def notify_off(env):
+    return (env.get("USAGE_OPTIMIZER_NOTIFY") or "").strip().lower() in ("off", "0", "false", "no")
+
+
+def session_url(env):
+    session = (env.get("CLAUDE_CODE_REMOTE_SESSION_ID") or "").strip()
+    if not SESSION_RE.match(session):
+        return None
+    if session.startswith("cse_"):
+        session = "session_" + session[len("cse_"):]
+    return "https://claude.ai/code/" + session
+
+
+def header_value(text):
+    """A header value http.client can send: ASCII as is, anything else RFC 2047 encoded (ntfy decodes it)."""
+    text = " ".join(str(text).split())
+    try:
+        text.encode("ascii")
+        return text
+    except UnicodeEncodeError:
+        return "=?UTF-8?B?" + base64.b64encode(text.encode("utf-8")).decode("ascii") + "?="
+
+
+def scrub(text, topic):
+    text = str(text)
+    return text.replace(topic, MASK) if topic else text
+
+
+def build_request(env, title, message, tag=None):
+    topic, server = ntfy_topic(env), ntfy_server(env)
+    if not topic or not server:
+        return None
+    headers = {"Title": header_value(title), "Content-Type": "text/plain; charset=utf-8"}
+    if tag:
+        headers["Tags"] = tag
+    click = session_url(env)
+    if click:
+        headers["Click"] = click
+    return {"url": server + "/" + topic, "masked_url": server + "/" + MASK, "headers": headers,
+            "body": str(message or "").encode("utf-8"), "topic": topic}
+
+
+def default_sender(url, headers, body, timeout):
+    request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        response.read(256)
+
+
+def deliver(env, request, sender=None, stderr=None):
+    """Send one request, or record it for a dry run. Returns True when it was sent or recorded."""
+    stderr = stderr or sys.stderr
+    if (env.get("USAGE_OPTIMIZER_NOTIFY_DRY_RUN") or "").strip() not in ("", "0"):
+        record = json.dumps({"method": "POST", "url": request["masked_url"], "headers": request["headers"],
+                             "body": request["body"].decode("utf-8")}, ensure_ascii=False)
+        record = scrub(record, request["topic"])
+        path = env.get("USAGE_OPTIMIZER_NOTIFY_DRY_RUN_FILE")
+        if path:
+            with open(path, "a", encoding="utf-8") as handle:
+                handle.write(record + "\n")
+        else:
+            stderr.write("cloud-notify dry run: " + record + "\n")
+        return True
+    try:
+        (sender or default_sender)(request["url"], dict(request["headers"]), request["body"], POST_TIMEOUT)
+        return True
+    except Exception as exc:  # A failed push must never stop the session; say why, without the topic.
+        reason = scrub("{}: {}".format(type(exc).__name__, exc), request["topic"])
+        stderr.write("cloud-notify: could not send to {}: {}\n".format(request["masked_url"], reason[:200]))
+        return False
+
+
+def project_dir(env, data=None):
+    return env.get("CLAUDE_PROJECT_DIR") or (data or {}).get("cwd") or os.getcwd()
+
+
+def is_main(project, env):
+    """The marker exists and, when it names a cloud session, names this one."""
+    path = os.path.join(project, MARKER_REL)
+    if not os.path.isfile(path):
+        return False
+    try:
+        with open(path, encoding="utf-8") as handle:
+            owner = handle.readline().strip()
+    except OSError:
+        return False
+    current = (env.get("CLAUDE_CODE_REMOTE_SESSION_ID") or "").strip()
+    return not (owner and current and owner != current)
+
+
+def state_path(env, data):
+    base = env.get("USAGE_OPTIMIZER_NOTIFY_STATE_DIR") or os.path.join(
+        tempfile.gettempdir(), "usage-optimizer-cloud-notify-{}".format(getattr(os, "getuid", lambda: "user")()))
+    key = str(data.get("session_id") or env.get("CLAUDE_CODE_REMOTE_SESSION_ID") or "session")
+    return os.path.join(base, hashlib.sha256(key.encode("utf-8")).hexdigest()[:24] + ".debounce")
+
+
+def read_debounce(path):
+    try:
+        with open(path, encoding="utf-8") as handle:
+            record = json.load(handle)
+    except (OSError, ValueError):
+        return {}
+    return record if isinstance(record, dict) else {}
+
+
+def claim_notify(path, kind, now):
+    """At most one message per event kind every DEBOUNCE_SECONDS. Two different kinds in one turn both send, and a
+    second prompt of the same kind sends once it is a minute past the first. A clock that went back starts over."""
+    record = read_debounce(path)
+    last = record.get(kind)
+    if isinstance(last, (int, float)) and 0 <= now - last < DEBOUNCE_SECONDS:
+        return False
+    record[kind] = now
+    os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
+    temp = "{}.{}.tmp".format(path, os.getpid())
+    with open(os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600), "w", encoding="utf-8") as handle:
+        handle.write(json.dumps(record))
+    os.replace(temp, path)
+    return True
+
+
+def reset_debounce(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def busy_in_background(data):
+    tasks = data.get("background_tasks")
+    if not isinstance(tasks, list):
+        return False
+    return any(not (isinstance(task, dict) and str(task.get("type", "")).lower() in LONG_LIVED_TASKS)
+               for task in tasks)
+
+
+def event_message(data):
+    """The event kind ("stop", "error" or "input") for an event that should notify, else None. Carries no text."""
+    event = data.get("hook_event_name")
+    if event == "Stop":
+        if busy_in_background(data):
+            return None  # Not a wait: the session wakes itself when its background work ends.
+        return "stop"
+    if event == "StopFailure":
+        return "error"
+    if event == "Notification":
+        if str(data.get("notification_type") or "") in QUIET_NOTIFICATIONS:
+            return None
+        return "input"
+    if event == "PreToolUse" and data.get("tool_name") == "AskUserQuestion":
+        return "input"
+    return None
+
+
+def run_hook(env, stdin, stderr, sender=None, clock=None):
+    try:
+        data = {} if stdin.isatty() else json.loads(stdin.read() or "{}")
+    except (ValueError, OSError, AttributeError):
+        data = {}
+    if not isinstance(data, dict):
+        data = {}
+    if notify_off(env) or env.get("CLAUDE_CODE_REMOTE") != "true":
+        return 0
+    if data.get("hook_event_name") == "UserPromptSubmit":
+        reset_debounce(state_path(env, data))  # a new prompt starts a new turn, whose events are not held back
+        return 0
+    if str(data.get("agent_id") or "").strip():
+        return 0  # an event from inside a subagent: only the main session's own events notify
+    kind = event_message(data)
+    project = project_dir(env, data)
+    if not kind or not is_main(project, env) or not ntfy_topic(env):
+        return 0
+    repo = os.path.basename(os.path.normpath(project)) or "repository"
+    request = build_request(env, "Claude: {} {}".format(repo, TITLES[kind]), BODIES[kind], TAGS[kind])
+    if request and claim_notify(state_path(env, data), kind, (clock or time.time)()):
+        deliver(env, request, sender, stderr)
+    return 0
+
+
+# Shell words that begin a command without being one: `if claude ...; then`, `{ claude ...; }`, `! claude ...`.
+SHELL_KEYWORDS = ("!", "{", "if", "then", "else", "elif", "do", "while", "until")
+# Wrappers that run their operands as a command. Their options that take a value are skipped with the value.
+WRAPPER_VALUE_OPTIONS = {"env": ("-u", "-C", "-S", "--unset", "--chdir", "--split-string"),
+                         "timeout": ("-s", "-k", "--signal", "--kill-after"), "nice": ("-n", "--adjustment"),
+                         "stdbuf": ("-i", "-o", "-e"), "time": ("-f", "-o", "--format", "--output"),
+                         "exec": ("-a",), "nohup": (), "setsid": (), "command": (), "builtin": (),
+                         "sudo": ("-u", "-g", "-h", "-p", "-C", "-D", "-r", "-t", "-U", "-T", "--user", "--group",
+                                  "--host", "--prompt", "--close-from", "--chdir", "--role", "--type",
+                                  "--other-user", "--command-timeout"),
+                         "xargs": ("-a", "-d", "-E", "-I", "-L", "-n", "-P", "-s", "--arg-file", "--delimiter",
+                                   "--eof", "--max-lines", "--max-args", "--max-procs", "--max-chars",
+                                   "--process-slot-var"),
+                         "flock": ("-w", "-E", "--timeout", "--conflict-exit-code")}
+# Wrappers whose options are followed by one operand before the command: timeout's duration, flock's lock file.
+WRAPPER_OPERANDS = ("timeout", "flock")
+# The options of a shell that take a value in the next word; they may come before -c.
+SHELL_VALUE_OPTIONS = ("-o", "+o", "-O", "+O", "--rcfile", "--init-file")
+# Commands that run their -c (or --command) argument as a shell script.
+SCRIPT_RUNNERS = ("script", "su", "runuser")
+# The find actions that run the words after them, up to `;` or `+`, as a command.
+FIND_ACTIONS = ("-exec", "-execdir", "-ok", "-okdir")
+# The options of `codex` that take a value in the next word (unless written --option=value).
+CODEX_VALUE_OPTIONS = ("-c", "--config", "-p", "--profile", "-m", "--model", "-C", "--cd", "-s", "--sandbox", "-a",
+                       "--ask-for-approval", "-i", "--image", "--enable", "--disable", "--local-provider")
+SHELLS = ("sh", "bash", "dash", "zsh", "ksh")
+ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+ARRAY_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*\+?=$")
+# Substitutions nested deeper than this make the scanner give up (the command is then allowed, as past depth 3).
+SCAN_NESTING_LIMIT = 40
+# The scanner's patterns. A plain run is ordinary characters, with the blanks after it.
+PLAIN_RUN_RE = re.compile(r"([^ \t\r\f\v\n'\"\\$`;&|()<>#]+)([ \t\r\f\v]*)")
+BLANKS_RE = re.compile(r"[ \t\r\f\v]+")
+DOUBLE_QUOTED_RUN_RE = re.compile(r'[^"\\$`]+')
+BACKTICK_RUN_RE = re.compile(r"[^`\\]*")
+BACKTICK_ESCAPE_RE = re.compile(r"\\([\\`$])")
+ANSI_QUOTED_RUN_RE = re.compile(r"[^'\\]*")
+ANSI_QUOTED_ESCAPE_RE = re.compile(r"\\([\\'])")
+PARENTHESES_RE = re.compile(r"[()]")
+
+
+class ScannedCommand:
+    """One simple command as the scanner saw it: its words (quotes removed, redirections dropped), the bodies fed to
+    its stdin by heredocs and herestrings, and the texts of its command substitutions."""
+
+    __slots__ = ("words", "bodies", "subs", "fed")
+
+    def __init__(self):
+        self.words, self.bodies, self.subs, self.fed = [], [], [], False
+
+
+def paren_matches(text):
+    """The index of the `)` that closes each `(` of text, found in one pass. Quotes are not considered, as in an
+    arithmetic expansion; a `(` that never closes has no entry."""
+    matches, opened = {}, []
+    for match in PARENTHESES_RE.finditer(text):
+        if match.group() == "(":
+            opened.append(match.start())
+        elif opened:
+            matches[opened.pop()] = match.start()
+    return matches
+
+
+def arithmetic_end(text, pos, matches):
+    """The index just past the `))` that closes an arithmetic expansion whose body starts at pos (matches is
+    paren_matches(text)), or -1 when the parentheses do not close as `))` (then the text is a command substitution
+    that holds a subshell). A lookup, so that a long run of `((` stays linear."""
+    close = matches.get(pos - 1, -1)
+    return close + 2 if close >= 0 and text.startswith(")", close + 1) else -1
+
+
+class Scanner:
+    """Reads shell text once, left to right, in linear time. It builds the pipelines (lists of ScannedCommand) of the
+    text from pos on. With in_sub it stops after the unmatched `)` that closes a substitution. Substitutions are
+    found by scanning their inner text with a nested Scanner. Raises ValueError for an unterminated quote or
+    substitution, and for substitutions nested past SCAN_NESTING_LIMIT."""
+
+    __slots__ = ("text", "pos", "nest", "matches", "pipelines", "pipeline", "command", "pieces", "in_word",
+                 "redirect", "waiting")
+
+    def __init__(self, text, pos=0, nest=0, matches=None):
+        if nest > SCAN_NESTING_LIMIT:
+            raise ValueError("substitutions nested too deeply")
+        self.text, self.pos, self.nest = text, pos, nest
+        self.matches = paren_matches(text) if matches is None else matches  # shared with nested scanners
+        self.pipelines, self.pipeline, self.command = [], [], ScannedCommand()
+        self.pieces, self.in_word = [], False  # the pieces of the word being built, joined when it ends
+        self.redirect = None  # "plain", "here" or "heredoc" while the word that the operator takes is awaited
+        self.waiting = []  # (command, delimiter) of each heredoc whose body starts after the end of this line
+
+    def end_word(self):
+        """Finish the word being built: a word of the command, or the target that a redirection operator takes."""
+        if not self.in_word:
+            return
+        word = "".join(self.pieces)
+        self.pieces, self.in_word = [], False
+        redirect, self.redirect = self.redirect, None
+        if redirect is None:
+            self.command.words.append(word)
+        elif redirect == "here":
+            self.command.bodies.append(word)
+        elif redirect in ("heredoc", "heredoc-tabs"):
+            self.command.fed = True
+            self.waiting.append((self.command, word, redirect == "heredoc-tabs"))
+
+    def end_command(self):
+        """Finish the simple command: it joins the pipeline when it holds anything."""
+        command = self.command
+        if command.words or command.bodies or command.subs or command.fed:
+            self.pipeline.append(command)
+            self.command = ScannedCommand()
+        self.redirect = None
+
+    def end_pipeline(self):
+        """Finish the simple command and the pipeline that it ends."""
+        self.end_command()
+        if self.pipeline:
+            self.pipelines.append(self.pipeline)
+            self.pipeline = []
+
+    def read_bodies(self, pos):
+        """Read the bodies of the waiting heredocs, one after another, from the line that starts at pos. A body ends
+        at a line whose strip() is the delimiter, or runs to the end of the text. Returns where the text goes on."""
+        text, size = self.text, len(self.text)
+        for command, delimiter, strip_tabs in self.waiting:
+            start = pos
+            while True:
+                end = text.find("\n", pos)
+                stop = size if end < 0 else end
+                line = text[pos:stop]
+                if (line.lstrip("\t") if strip_tabs else line) == delimiter:  # `<<-` drops leading tabs only
+                    command.bodies.append(text[start:max(pos - 1, start)])
+                    pos = size if end < 0 else end + 1
+                    break
+                if end < 0:
+                    command.bodies.append(text[start:])
+                    pos = size
+                    break
+                pos = end + 1
+        self.waiting = []
+        return pos
+
+    def redirection(self, pos):
+        """Read the redirection operator at pos (`<`, `>`, `&>` and their longer forms). The word before it is dropped
+        when it is all digits (`2>&1`); the next word is the operator's target. Returns the position after it."""
+        text = self.text
+        if self.in_word and self.redirect is None and "".join(self.pieces).isdigit():
+            self.pieces, self.in_word = [], False
+        else:
+            self.end_word()
+        following = text[pos + 1:pos + 2]
+        if text[pos] == "<":
+            if text.startswith("<<<", pos):
+                self.redirect, pos = "here", pos + 3
+            elif following == "<":
+                self.redirect, pos = "heredoc", pos + 2
+                if text.startswith("-", pos):
+                    self.redirect, pos = "heredoc-tabs", pos + 1
+            else:
+                self.redirect, pos = "plain", pos + (2 if following in ("&", ">") else 1)
+        else:
+            if text[pos] == "&":  # &> and &>>
+                pos += 1
+                following = text[pos + 1:pos + 2]
+            self.redirect, pos = "plain", pos + (2 if following in (">", "|", "&") else 1)
+        return pos
+
+    def substitute(self, start, inner):
+        """Scan the substitution whose inner text starts at inner. The text goes to the command's substitutions.
+        Returns the raw text of the substitution, which stays in the word, and the position after it."""
+        sub = Scanner(self.text, inner, self.nest + 1, self.matches)
+        sub.run(True)
+        self.command.subs.append(self.text[inner:sub.pos - 1])
+        return self.text[start:sub.pos], sub.pos
+
+    def assigning(self):
+        """True when the word being built is the `NAME=` (or `NAME+=`) of an array assignment."""
+        word = "".join(self.pieces)
+        return word.endswith("=") and bool(ARRAY_ASSIGNMENT_RE.match(word))
+
+    def array(self, pos):
+        """Read the array list `(...)` at pos. Its words are data, but its substitutions run, so they join the
+        command's substitutions. Returns the raw text and the position after it."""
+        sub = Scanner(self.text, pos + 1, self.nest + 1, self.matches)
+        sub.run(True)
+        for pipeline in sub.pipelines:
+            for command in pipeline:
+                self.command.subs.extend(command.subs)
+        return self.text[pos:sub.pos], sub.pos
+
+    def backtick(self, pos):
+        """Read the backtick substitution at pos, like substitute. Returns the raw text and the position after it."""
+        text, size = self.text, len(self.text)
+        end = pos + 1
+        while True:
+            end = BACKTICK_RUN_RE.match(text, end).end()
+            if end >= size:
+                raise ValueError("unterminated backtick")
+            if text[end] == "`":
+                break
+            end += 2  # a backslash and the character that it escapes
+        self.command.subs.append(BACKTICK_ESCAPE_RE.sub(r"\1", text[pos + 1:end]))
+        return text[pos:end + 1], end + 1
+
+    def dollar(self, pos):
+        """Read what the `$` at pos starts: `$(...)`, an arithmetic `$((...))` (skipped, nothing is run) or a plain
+        `$`. Returns the raw text and the position after it."""
+        text = self.text
+        if text.startswith("(", pos + 1):
+            if text.startswith("(", pos + 2):
+                end = arithmetic_end(text, pos + 3, self.matches)
+                if end >= 0:
+                    return text[pos:end], end
+            return self.substitute(pos, pos + 2)
+        return "$", pos + 1
+
+    def double_quoted(self, pos):
+        """Read the double-quoted text that starts at the quote at pos. Returns its text and the position after it."""
+        text, size = self.text, len(self.text)
+        parts, pos = [], pos + 1
+        while True:
+            match = DOUBLE_QUOTED_RUN_RE.match(text, pos)
+            if match:
+                parts.append(match.group())
+                pos = match.end()
+            if pos >= size:
+                raise ValueError("unterminated double quote")
+            char = text[pos]
+            if char == '"':
+                return "".join(parts), pos + 1
+            if char == "\\":
+                escaped = text[pos + 1:pos + 2]
+                if not escaped:
+                    raise ValueError("unterminated double quote")
+                if escaped in '"\\$`':
+                    parts.append(escaped)
+                elif escaped != "\n":
+                    parts.append("\\" + escaped)
+                pos += 2
+            elif char == "$":
+                piece, pos = self.dollar(pos)
+                parts.append(piece)
+            else:
+                piece, pos = self.backtick(pos)
+                parts.append(piece)
+
+    def ansi_quoted(self, pos):
+        """Read the `$'...'` text at pos, where a backslash escapes the next character. Returns its text and the
+        position after it."""
+        text, size = self.text, len(self.text)
+        end = pos + 2
+        while True:
+            end = ANSI_QUOTED_RUN_RE.match(text, end).end()
+            if end >= size:
+                raise ValueError("unterminated quote")
+            if text[end] == "'":
+                break
+            end += 2
+        return ANSI_QUOTED_ESCAPE_RE.sub(r"\1", text[pos + 2:end]), end + 1
+
+    def run(self, in_sub=False):
+        """Scan to the end of the text, or with in_sub to just past the unmatched `)`. Fills self.pipelines."""
+        text, size = self.text, len(self.text)
+        pos, depth = self.pos, 0
+        while pos < size:
+            match = PLAIN_RUN_RE.match(text, pos)
+            if match:
+                self.pieces.append(match.group(1))
+                self.in_word = True
+                pos = match.end()
+                if pos > match.end(1):
+                    self.end_word()
+                continue
+            char = text[pos]
+            if char in " \t\r\f\v":
+                self.end_word()
+                pos = BLANKS_RE.match(text, pos).end()
+            elif char == "\n":
+                self.end_word()
+                self.end_pipeline()
+                pos += 1
+                if self.waiting:
+                    pos = self.read_bodies(pos)
+            elif char == ";":
+                self.end_word()
+                self.end_pipeline()
+                pos += 1
+            elif char == "&" and text.startswith(">", pos + 1):
+                pos = self.redirection(pos)
+            elif char == "&":
+                self.end_word()
+                self.end_pipeline()
+                pos += 2 if text.startswith("&&", pos) else 1
+            elif char == "|":
+                self.end_word()
+                if text.startswith("||", pos):
+                    self.end_pipeline()
+                    pos += 2
+                else:
+                    self.end_command()
+                    pos += 2 if text.startswith("|&", pos) else 1
+            elif char == "(" and self.in_word and self.redirect is None and self.assigning():
+                piece, pos = self.array(pos)  # `args=(claude --cloud x)` holds words; it runs nothing
+                self.pieces.append(piece)
+            elif char == "(":
+                self.end_word()
+                if not self.command.words and self.redirect is None and text.startswith("((", pos):
+                    end = arithmetic_end(text, pos + 2, self.matches)  # an arithmetic command: `(( x = 1 << 2 ))`
+                    if end >= 0:
+                        pos = end
+                        continue
+                self.end_pipeline()
+                depth += 1
+                pos += 1
+            elif char == ")":
+                self.end_word()
+                self.end_pipeline()
+                pos += 1
+                if depth:
+                    depth -= 1
+                elif in_sub:
+                    self.pos = pos
+                    return
+            elif char in "<>":
+                if text.startswith("(", pos + 1):  # a process substitution
+                    piece, pos = self.substitute(pos, pos + 2)
+                    self.pieces.append(piece)
+                    self.in_word = True
+                else:
+                    pos = self.redirection(pos)
+            elif char == "'":
+                end = text.find("'", pos + 1)
+                if end < 0:
+                    raise ValueError("unterminated single quote")
+                self.pieces.append(text[pos + 1:end])
+                self.in_word = True
+                pos = end + 1
+            elif char == '"':
+                piece, pos = self.double_quoted(pos)
+                self.pieces.append(piece)
+                self.in_word = True
+            elif char == "\\":
+                escaped = text[pos + 1:pos + 2]
+                if escaped and escaped != "\n":  # a backslash before a newline joins the two lines
+                    self.pieces.append(escaped)
+                    self.in_word = True
+                pos += 2
+            elif char == "$" and text.startswith("'", pos + 1):
+                piece, pos = self.ansi_quoted(pos)
+                self.pieces.append(piece)
+                self.in_word = True
+            elif char == "$":
+                piece, pos = self.dollar(pos)
+                self.pieces.append(piece)
+                self.in_word = True
+            elif char == "`":
+                piece, pos = self.backtick(pos)
+                self.pieces.append(piece)
+                self.in_word = True
+            elif self.in_word:  # a '#' inside a word is literal
+                self.pieces.append("#")
+                pos += 1
+            else:  # a comment: it runs to the end of the line, and the newline still ends the command
+                end = text.find("\n", pos)
+                pos = size if end < 0 else end
+        if in_sub:
+            raise ValueError("unterminated substitution")
+        self.end_word()
+        self.end_pipeline()
+        self.pos = size
+
+
+def _after_wrapper(name, words, index):
+    """The index of the command that a wrapper runs: its leading options (with their values), then its operands."""
+    value_options = WRAPPER_VALUE_OPTIONS[name]
+    while index < len(words) and words[index].startswith("-"):
+        index += 2 if words[index] in value_options else 1
+    if name in WRAPPER_OPERANDS:
+        index += 1  # timeout's duration, flock's lock file
+    if name == "env":
+        while index < len(words) and ASSIGNMENT_RE.match(words[index]):
+            index += 1
+    return index
+
+
+def _argv(words):
+    """The argv of one simple command, after the assignments, keywords and wrappers that lead it."""
+    index = 0
+    while index < len(words):
+        word = words[index]
+        if ASSIGNMENT_RE.match(word) or word in SHELL_KEYWORDS:
+            index += 1
+        elif os.path.basename(word) in WRAPPER_VALUE_OPTIONS:
+            index = _after_wrapper(os.path.basename(word), words, index + 1)
+        else:
+            break
+    return words[index:]
+
+
+def _script_argument(name, args):
+    """The text that a shell, script or eval runs: its -c argument, or eval's joined words. None when there is none."""
+    if name == "eval":
+        return " ".join(args)
+    if name in SCRIPT_RUNNERS:
+        for index, arg in enumerate(args):
+            if arg.startswith("--command="):
+                return arg[len("--command="):]
+            if arg == "--command" or (arg.startswith("-") and not arg.startswith("--") and "c" in arg):
+                return args[index + 1] if index + 1 < len(args) else None
+        return None
+    index = 0
+    while index < len(args) and _is_shell_option(args[index]):
+        if args[index] in SHELL_VALUE_OPTIONS:  # its value is the next word, as in: bash -o pipefail -c '...'
+            index += 2
+            continue
+        if args[index].startswith("-") and not args[index].startswith("--") and "c" in args[index]:
+            return args[index + 1] if index + 1 < len(args) else None
+        index += 1
+    return None
+
+
+def _is_shell_option(arg):
+    """True for a shell option word: `-x`, `+x`, `--posix`; not `-` or `+` alone."""
+    return arg[:1] in ("-", "+") and arg not in ("-", "+")
+
+
+def _shell_reads_stdin(args):
+    """True when a shell with these arguments and no -c argument reads its script from stdin: it has -s, or no script
+    operand (or only `-`) after its options."""
+    index = 0
+    while index < len(args) and _is_shell_option(args[index]):
+        if args[index] in SHELL_VALUE_OPTIONS:
+            index += 2
+            continue
+        if args[index].startswith("-") and not args[index].startswith("--") and "s" in args[index]:
+            return True
+        index += 1
+    return index >= len(args) or args[index] == "-"
+
+
+def _is_codex_cloud_exec(args):
+    """True for the arguments of `codex [options] cloud [options] exec ...`, unless -h or --help follows exec."""
+    index = 0
+    while index < len(args) and args[index].startswith("-"):
+        index += 2 if args[index] in CODEX_VALUE_OPTIONS else 1
+    if index >= len(args) or args[index] != "cloud":
+        return False
+    index += 1
+    while index < len(args) and args[index].startswith("-"):
+        index += 1
+    if index >= len(args) or args[index] != "exec":
+        return False
+    return not any(arg in ("-h", "--help") for arg in args[index + 1:])
+
+
+def _argv_starts_cloud(argv, depth):
+    """True when one command's argv, its wrappers already skipped, starts a cloud session: `claude --cloud`, `codex
+    cloud exec`, a shell, script runner or eval whose script does, or a find action that does."""
+    if depth > 3:
+        return False
+    name, args = os.path.basename(argv[0]), argv[1:]
+    if name == "claude" and any(arg == "--cloud" or arg.startswith("--cloud=") for arg in args):
+        return True
+    if name == "codex" and _is_codex_cloud_exec(args):
+        return True
+    if name in SHELLS or name in SCRIPT_RUNNERS or name == "eval":
+        inner = _script_argument(name, args)
+        if inner is not None and starts_cloud_session(inner, depth + 1):
+            return True
+    if name == "find":
+        index = 0
+        while index < len(args):
+            if args[index] in FIND_ACTIONS:
+                end = index + 1
+                while end < len(args) and args[end] not in (";", "+"):
+                    end += 1
+                inner = _argv(args[index + 1:end])
+                if inner and _argv_starts_cloud(inner, depth + 1):
+                    return True
+                index = end
+            index += 1
+    return False
+
+
+def _pipeline_starts_cloud(pipeline, depth):
+    """True when a pipeline of scanned commands starts a cloud session: one of its commands does, one of its
+    substitutions does, or it feeds a script to a shell that reads its script from stdin."""
+    bodies, earlier, scripts, reads_stdin = [], [], [], False
+    for command in pipeline:
+        for sub in command.subs:
+            if starts_cloud_session(sub, depth + 1):
+                return True
+        bodies.extend(command.bodies)
+        argv = _argv(command.words)
+        if not argv:
+            continue
+        if _argv_starts_cloud(argv, depth):
+            return True
+        name, args = os.path.basename(argv[0]), argv[1:]
+        if name in SHELLS:
+            if _script_argument(name, args) is None and _shell_reads_stdin(args):
+                reads_stdin = True
+                scripts.extend(earlier)
+                earlier = []
+        elif name in ("echo", "printf"):
+            first = 0
+            while first < len(args) and args[first].startswith("-"):
+                first += 1
+            earlier.append(" ".join(args[first:]))
+    # A body fed to a shell that reads stdin is a script, so it runs; a body fed to anything else is data.
+    return reads_stdin and any(starts_cloud_session(text, depth + 1) for text in bodies + scripts)
+
+
+def starts_cloud_session(command, depth=0):
+    """True when a Bash command would run `claude --cloud ...` or `codex cloud exec ...`. Wrappers, shells (-c or a
+    script on stdin), script and eval are looked through; quoted text, comments and heredoc data are not commands.
+    Stdlib only, and it never runs anything. Nesting past depth 3 is not followed, so such a command is allowed."""
+    if depth > 3 or not isinstance(command, str):
+        return False
+    scanner = Scanner(command)
+    try:
+        scanner.run()
+    except ValueError:  # an unterminated quote or substitution: the shell still runs the lines before it
+        pass
+    return any(_pipeline_starts_cloud(pipeline, depth) for pipeline in scanner.pipelines)
+
+
+def run_guard(env, stdin, stdout):
+    """PreToolUse: deny a tool call that would start another session, in a cloud session. Fails open."""
+    try:
+        data = {} if stdin.isatty() else json.loads(stdin.read() or "{}")
+    except (ValueError, OSError, AttributeError):
+        return 0
+    if not isinstance(data, dict) or env.get("CLAUDE_CODE_REMOTE") != "true":
+        return 0
+    if (env.get("USAGE_OPTIMIZER_SESSION_GUARD") or "").strip().lower() == "off":
+        return 0
+    tool_input = data.get("tool_input")
+    tool = data.get("tool_name")
+    if tool == "Bash":
+        reason = GUARD_BASH_REASON
+        try:
+            command = tool_input.get("command") if isinstance(tool_input, dict) else None
+            denied = isinstance(command, str) and starts_cloud_session(command)
+        except Exception:  # the Bash check fails open: a bug in it must not block every shell command
+            denied = False
+    else:
+        reason = GUARD_REASON
+        new_session_trigger = isinstance(tool_input, dict) and tool_input.get("create_new_session_on_fire") is True
+        denied = tool == GUARD_TOOLS[0] or (tool == GUARD_TOOLS[1] and new_session_trigger)
+    if not denied:
+        return 0
+    stdout.write(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
+                                                    "permissionDecisionReason": reason}}) + "\n")
+    return 0
+
+
+def run_push(args, env, stdout, stderr, sender=None):
+    if notify_off(env):
+        return 0
+    request = build_request(env, args.title, args.message)
+    if not request:
+        if (env.get("USAGE_OPTIMIZER_NTFY_TOPIC") or "").strip():
+            stderr.write("cloud-notify: USAGE_OPTIMIZER_NTFY_TOPIC or USAGE_OPTIMIZER_NTFY_SERVER is not valid; "
+                         "nothing sent\n")
+        return 0
+    if deliver(env, request, sender, stderr):
+        stdout.write("cloud-notify: sent\n")
+    return 0
+
+
+def first_user_texts(path, count=5, max_lines=5000):
+    """The texts of the first few user messages in a transcript (JSONL), skipping entries with no text.
+
+    The first user entry is not always the prompt: a tool result or a meta entry can come first, and stopping there
+    would make a real mirror skip its reinstall. Returns [] when the file cannot be read.
+    """
+    texts = []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            for number, line in enumerate(handle):
+                if number >= max_lines or len(texts) >= count:
+                    break
+                try:
+                    entry = json.loads(line)
+                except ValueError:
+                    continue
+                message = entry.get("message") if isinstance(entry, dict) else None
+                if not isinstance(message, dict) or (message.get("role") or entry.get("type")) != "user":
+                    continue
+                if entry.get("isMeta"):
+                    continue
+                content = message.get("content")
+                if isinstance(content, list):
+                    content = "\n".join(block.get("text", "") for block in content
+                                        if isinstance(block, dict) and block.get("type", "text") == "text"
+                                        and isinstance(block.get("text"), str))
+                if isinstance(content, str) and content.strip():
+                    texts.append(content)
+    except OSError:
+        pass
+    return texts
+
+
+def is_mirror_prompt(texts):
+    """The session's first prompts are the main (mirror) session's, not a worker's or a side session's.
+
+    One of the first user texts must be the mirror's prompt, and none may carry a worker's phrases: a worker's brief
+    could quote the mirror's words, but its own prompt always holds both worker phrases.
+    """
+    if isinstance(texts, str):
+        texts = [texts]
+    if any("You are a worker dispatched by lane" in text or "CLOUD RUN" in text for text in texts):
+        return False
+    return any(text.strip().startswith("Kit mirror - ") or "You are the MAIN CLOUD SESSION" in text for text in texts)
+
+
+def kit_installed(env):
+    """True when the kit looks fully installed, not only when its folder exists.
+
+    install.sh copies the kit first and updates ~/.claude/CLAUDE.md after it, so a run cut short leaves a folder
+    without that line; testing only the folder would then skip every later reinstall.
+    """
+    prefix = kit_prefix(env)
+    if not (os.path.isfile(os.path.join(prefix, "POLICY.md")) and os.path.isfile(os.path.join(prefix, "bin", "lane"))):
+        return False
+    try:
+        with open(os.path.join(os.path.dirname(prefix), "CLAUDE.md"), encoding="utf-8", errors="replace") as handle:
+            return "usage-optimizer" in handle.read()
+    except OSError:
+        return False
+
+
+def kit_prefix(env):
+    """Where install.sh puts the kit by default: ~/.claude/usage-optimizer (install.sh has no override variable)."""
+    return os.path.join(env.get("HOME") or os.path.expanduser("~"), ".claude", "usage-optimizer")
+
+
+def extract_branch(project, target):
+    """Extract FETCH_HEAD of the fetched kit branch into target, with tarfile's data filter where there is one."""
+    result = subprocess.run(["git", "-C", project, "archive", "FETCH_HEAD"], stdout=subprocess.PIPE,
+                            stderr=subprocess.DEVNULL, timeout=FETCH_TIMEOUT)
+    if result.returncode != 0:
+        raise CloudNotifyError("git archive failed")
+    with tarfile.open(fileobj=io.BytesIO(result.stdout), mode="r:") as archive:
+        members = safe_members(archive.getmembers())
+        if hasattr(tarfile, "data_filter"):
+            archive.extractall(target, members=members, filter="data")
+        else:
+            archive.extractall(target, members=members)
+
+
+def safe_members(members):
+    """Only plain files and folders with relative paths that stay inside the target.
+
+    A Python without tarfile's data filter follows links while it extracts, so a link in the branch could write
+    outside the temp folder; the kit holds no links, so none is extracted at all.
+    """
+    kept = []
+    for member in members:
+        parts = member.name.replace("\\", "/").split("/")
+        if not (member.isfile() or member.isdir()) or member.name.startswith("/") or ".." in parts:
+            continue
+        kept.append(member)
+    return kept
+
+
+def run_kit_reinstall(env, stdin, stdout):
+    """Reinstall the kit from origin's lane-main/kit when a rebuilt VM has lost it.
+
+    A rebuilt VM loses ~/.claude, and only the repository's own hooks run in a hosted VM. The ignored main-session
+    marker is lost with the fresh clone, so a mirror prompt in the transcript stands in for it. Workers and side
+    sessions must never install: they start from other prompts and so get no marker. Prints at most two short lines.
+    """
+    if env.get("CLAUDE_CODE_REMOTE") != "true" or kit_installed(env):
+        return 0
+    try:
+        data = json.loads(stdin.read() or "{}")
+    except (ValueError, OSError):
+        data = {}
+    data = data if isinstance(data, dict) else {}
+    project = os.path.abspath(project_dir(env, data))
+    if not os.path.isfile(os.path.join(project, MARKER_REL)):
+        path = data.get("transcript_path")
+        if not (isinstance(path, str) and is_mirror_prompt(first_user_texts(path))):
+            return 0
+        write_marker(project, env)
+    git = shutil.which("git")
+    try:
+        if not git or subprocess.run([git, "-C", project, "fetch", "--quiet", "origin", KIT_BRANCH],
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                     timeout=FETCH_TIMEOUT).returncode != 0:
+            raise CloudNotifyError("fetch failed")
+    except (OSError, subprocess.SubprocessError, CloudNotifyError):
+        stdout.write("cloud-notify: origin has no {}; the kit stays uninstalled\n".format(KIT_BRANCH))
+        return 0
+    temp = tempfile.mkdtemp(prefix="usage-optimizer-kit-")
+    try:
+        extract_branch(project, temp)
+        result = subprocess.run(["bash", os.path.join(temp, "install.sh"), "--no-view"], cwd=temp, env=dict(env),
+                                stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                text=True, errors="replace", timeout=INSTALL_TIMEOUT)
+        if result.returncode == 0:
+            stdout.write("cloud-notify: kit reinstalled from {}\n".format(KIT_BRANCH))
+        else:
+            lines = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+            stdout.write("cloud-notify: kit install failed: {}\n".format((lines or ["no output"])[-1][:200]))
+    finally:
+        shutil.rmtree(temp, ignore_errors=True)
+    return 0
+
+
+def git_ignores(repo, rel):
+    git = shutil.which("git")
+    if not git:
+        return None
+    try:
+        result = subprocess.run([git, "-C", repo, "check-ignore", "-q", "--", rel.replace(os.sep, "/")],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return {0: True, 1: False}.get(result.returncode)
+
+
+def default_mark_dir(env):
+    if env.get("CLAUDE_PROJECT_DIR"):
+        return env["CLAUDE_PROJECT_DIR"]
+    here = os.path.dirname(os.path.abspath(__file__))
+    if os.path.basename(here) == "hooks" and os.path.basename(os.path.dirname(here)) == ".claude":
+        return os.path.dirname(os.path.dirname(here))  # the installed copy sits in <repo>/.claude/hooks/
+    return os.getcwd()
+
+
+def write_marker(project, env):
+    """Write the main-session marker (the session id when it is a valid one, else an empty line).
+
+    Shared by `mark-main` and `kit-reinstall`, so a rebuilt VM marks itself exactly the way a person would.
+    """
+    path = os.path.join(project, MARKER_REL)
+    session = (env.get("CLAUDE_CODE_REMOTE_SESSION_ID") or "").strip()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write((session if SESSION_RE.match(session) else "") + "\n")
+    return path
+
+
+def run_mark_main(args, env, stdout, stderr):
+    project = os.path.abspath(args.dir or default_mark_dir(env))
+    if not os.path.isdir(project):
+        stderr.write("cloud-notify: not a folder: {}\n".format(project))
+        return 1
+    path = os.path.join(project, MARKER_REL)
+    try:
+        write_marker(project, env)
+    except OSError as exc:
+        stderr.write("cloud-notify: cannot write {}: {}\n".format(path, exc))
+        return 1
+    stdout.write("cloud-notify: marked this session as the main session ({})\n".format(path))
+    if env.get("CLAUDE_CODE_REMOTE") != "true":
+        stdout.write("note: this is not a cloud session (CLAUDE_CODE_REMOTE is not true), so the hook stays silent\n")
+    if not ntfy_topic(env):
+        stdout.write("note: USAGE_OPTIMIZER_NTFY_TOPIC is not set (or not a valid ntfy topic) in this environment, "
+                     "so nothing is sent until it is\n")
+    if git_ignores(project, MARKER_REL) is False:
+        stdout.write("warning: git does not ignore .claude/main-session; add it to .gitignore and never commit it\n")
+    settings = os.path.join(project, ".claude", "settings.json")
+    try:
+        with open(settings, encoding="utf-8") as handle:
+            registered = HOOK_MARK in handle.read()
+    except OSError:
+        registered = False
+    if not registered:
+        stdout.write("warning: .claude/settings.json does not register the cloud-notify hook; run "
+                     "`cloud-notify install --repo <dir>` from the kit\n")
+    return 0
+
+
+def wanted_hook(is_async):
+    hook = {"type": "command", "command": HOOK_COMMAND, "timeout": HOOK_TIMEOUT}
+    if is_async:
+        hook["async"] = True
+    return hook
+
+
+def kit_hook():
+    """The SessionStart entry: same gate and `|| true` as the others, in line (not async), with a long timeout."""
+    return {"type": "command", "command": KIT_COMMAND, "timeout": KIT_TIMEOUT}
+
+
+def guard_hook():
+    """The PreToolUse guard entry: in line (it must answer before the tool runs)."""
+    return {"type": "command", "command": GUARD_COMMAND, "timeout": HOOK_TIMEOUT}
+
+
+def hook_specs():
+    """(event, matcher, hook entry, subcommand) for every hook this tool registers."""
+    specs = [(event, matcher, wanted_hook(is_async), "hook") for event, matcher, is_async in HOOK_EVENTS]
+    specs.append(("PreToolUse", GUARD_MATCHER, guard_hook(), "guard"))
+    specs.append((KIT_EVENT, KIT_MATCHER, kit_hook(), "kit-reinstall"))
+    return specs
+
+
+def subcommand_of(command):
+    """The subcommand a registered command runs (`hook` when none follows the script path), or None if not ours."""
+    found = re.search(re.escape(HOOK_MARK) + r'"?(?:\s+(\S+))?', command)
+    return None if not found else (found.group(1) or "hook")
+
+
+def merge_settings(settings):
+    """Add or update this tool's hook entries; keep every other setting and hook. Returns True on change."""
+    if not isinstance(settings, dict):
+        raise CloudNotifyError("settings.json does not hold a JSON object")
+    hooks = settings.get("hooks", {})
+    if not isinstance(hooks, dict):
+        raise CloudNotifyError('"hooks" in settings.json is not an object')
+    changed = "hooks" not in settings
+    for event, matcher, wanted, sub in hook_specs():
+        groups = hooks.get(event, [])
+        if not isinstance(groups, list):
+            raise CloudNotifyError('"hooks.{}" in settings.json is not a list'.format(event))
+        found = False
+        for group in groups:
+            entries = group.get("hooks") if isinstance(group, dict) else None
+            for index, entry in enumerate(entries if isinstance(entries, list) else []):
+                if isinstance(entry, dict) and subcommand_of(str(entry.get("command", ""))) == sub:
+                    found = True
+                    if entry != wanted:
+                        entries[index] = wanted
+                        changed = True
+                    if len(entries) == 1 and group.get("matcher") != matcher:
+                        if matcher:
+                            group["matcher"] = matcher
+                        else:
+                            group.pop("matcher", None)
+                        changed = True
+        if not found:
+            group = {"matcher": matcher, "hooks": [wanted]} if matcher else {"hooks": [wanted]}
+            groups.append(group)
+            changed = True
+        hooks[event] = groups
+    settings["hooks"] = hooks
+    return changed
+
+
+def write_text(path, text):
+    temp = "{}.{}.tmp".format(path, os.getpid())
+    with open(temp, "w", encoding="utf-8", newline="\n") as handle:
+        handle.write(text)
+    os.replace(temp, path)
+
+
+def install_settings(repo):
+    path = os.path.join(repo, ".claude", "settings.json")
+    settings = {}
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as handle:
+                text = handle.read()
+            settings = json.loads(text) if text.strip() else {}
+        except (OSError, ValueError) as exc:
+            raise CloudNotifyError("cannot read {} as JSON ({}); fix it and run install again".format(path, exc))
+    if not merge_settings(settings):
+        return "already registers the hooks"
+    write_text(path, json.dumps(settings, indent=2, ensure_ascii=False) + "\n")
+    return "registered the hooks"
+
+
+def install_gitignore(repo):
+    path = os.path.join(repo, ".gitignore")
+    try:
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+    except FileNotFoundError:
+        text = ""
+    if any(line.strip() in (".claude/main-session", "/.claude/main-session") for line in text.splitlines()):
+        return "already ignores .claude/main-session"
+    if text and not text.endswith("\n"):
+        text += "\n"
+    write_text(path, text + "# cloud-notify: marks this checkout's main cloud session; never commit it\n"
+                            ".claude/main-session\n")
+    return "now ignores .claude/main-session"
+
+
+def install_copy(repo):
+    source = os.path.abspath(__file__)
+    target = os.path.join(repo, HOOK_REL)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    with open(source, "rb") as handle:
+        data = handle.read()
+    if os.path.exists(target):
+        with open(target, "rb") as handle:
+            if handle.read() == data:
+                return "already current"
+    with open(target, "wb") as handle:
+        handle.write(data)
+    os.chmod(target, 0o755)
+    return "copied"
+
+
+CLAUDE_MD_SNIPPET = """\
+### Cloud notifications (main session only)
+
+If you are this repository's main cloud session (the user started you directly; your first message is not a lane
+brief, so it has no "You are a worker dispatched by lane" or "CLOUD RUN" text), run this at the start of the
+session, and again whenever `.claude/main-session` is missing:
+
+    python3 .claude/hooks/cloud-notify.py mark-main
+
+Worker sessions never run it. Never commit `.claude/main-session`, and never print USAGE_OPTIMIZER_NTFY_TOPIC.
+"""
+
+SETUP_STEPS = """\
+1. Pick a long random ntfy topic (it is the password: anyone who knows it can read and send). Subscribe to it in
+   the ntfy app (Android or iOS: + then the topic name) or at https://ntfy.sh/app (Subscribe to topic).
+2. At claude.ai/code, open the environment selector under the message box, hover over the cloud environment the
+   main session uses and select its settings icon. Under Environment variables add one line:
+       USAGE_OPTIMIZER_NTFY_TOPIC=<your topic>
+   Under Network access choose Custom, add ntfy.sh (or your own server) to Allowed domains and keep
+   "Also include default list of common package managers" checked. Save changes.
+   A running session picks the variable up the next time its VM restarts; a new session has it at once.
+3. Commit .claude/settings.json, .claude/hooks/cloud-notify.py and .gitignore in this repository, and add the
+   lines above to its orchestrator section in CLAUDE.md, or AGENTS.md if that is the repository's instruction file.
+4. Test from the main cloud session: python3 .claude/hooks/cloud-notify.py push --title Test --message Hello
+"""
+
+
+def run_install(args, stdout, stderr):
+    repo = os.path.abspath(args.repo)
+    if not os.path.isdir(repo):
+        stderr.write("cloud-notify: not a folder: {}\n".format(repo))
+        return 1
+    try:
+        os.makedirs(os.path.join(repo, ".claude"), exist_ok=True)
+        steps = [(HOOK_REL, install_copy(repo)), (os.path.join(".claude", "settings.json"), install_settings(repo)),
+                 (".gitignore", install_gitignore(repo))]
+    except (CloudNotifyError, OSError) as exc:
+        stderr.write("cloud-notify: {}\n".format(exc))
+        return 1
+    for rel, outcome in steps:
+        stdout.write("cloud-notify: {}: {}\n".format(rel.replace(os.sep, "/"), outcome))
+    for rel in (os.path.join(".claude", "settings.json"), HOOK_REL):
+        if git_ignores(repo, rel):
+            stdout.write("warning: git ignores {}; un-ignore it, or cloud sessions will not see the hook\n".format(
+                rel.replace(os.sep, "/")))
+    stdout.write("Nothing was committed. Add these lines to the repository's CLAUDE.md, or AGENTS.md if that is the "
+                 "repository's instruction file, orchestrator section:\n\n")
+    stdout.write(CLAUDE_MD_SNIPPET + "\nSetup steps:\n" + SETUP_STEPS)
+    return 0
+
+
+def parser():
+    top = argparse.ArgumentParser(prog="cloud-notify", description=__doc__.split("\n\n")[0])
+    commands = top.add_subparsers(dest="command", required=True)
+    commands.add_parser("hook", help="run as a Claude Code hook (reads the hook JSON on stdin)")
+    push = commands.add_parser("push", help="send one ntfy message if USAGE_OPTIMIZER_NTFY_TOPIC is set")
+    push.add_argument("--title", required=True)
+    push.add_argument("--message", required=True)
+    commands.add_parser("guard", help="PreToolUse hook: deny starting another session in a cloud session")
+    commands.add_parser("kit-reinstall", help="SessionStart hook: reinstall the kit from origin's lane-main/kit")
+    mark = commands.add_parser("mark-main", help="mark this session as the repository's main cloud session")
+    mark.add_argument("--dir", help="project folder (default: $CLAUDE_PROJECT_DIR, else the current folder)")
+    install = commands.add_parser("install", help="copy this hook into a repository and register it")
+    install.add_argument("--repo", required=True, help="the repository folder")
+    return top
+
+
+def main(argv=None, env=None, stdin=None, stdout=None, stderr=None, sender=None, clock=None):
+    env = os.environ if env is None else env
+    stdin, stdout, stderr = stdin or sys.stdin, stdout or sys.stdout, stderr or sys.stderr
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["hook"]:
+        try:
+            return run_hook(env, stdin, stderr, sender, clock)
+        except Exception as exc:  # The hook never fails the session.
+            stderr.write("cloud-notify: hook skipped: {}\n".format(scrub(type(exc).__name__, ntfy_topic(env))))
+            return 0
+    if argv[:1] == ["guard"]:
+        try:
+            return run_guard(env, stdin, stdout)
+        except Exception:  # The guard never fails the session.
+            return 0
+    if argv[:1] == ["kit-reinstall"]:
+        try:
+            return run_kit_reinstall(env, stdin, stdout)
+        except Exception as exc:  # Never fails the session start.
+            stdout.write("cloud-notify: kit reinstall skipped: {}\n".format(type(exc).__name__))
+            return 0
+    args = parser().parse_args(argv)
+    if args.command == "push":
+        return run_push(args, env, stdout, stderr, sender)
+    if args.command == "mark-main":
+        return run_mark_main(args, env, stdout, stderr)
+    return run_install(args, stdout, stderr)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

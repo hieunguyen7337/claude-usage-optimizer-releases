@@ -1,0 +1,2799 @@
+<title>Benchmarks at Plan Rates</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one reading column of figures; each figure carries its own controls, legend, chart and note. */
+:root {
+  --bg: #f4f4f1;
+  --surface: #fcfcfb;
+  --ink: #141413;
+  --ink-2: #4c4b47;
+  --muted: #6c6a64;
+  --grid: #e4e3dd;
+  --axis: #bdbcb2;
+  --rule: rgba(20, 20, 19, 0.11);
+  --chip: #e9e8e3;
+  --zone: rgba(12, 140, 60, 0.08);
+  --zone-ink: #3d6b4c;
+  --anthropic: #eb6834;
+  --openai: #1baf7a;
+  --google: #2a78d6;
+  --link: #1c5cab;
+  --focus: #141413;
+  --tip-bg: #1d1d1b;
+  --tip-ink: #f4f4f1;
+  --tip-muted: #bdbcb2;
+  --shadow: rgba(0, 0, 0, 0.18);
+  --font-display: "Archivo", "Arial Narrow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f0f0e;
+    --surface: #1a1a19;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --muted: #9b9990;
+    --grid: #2c2c2a;
+    --axis: #4a4944;
+    --rule: rgba(255, 255, 255, 0.11);
+    --chip: #262624;
+    --zone: rgba(40, 190, 90, 0.10);
+    --zone-ink: #8cc79f;
+    --anthropic: #d95926;
+    --openai: #199e70;
+    --google: #3987e5;
+    --link: #86b6ef;
+    --focus: #f0efec;
+    --tip-bg: #f0efec;
+    --tip-ink: #141413;
+    --tip-muted: #52514e;
+    --shadow: rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f0f0e;
+  --surface: #1a1a19;
+  --ink: #f0efec;
+  --ink-2: #c3c2b7;
+  --muted: #9b9990;
+  --grid: #2c2c2a;
+  --axis: #4a4944;
+  --rule: rgba(255, 255, 255, 0.11);
+  --chip: #262624;
+  --zone: rgba(40, 190, 90, 0.10);
+  --zone-ink: #8cc79f;
+  --anthropic: #d95926;
+  --openai: #199e70;
+  --google: #3987e5;
+  --link: #86b6ef;
+  --focus: #f0efec;
+  --tip-bg: #f0efec;
+  --tip-ink: #141413;
+  --tip-muted: #52514e;
+  --shadow: rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5; }
+.page {
+  max-width: 1040px;
+  margin-inline: auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 64px;
+  display: grid;
+  gap: 28px;
+}
+.page > * { min-width: 0; }
+h1, h2, h3 { font-family: var(--font-display); font-stretch: 87.5%; text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(1.75rem, 1.2rem + 2.4vw, 2.5rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.35rem; font-weight: 700; }
+h3 { font-size: 1.05rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+a { color: var(--link); text-underline-offset: 2px; }
+a:focus-visible, summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+.eyebrow { font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+header { display: grid; gap: 12px; }
+.lede { font-size: 1.05rem; color: var(--ink-2); }
+.meta { font-size: 13px; color: var(--muted); }
+.short { display: grid; gap: 8px; margin: 0; padding-left: 1.1em; max-width: 72ch; }
+.short li::marker { color: var(--muted); }
+section { display: grid; gap: 14px; }
+.section-head { display: grid; gap: 6px; }
+.section-head p { color: var(--ink-2); }
+.figure { background: var(--surface); border-radius: 10px; padding-block: 16px 14px; padding-inline: 16px; display: grid; gap: 12px; min-width: 0; }
+.figure-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 6px 16px; }
+.figure-head p { font-size: 13px; color: var(--ink-2); }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; }
+.seg { border: 0; margin: 0; padding: 0; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.seg legend { float: left; padding: 0; margin-right: 2px; font-size: 12px; color: var(--muted); font-weight: 500; }
+.opts { position: relative; display: inline-flex; flex-wrap: wrap; gap: 2px; background: var(--chip); border-radius: 8px; padding: 2px; }
+.opts input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }
+.opts label { font-size: 13px; padding-block: 4px; padding-inline: 10px; border-radius: 6px; color: var(--ink-2); cursor: pointer; white-space: nowrap; user-select: none; }
+.opts label:hover { color: var(--ink); }
+.opts input:checked + label { background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1px var(--rule); font-weight: 500; }
+.opts input:focus-visible + label { outline: 2px solid var(--focus); outline-offset: 1px; }
+.seg:disabled .opts { opacity: 0.45; }
+.seg:disabled label { cursor: not-allowed; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--ink-2); align-items: center; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.key { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.key.dot { border-radius: 50%; }
+.key.line { width: 16px; height: 2px; border-radius: 1px; background: var(--muted); }
+.k-anthropic { background: var(--anthropic); }
+.k-openai { background: var(--openai); }
+.k-google { background: var(--google); }
+.scroll { overflow-x: auto; overflow-y: hidden; min-width: 0; }
+.chart { position: relative; min-width: 0; }
+.chart svg { display: block; overflow: visible; }
+.note { font-size: 12.5px; color: var(--muted); max-width: 80ch; }
+svg text { font-family: var(--font-body); font-variant-numeric: tabular-nums; }
+.t-ink { fill: var(--ink); }
+.t-2 { fill: var(--ink-2); }
+.t-muted { fill: var(--muted); }
+.t-zone { fill: var(--zone-ink); }
+.gridline { stroke: var(--grid); stroke-width: 1; shape-rendering: crispEdges; }
+.baseline { stroke: var(--axis); stroke-width: 1; shape-rendering: crispEdges; }
+.zone { fill: var(--zone); }
+.f-anthropic { fill: var(--anthropic); }
+.f-openai { fill: var(--openai); }
+.f-google { fill: var(--google); }
+.s-anthropic { stroke: var(--anthropic); }
+.s-openai { stroke: var(--openai); }
+.s-google { stroke: var(--google); }
+.ring { stroke: var(--surface); stroke-width: 2; }
+.effort-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; opacity: 0.6; }
+.whisker { stroke: var(--ink-2); stroke-width: 1.5; fill: none; }
+.whisker.pending { stroke-dasharray: 2 3; }
+.bound { fill-opacity: 0.45; stroke: var(--ink-2); stroke-width: 1.2; stroke-dasharray: 3 2; }
+.hit { fill: transparent; cursor: default; outline: none; }
+.hit:focus-visible { stroke: var(--focus); stroke-width: 2; }
+.bar { outline: none; }
+.bar:hover, .bar.on { filter: brightness(1.12); }
+.bar:focus-visible { stroke: var(--focus); stroke-width: 2; }
+.row-hit { fill: transparent; outline: none; }
+.row-hit:hover, .row-hit.on { fill: var(--rule); }
+.row-hit:focus-visible { stroke: var(--focus); stroke-width: 2; }
+.tip { position: absolute; z-index: 5; pointer-events: none; background: var(--tip-bg); color: var(--tip-ink); border-radius: 6px; padding-block: 6px; padding-inline: 9px; font-size: 12px; line-height: 1.35; max-width: 240px; box-shadow: 0 4px 14px var(--shadow); }
+.tip-v { font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums; }
+.tip-l { color: var(--tip-muted); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding-block: 8px; padding-inline: 10px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.src { font-size: 12px; color: var(--muted); min-width: 220px; }
+td.plan { white-space: nowrap; }
+td.plan small { display: block; color: var(--muted); font-size: 12px; white-space: normal; }
+td.strong { font-weight: 600; }
+.pill { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: 0.02em; padding-inline: 6px; border-radius: 999px; background: var(--chip); color: var(--ink-2); margin-left: 6px; vertical-align: 1px; }
+.formula { font-size: 14px; color: var(--ink-2); background: var(--chip); border-radius: 8px; padding-block: 10px; padding-inline: 12px; max-width: 72ch; }
+.formula b { color: var(--ink); font-weight: 600; }
+details { font-size: 13.5px; }
+summary { cursor: pointer; color: var(--ink-2); font-weight: 500; padding-block: 2px; width: fit-content; }
+details[open] summary { margin-bottom: 8px; }
+.caveats { display: grid; gap: 8px; margin: 0; padding-left: 1.1em; max-width: 78ch; color: var(--ink-2); }
+.caveats b { color: var(--ink); font-weight: 600; }
+.sources { display: grid; gap: 4px; margin: 0; padding-left: 1.1em; font-size: 13.5px; }
+.sources a { overflow-wrap: anywhere; }
+footer { font-size: 12.5px; color: var(--muted); display: grid; gap: 4px; }
+code { font-size: 0.92em; overflow-wrap: anywhere; }
+@media (max-width: 520px) {
+  body { font-size: 14.5px; }
+  .figure { padding-inline: 12px; }
+  th, td { padding-inline: 7px; }
+}
+@media (max-width: 640px) {
+  table.stack thead { display: none; }
+  table.stack, table.stack tbody { display: block; }
+  table.stack tr { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; padding-block: 10px; border-bottom: 1px solid var(--rule); }
+  table.stack td { display: contents; border: 0; }
+  table.stack td.plan { display: block; grid-column: 1 / -1; padding-inline: 0; padding-block: 0 4px; white-space: normal; }
+  table.stack td[data-label]::before { content: attr(data-label); color: var(--muted); font-size: 12px; font-weight: 400; text-align: left; align-self: baseline; }
+  table.stack td.src { font-size: 12px; }
+}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@87.5,600;87.5,700&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap">
+
+<div class="page">
+  <header>
+    <div class="eyebrow">Claude Usage Optimizer · findings</div>
+    <h1>Benchmarks at plan rates</h1>
+    <p class="lede">Public scores for the kit's models, set against what one benchmark task costs. Each cost is shown twice: at API list prices, and at what it costs out of a subscription that you use in full.</p>
+    <p class="meta" id="meta-line">Scores and API costs: Artificial Analysis.</p>
+    <ul class="short" id="summary"></ul>
+  </header>
+
+  <section aria-labelledby="h-scores">
+    <div class="section-head">
+      <h2 id="h-scores">Scores</h2>
+      <p>Higher is better. Each chart is its own scale, so compare bars within one chart only.</p>
+    </div>
+    <div class="legend" aria-label="Maker colors">
+      <span><i class="key k-anthropic"></i>Anthropic</span>
+      <span><i class="key k-openai"></i>OpenAI</span>
+      <span><i class="key k-google"></i>Google</span>
+    </div>
+
+    <div class="figure">
+      <div class="figure-head">
+        <h3>Coding Agent Index v2.0</h3>
+        <p>Each model at max in its own agent harness. GPT-6.1 Terra at every effort.</p>
+      </div>
+      <div class="chart" id="chart-cai2"></div>
+    </div>
+
+    <div class="figure">
+      <div class="figure-head">
+        <h3>Intelligence Index v5.0</h3>
+        <p id="ii-sub">One bar per model at the chosen effort.</p>
+      </div>
+      <div class="controls">
+        <fieldset class="seg" id="ii-effort">
+          <legend>Effort</legend>
+          <div class="opts">
+            <input type="radio" name="ii-effort" id="ii-effort-max" value="max" checked><label for="ii-effort-max">max</label>
+            <input type="radio" name="ii-effort" id="ii-effort-xhigh" value="xhigh"><label for="ii-effort-xhigh">xhigh</label>
+            <input type="radio" name="ii-effort" id="ii-effort-high" value="high"><label for="ii-effort-high">high</label>
+            <input type="radio" name="ii-effort" id="ii-effort-medium" value="medium"><label for="ii-effort-medium">medium</label>
+            <input type="radio" name="ii-effort" id="ii-effort-low" value="low"><label for="ii-effort-low">low</label>
+          </div>
+        </fieldset>
+      </div>
+      <div class="chart" id="chart-ii5"></div>
+      <p class="note" id="ii-note"></p>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-scatter">
+    <div class="section-head">
+      <h2 id="h-scatter">Score against cost to run</h2>
+      <p>Up is a better score. Left is cheaper per task. The cost axis is a log scale: each gridline is ten times the one before.</p>
+    </div>
+    <div class="figure">
+      <div class="controls">
+        <fieldset class="seg" id="sc-index">
+          <legend>Index</legend>
+          <div class="opts">
+            <input type="radio" name="sc-index" id="sc-index-cai2" value="cai2" checked><label for="sc-index-cai2">Coding Agent v2.0</label>
+            <input type="radio" name="sc-index" id="sc-index-ii5" value="ii5"><label for="sc-index-ii5">Intelligence v5.0</label>
+          </div>
+        </fieldset>
+        <fieldset class="seg" id="sc-basis">
+          <legend>Cost</legend>
+          <div class="opts">
+            <input type="radio" name="sc-basis" id="sc-basis-api" value="api" checked><label for="sc-basis-api">API list</label>
+            <input type="radio" name="sc-basis" id="sc-basis-plan" value="plan"><label for="sc-basis-plan">Plan rate</label>
+          </div>
+        </fieldset>
+        <fieldset class="seg" id="sc-codex" disabled>
+          <legend>Codex plan</legend>
+          <div class="opts">
+            <input type="radio" name="sc-codex" id="sc-codex-prolite" value="prolite" checked><label for="sc-codex-prolite">Pro Lite now</label>
+            <input type="radio" name="sc-codex" id="sc-codex-prolite_before" value="prolite_before"><label for="sc-codex-prolite_before">Pro Lite before Oct 29</label>
+            <input type="radio" name="sc-codex" id="sc-codex-plus" value="plus"><label for="sc-codex-plus">Plus</label>
+          </div>
+        </fieldset>
+      </div>
+      <div class="legend">
+        <span><i class="key dot k-anthropic"></i>Anthropic</span>
+        <span><i class="key dot k-openai"></i>OpenAI</span>
+        <span><i class="key dot k-google"></i>Google</span>
+        <span><i class="key line"></i>one model's efforts, low to max</span>
+      </div>
+      <div class="scroll"><div class="chart" id="chart-scatter"></div></div>
+      <p class="note" id="sc-note"></p>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-cost">
+    <div class="section-head">
+      <h2 id="h-cost">Cost per task: API and plan</h2>
+      <p>The same task, priced two ways. Each panel has its own scale. The line on a plan bar is its range: it carries the uncertainty of the plan's allowance.</p>
+    </div>
+    <div class="figure">
+      <div class="controls">
+        <fieldset class="seg" id="cb-index">
+          <legend>Index</legend>
+          <div class="opts">
+            <input type="radio" name="cb-index" id="cb-index-cai2" value="cai2" checked><label for="cb-index-cai2">Coding Agent v2.0</label>
+            <input type="radio" name="cb-index" id="cb-index-ii5" value="ii5"><label for="cb-index-ii5">Intelligence v5.0</label>
+          </div>
+        </fieldset>
+        <fieldset class="seg" id="cb-effort" disabled>
+          <legend>Effort</legend>
+          <div class="opts">
+            <input type="radio" name="cb-effort" id="cb-effort-max" value="max" checked><label for="cb-effort-max">max</label>
+            <input type="radio" name="cb-effort" id="cb-effort-xhigh" value="xhigh"><label for="cb-effort-xhigh">xhigh</label>
+            <input type="radio" name="cb-effort" id="cb-effort-high" value="high"><label for="cb-effort-high">high</label>
+            <input type="radio" name="cb-effort" id="cb-effort-medium" value="medium"><label for="cb-effort-medium">medium</label>
+            <input type="radio" name="cb-effort" id="cb-effort-low" value="low"><label for="cb-effort-low">low</label>
+          </div>
+        </fieldset>
+        <fieldset class="seg" id="cb-codex">
+          <legend>Codex plan</legend>
+          <div class="opts">
+            <input type="radio" name="cb-codex" id="cb-codex-prolite" value="prolite" checked><label for="cb-codex-prolite">Pro Lite now</label>
+            <input type="radio" name="cb-codex" id="cb-codex-prolite_before" value="prolite_before"><label for="cb-codex-prolite_before">Pro Lite before Oct 29</label>
+            <input type="radio" name="cb-codex" id="cb-codex-plus" value="plus"><label for="cb-codex-plus">Plus</label>
+          </div>
+        </fieldset>
+      </div>
+      <div class="scroll"><div class="chart" id="chart-cost"></div></div>
+      <p class="note" id="cb-note"></p>
+      <details id="cb-details">
+        <summary id="cb-details-summary">Show these figures as a table</summary>
+        <div class="scroll"><table id="cb-table"></table></div>
+      </details>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-subsidy">
+    <div class="section-head">
+      <h2 id="h-subsidy">Subsidy factors</h2>
+      <p>How much API value a plan holds for its price. Plan cost per task is the API cost divided by this factor.</p>
+    </div>
+    <p class="formula"><b>Factor</b> = API value of a month's allowance ÷ the plan's monthly price. A month is 4.345 weeks. The range runs from the low to the high end of the allowance estimate.</p>
+    <div class="scroll"><table id="subsidy-table" class="stack"></table></div>
+    <p class="note" id="doubling-note"></p>
+    <p class="note">Claude models share one weekly allowance on Max 20x but draw it down at different weights, so each has its own factor. Codex prices every model on one credit card, so a Codex plan has one factor.</p>
+  </section>
+
+  <section aria-labelledby="h-caveats">
+    <div class="section-head">
+      <h2 id="h-caveats">Read with care</h2>
+    </div>
+    <ul class="caveats">
+      <li><b>Compare within one index.</b> Coding Agent Index v2.0 replaced v1.5, and the two scales are not comparable. Intelligence Index v5.0 is a third scale.</li>
+      <li><b>Coding Agent v2.0 lists each model at max only.</b> GPT-6.1 Terra is the exception, with every effort. Gemini 3.8 Flash runs there through the Antigravity SDK, which may not be the harness the gemini lane uses.</li>
+      <li><b>Odd points are as published.</b> Fable 5.1 is listed "with fallback". On v5.0 it scores lower at max (49) than at xhigh (50). Gemini 3.8 Flash has no v5.0 cost at low, and no max or xhigh effort.</li>
+      <li><b>The two indexes price different work.</b> GPT-6.1 Sol at max costs $1.27 a task on v5.0 and $1.50 on Coding Agent v2.0.</li>
+      <li><b>The scores were read by hand on 2026-10-31.</b> The source site could not be reached from the session that built this page, so the figures were not re-fetched.</li>
+      <li><b>Plan rates assume you use the whole allowance every week.</b> Allowance you leave unused makes each task dearer.</li>
+      <li><b>Some plan inputs are soft.</b> Haiku's weekly weight is not measured yet, so its factor uses the 5-hour weight and has no upper bound. Opus uses the calibration floor of $2,700 a week, so its factor is a lower bound (shown as &gt;=). The Pro Lite doubling on 2026-10-29 16:56 UTC is not re-measured. The Gemini allowance is a lower bound. On the Codex meter, Sol is charged about 1.19 to 1.36 times its card price, so its plan cost is likely higher than shown.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="h-sources">
+    <div class="section-head">
+      <h2 id="h-sources">Sources</h2>
+      <p>Scores and API costs per task come from Artificial Analysis. Methods: <a href="https://artificialanalysis.ai/methodology/coding-agents-benchmarking" target="_blank" rel="noopener">Coding Agent Index</a> and <a href="https://artificialanalysis.ai/articles/artificial-analysis-intelligence-index-v5" target="_blank" rel="noopener">Intelligence Index v5.0</a>. Pages read:</p>
+    </div>
+    <ul class="sources" id="source-list"></ul>
+    <footer>
+      <span>Plan allowances: the kit's own measurements in <code>findings/findings.json</code> and <code>findings/FINDINGS.md</code>.</span>
+      <span>Built by <code>tools/make-aa-cli-rate.py</code> from <code>findings/public.json</code>. Every converted figure is rechecked by <code>tools/check-aa-cli-rate.py</code>.</span>
+    </footer>
+  </section>
+</div>
+
+<script type="application/json" id="data">
+{
+ "as_of": "2026-10-31",
+ "codex_plans": [
+  "prolite",
+  "prolite_before",
+  "plus"
+ ],
+ "efforts": [
+  "max",
+  "xhigh",
+  "high",
+  "medium",
+  "low"
+ ],
+ "generated_by": "tools/make-aa-cli-rate.py",
+ "indexes": {
+  "cai2": {
+   "label": "Coding Agent Index v2.0"
+  },
+  "ii5": {
+   "label": "Intelligence Index v5.0"
+  }
+ },
+ "makers": {
+  "anthropic": "Anthropic",
+  "google": "Google",
+  "openai": "OpenAI"
+ },
+ "models": {
+  "astra": {
+   "harness": "Codex",
+   "maker": "openai",
+   "name": "GPT-6 Astra",
+   "plans": [
+    "prolite",
+    "prolite_before",
+    "plus"
+   ]
+  },
+  "fable": {
+   "harness": "Claude Code, with fallback",
+   "maker": "anthropic",
+   "name": "Fable 5.1",
+   "plans": [
+    "max20x_fable"
+   ]
+  },
+  "gemini": {
+   "harness": "Antigravity SDK",
+   "maker": "google",
+   "name": "Gemini 3.8 Flash",
+   "plans": [
+    "ai_pro"
+   ]
+  },
+  "haiku": {
+   "harness": "Claude Code",
+   "maker": "anthropic",
+   "name": "Haiku 5.5",
+   "plans": [
+    "max20x_haiku"
+   ]
+  },
+  "luna": {
+   "harness": "Codex",
+   "maker": "openai",
+   "name": "GPT-6 Luna",
+   "plans": [
+    "prolite",
+    "prolite_before",
+    "plus"
+   ]
+  },
+  "opus": {
+   "harness": "Claude Code",
+   "maker": "anthropic",
+   "name": "Opus 5.5",
+   "plans": [
+    "max20x_opus"
+   ]
+  },
+  "sol": {
+   "harness": "Codex",
+   "maker": "openai",
+   "name": "GPT-6.1 Sol",
+   "plans": [
+    "prolite",
+    "prolite_before",
+    "plus"
+   ]
+  },
+  "sonnet": {
+   "harness": "Claude Code",
+   "maker": "anthropic",
+   "name": "Sonnet 5.5",
+   "plans": [
+    "max20x_sonnet"
+   ]
+  },
+  "terra": {
+   "harness": "Codex",
+   "maker": "openai",
+   "name": "GPT-6.1 Terra",
+   "plans": [
+    "prolite",
+    "prolite_before",
+    "plus"
+   ]
+  }
+ },
+ "series": {
+  "cai2": [
+   {
+    "api_usd": 7.04,
+    "date": "2026-10-31",
+    "effort": "max",
+    "lane": "astra",
+    "model": "GPT-6 Astra (Codex)",
+    "plan_usd": {
+     "plus": {
+      "high": 0.595681,
+      "low": 0.543709,
+      "point": 0.558708
+     },
+     "prolite": {
+      "high": 0.259656,
+      "low": 0.220143,
+      "point": 0.241109
+     },
+     "prolite_before": {
+      "high": 0.519312,
+      "low": 0.440286,
+      "point": 0.482218
+     }
+    },
+    "score": 55,
+    "source": "AA-CAI v2.0",
+    "tb4_pct": 56,
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex"
+   },
+   {
+    "api_usd": 11.53,
+    "date": "2026-10-31",
+    "effort": "max",
+    "lane": "fable",
+    "model": "Fable 5.1 (Claude Code, with fallback)",
+    "plan_usd": {
+     "max20x_fable": {
+      "high": 4.686244,
+      "low": 0.261012,
+      "point": 1.176295
+     }
+    },
+    "score": 58,
+    "source": "AA-CAI v2.0",
+    "tb4_pct": 58,
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+   },
+   {
+    "api_usd": 2.51,
+    "date": "2026-10-31",
+    "effort": "high",
+    "lane": "gemini",
+    "model": "Gemini 3.8 Flash (Antigravity SDK)",
+    "plan_usd": {
+     "ai_pro": {
+      "high": 0.144347,
+      "low": 0.0,
+      "point": 0.144347
+     }
+    },
+    "score": 33,
+    "source": "AA-CAI v2.0",
+    "tb4_pct": 15,
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-sdk-vs-codex"
+   },
+   {
+    "api_usd": 2.67,
+    "date": "2026-10-31",
+    "effort": "max",
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "plan_usd": {
+     "max20x_haiku": {
+      "high": 0.453171,
+      "low": null,
+      "point": 0.138615
+     }
+    },
+    "score": 37,
+    "source": "AA-CAI v2.0",
+    "tb4_pct": 31,
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+   },
+   {
+    "api_usd": 0.16,
+    "date": "2026-10-31",
+    "effort": "max",
+    "lane": "luna",
+    "model": "GPT-6 Luna (Codex)",
+    "plan_usd": {
+     "plus": {
+      "high": 0.013538,
+      "low": 0.012357,
+      "point": 0.012698
+     },
+     "prolite": {
+      "high": 0.005901,
+      "low": 0.005003,
+      "point": 0.00548
+     },
+     "prolite_before": {
+      "high": 0.011803,
+      "low": 0.010007,
+      "point": 0.01096
+     }
+    },
+    "score": 31,
+    "source": "AA-CAI v2.0",
+    "tb4_pct": 16,
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex"
+   },
+   {
+    "api_usd": 11.42,
+    "date": "2026-10-31",
+    "effort": "max",
+    "lane": "opus",
+    "model": "Opus 5.5 (Claude Code)",
+    "plan_usd": {
+     "max20x_opus": {
+      "high": 0.19469,
+      "low": 0.037917,
+      "point": 0.19469
+     }
+    },
+    "score": 62,
+    "source": "AA-CAI v2.0",
+    "tb4_pct": 63,
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+   },
+   {
+    "api_usd": 1.5,
+    "date": "2026-10-31",
+    "effort": "max",
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "plan_usd": {
+     "plus": {
+      "high": 0.126921,
+      "low": 0.115847,
+      "point": 0.119043
+     },
+     "prolite": {
+      "high": 0.055324,
+      "low": 0.046905,
+      "point": 0.051373
+     },
+     "prolite_before": {
+      "high": 0.110649,
+      "low": 0.093811,
+      "point": 0.102745
+     }
+    },
+    "score": 54,
+    "source": "AA-CAI v2.0",
+    "tb4_pct": 53,
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex"
+   },
+   {
+    "api_usd": 13.3,
+    "date": "2026-10-31",
+    "effort": "max",
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "plan_usd": {
+     "max20x_sonnet": {
+      "high": 0.601965,
+      "low": 0.200721,
+      "point": 0.401441
+     }
+    },
+    "score": 59,
+    "source": "AA-CAI v2.0",
+    "tb4_pct": 66,
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+   },
+   {
+    "api_usd": 1.24,
+    "date": "2026-10-31",
+    "effort": "max",
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "plan_usd": {
+     "plus": {
+      "high": 0.104921,
+      "low": 0.095767,
+      "point": 0.098409
+     },
+     "prolite": {
+      "high": 0.045735,
+      "low": 0.038775,
+      "point": 0.042468
+     },
+     "prolite_before": {
+      "high": 0.09147,
+      "low": 0.07755,
+      "point": 0.084936
+     }
+    },
+    "score": 48,
+    "source": "AA-CAI v2.0",
+    "tb4_pct": 48,
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex"
+   },
+   {
+    "api_usd": 0.69,
+    "date": "2026-10-31",
+    "effort": "xhigh",
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "plan_usd": {
+     "plus": {
+      "high": 0.058384,
+      "low": 0.05329,
+      "point": 0.05476
+     },
+     "prolite": {
+      "high": 0.025449,
+      "low": 0.021577,
+      "point": 0.023631
+     },
+     "prolite_before": {
+      "high": 0.050898,
+      "low": 0.043153,
+      "point": 0.047263
+     }
+    },
+    "score": 48,
+    "source": "AA-CAI v2.0",
+    "tb4_pct": 46,
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex"
+   },
+   {
+    "api_usd": 0.54,
+    "date": "2026-10-31",
+    "effort": "high",
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "plan_usd": {
+     "plus": {
+      "high": 0.045691,
+      "low": 0.041705,
+      "point": 0.042855
+     },
+     "prolite": {
+      "high": 0.019917,
+      "low": 0.016886,
+      "point": 0.018494
+     },
+     "prolite_before": {
+      "high": 0.039834,
+      "low": 0.033772,
+      "point": 0.036988
+     }
+    },
+    "score": 46,
+    "source": "AA-CAI v2.0",
+    "tb4_pct": 42,
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex"
+   },
+   {
+    "api_usd": 0.39,
+    "date": "2026-10-31",
+    "effort": "medium",
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "plan_usd": {
+     "plus": {
+      "high": 0.032999,
+      "low": 0.03012,
+      "point": 0.030951
+     },
+     "prolite": {
+      "high": 0.014384,
+      "low": 0.012195,
+      "point": 0.013357
+     },
+     "prolite_before": {
+      "high": 0.028769,
+      "low": 0.024391,
+      "point": 0.026714
+     }
+    },
+    "score": 42,
+    "source": "AA-CAI v2.0",
+    "tb4_pct": 35,
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex"
+   },
+   {
+    "api_usd": 0.2,
+    "date": "2026-10-31",
+    "effort": "low",
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "plan_usd": {
+     "plus": {
+      "high": 0.016923,
+      "low": 0.015446,
+      "point": 0.015872
+     },
+     "prolite": {
+      "high": 0.007377,
+      "low": 0.006254,
+      "point": 0.00685
+     },
+     "prolite_before": {
+      "high": 0.014753,
+      "low": 0.012508,
+      "point": 0.013699
+     }
+    },
+    "score": 35,
+    "source": "AA-CAI v2.0",
+    "tb4_pct": 25,
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex"
+   }
+  ],
+  "ii5": [
+   {
+    "api_usd": 6.24,
+    "date": "2026-10-31",
+    "effort": "max",
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "plan_usd": {
+     "plus": {
+      "high": 0.52799,
+      "low": 0.481924,
+      "point": 0.495218
+     },
+     "prolite": {
+      "high": 0.23015,
+      "low": 0.195127,
+      "point": 0.21371
+     },
+     "prolite_before": {
+      "high": 0.460299,
+      "low": 0.390254,
+      "point": 0.427421
+     }
+    },
+    "score": 57,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 3.66,
+    "date": "2026-10-31",
+    "effort": "xhigh",
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "plan_usd": {
+     "plus": {
+      "high": 0.309687,
+      "low": 0.282667,
+      "point": 0.290465
+     },
+     "prolite": {
+      "high": 0.134992,
+      "low": 0.114449,
+      "point": 0.125349
+     },
+     "prolite_before": {
+      "high": 0.269983,
+      "low": 0.228899,
+      "point": 0.250699
+     }
+    },
+    "score": 55,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 3.24,
+    "date": "2026-10-31",
+    "effort": "high",
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "plan_usd": {
+     "plus": {
+      "high": 0.274149,
+      "low": 0.25023,
+      "point": 0.257133
+     },
+     "prolite": {
+      "high": 0.119501,
+      "low": 0.101316,
+      "point": 0.110965
+     },
+     "prolite_before": {
+      "high": 0.239002,
+      "low": 0.202632,
+      "point": 0.22193
+     }
+    },
+    "score": 55,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 2.73,
+    "date": "2026-10-31",
+    "effort": "medium",
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "plan_usd": {
+     "plus": {
+      "high": 0.230996,
+      "low": 0.210842,
+      "point": 0.216658
+     },
+     "prolite": {
+      "high": 0.10069,
+      "low": 0.085368,
+      "point": 0.093498
+     },
+     "prolite_before": {
+      "high": 0.201381,
+      "low": 0.170736,
+      "point": 0.186997
+     }
+    },
+    "score": 51,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 1.42,
+    "date": "2026-10-31",
+    "effort": "low",
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "plan_usd": {
+     "plus": {
+      "high": 0.120152,
+      "low": 0.109669,
+      "point": 0.112694
+     },
+     "prolite": {
+      "high": 0.052374,
+      "low": 0.044404,
+      "point": 0.048633
+     },
+     "prolite_before": {
+      "high": 0.104748,
+      "low": 0.088808,
+      "point": 0.097266
+     }
+    },
+    "score": 43,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 12.99,
+    "date": "2026-10-31",
+    "effort": "max",
+    "lane": "fable",
+    "model": "claude-fable-5-1",
+    "plan_usd": {
+     "max20x_fable": {
+      "high": 5.279645,
+      "low": 0.294063,
+      "point": 1.325245
+     }
+    },
+    "score": 49,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 10.85,
+    "date": "2026-10-31",
+    "effort": "xhigh",
+    "lane": "fable",
+    "model": "claude-fable-5-1",
+    "plan_usd": {
+     "max20x_fable": {
+      "high": 4.409865,
+      "low": 0.245619,
+      "point": 1.106921
+     }
+    },
+    "score": 50,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 7.54,
+    "date": "2026-10-31",
+    "effort": "high",
+    "lane": "fable",
+    "model": "claude-fable-5-1",
+    "plan_usd": {
+     "max20x_fable": {
+      "high": 3.064552,
+      "low": 0.170688,
+      "point": 0.769234
+     }
+    },
+    "score": 47,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 5.56,
+    "date": "2026-10-31",
+    "effort": "medium",
+    "lane": "fable",
+    "model": "claude-fable-5-1",
+    "plan_usd": {
+     "max20x_fable": {
+      "high": 2.259802,
+      "low": 0.125865,
+      "point": 0.567233
+     }
+    },
+    "score": 43,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 4.47,
+    "date": "2026-10-31",
+    "effort": "low",
+    "lane": "fable",
+    "model": "claude-fable-5-1",
+    "plan_usd": {
+     "max20x_fable": {
+      "high": 1.816783,
+      "low": 0.10119,
+      "point": 0.456031
+     }
+    },
+    "score": 38,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 7.77,
+    "date": "2026-10-31",
+    "effort": "high",
+    "lane": "gemini",
+    "model": "gemini-3.8-flash",
+    "plan_usd": {
+     "ai_pro": {
+      "high": 0.446842,
+      "low": 0.0,
+      "point": 0.446842
+     }
+    },
+    "score": 31,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 6.26,
+    "date": "2026-10-31",
+    "effort": "medium",
+    "lane": "gemini",
+    "model": "gemini-3.8-flash",
+    "plan_usd": {
+     "ai_pro": {
+      "high": 0.360004,
+      "low": 0.0,
+      "point": 0.360004
+     }
+    },
+    "score": 30,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": null,
+    "date": "2026-10-31",
+    "effort": "low",
+    "lane": "gemini",
+    "model": "gemini-3.8-flash",
+    "plan_usd": null,
+    "score": 22,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 0.41,
+    "date": "2026-10-31",
+    "effort": "max",
+    "lane": "haiku",
+    "model": "claude-haiku-5-5",
+    "plan_usd": {
+     "max20x_haiku": {
+      "high": 0.069588,
+      "low": null,
+      "point": 0.021285
+     }
+    },
+    "score": 36,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 0.25,
+    "date": "2026-10-31",
+    "effort": "xhigh",
+    "lane": "haiku",
+    "model": "claude-haiku-5-5",
+    "plan_usd": {
+     "max20x_haiku": {
+      "high": 0.042432,
+      "low": null,
+      "point": 0.012979
+     }
+    },
+    "score": 34,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 0.16,
+    "date": "2026-10-31",
+    "effort": "high",
+    "lane": "haiku",
+    "model": "claude-haiku-5-5",
+    "plan_usd": {
+     "max20x_haiku": {
+      "high": 0.027156,
+      "low": null,
+      "point": 0.008307
+     }
+    },
+    "score": 30,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 0.09,
+    "date": "2026-10-31",
+    "effort": "medium",
+    "lane": "haiku",
+    "model": "claude-haiku-5-5",
+    "plan_usd": {
+     "max20x_haiku": {
+      "high": 0.015275,
+      "low": null,
+      "point": 0.004672
+     }
+    },
+    "score": 25,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 0.04,
+    "date": "2026-10-31",
+    "effort": "low",
+    "lane": "haiku",
+    "model": "claude-haiku-5-5",
+    "plan_usd": {
+     "max20x_haiku": {
+      "high": 0.006789,
+      "low": null,
+      "point": 0.002077
+     }
+    },
+    "score": 19,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 0.15,
+    "date": "2026-10-31",
+    "effort": "max",
+    "lane": "luna",
+    "model": "gpt-6-luna",
+    "plan_usd": {
+     "plus": {
+      "high": 0.012692,
+      "low": 0.011585,
+      "point": 0.011904
+     },
+     "prolite": {
+      "high": 0.005532,
+      "low": 0.004691,
+      "point": 0.005137
+     },
+     "prolite_before": {
+      "high": 0.011065,
+      "low": 0.009381,
+      "point": 0.010275
+     }
+    },
+    "score": 28,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 0.1,
+    "date": "2026-10-31",
+    "effort": "xhigh",
+    "lane": "luna",
+    "model": "gpt-6-luna",
+    "plan_usd": {
+     "plus": {
+      "high": 0.008461,
+      "low": 0.007723,
+      "point": 0.007936
+     },
+     "prolite": {
+      "high": 0.003688,
+      "low": 0.003127,
+      "point": 0.003425
+     },
+     "prolite_before": {
+      "high": 0.007377,
+      "low": 0.006254,
+      "point": 0.00685
+     }
+    },
+    "score": 23,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 0.07,
+    "date": "2026-10-31",
+    "effort": "high",
+    "lane": "luna",
+    "model": "gpt-6-luna",
+    "plan_usd": {
+     "plus": {
+      "high": 0.005923,
+      "low": 0.005406,
+      "point": 0.005555
+     },
+     "prolite": {
+      "high": 0.002582,
+      "low": 0.002189,
+      "point": 0.002397
+     },
+     "prolite_before": {
+      "high": 0.005164,
+      "low": 0.004378,
+      "point": 0.004795
+     }
+    },
+    "score": 21,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 0.04,
+    "date": "2026-10-31",
+    "effort": "medium",
+    "lane": "luna",
+    "model": "gpt-6-luna",
+    "plan_usd": {
+     "plus": {
+      "high": 0.003385,
+      "low": 0.003089,
+      "point": 0.003174
+     },
+     "prolite": {
+      "high": 0.001475,
+      "low": 0.001251,
+      "point": 0.00137
+     },
+     "prolite_before": {
+      "high": 0.002951,
+      "low": 0.002502,
+      "point": 0.00274
+     }
+    },
+    "score": 18,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 0.01,
+    "date": "2026-10-31",
+    "effort": "low",
+    "lane": "luna",
+    "model": "gpt-6-luna",
+    "plan_usd": {
+     "plus": {
+      "high": 0.000846,
+      "low": 0.000772,
+      "point": 0.000794
+     },
+     "prolite": {
+      "high": 0.000369,
+      "low": 0.000313,
+      "point": 0.000342
+     },
+     "prolite_before": {
+      "high": 0.000738,
+      "low": 0.000625,
+      "point": 0.000685
+     }
+    },
+    "score": 10,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 10.04,
+    "date": "2026-10-31",
+    "effort": "max",
+    "lane": "opus",
+    "model": "claude-opus-5-5",
+    "plan_usd": {
+     "max20x_opus": {
+      "high": 0.171163,
+      "low": 0.033335,
+      "point": 0.171163
+     }
+    },
+    "score": 58,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 6.05,
+    "date": "2026-10-31",
+    "effort": "xhigh",
+    "lane": "opus",
+    "model": "claude-opus-5-5",
+    "plan_usd": {
+     "max20x_opus": {
+      "high": 0.103141,
+      "low": 0.020087,
+      "point": 0.103141
+     }
+    },
+    "score": 57,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 3.46,
+    "date": "2026-10-31",
+    "effort": "high",
+    "lane": "opus",
+    "model": "claude-opus-5-5",
+    "plan_usd": {
+     "max20x_opus": {
+      "high": 0.058986,
+      "low": 0.011488,
+      "point": 0.058986
+     }
+    },
+    "score": 52,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 2.45,
+    "date": "2026-10-31",
+    "effort": "medium",
+    "lane": "opus",
+    "model": "claude-opus-5-5",
+    "plan_usd": {
+     "max20x_opus": {
+      "high": 0.041768,
+      "low": 0.008134,
+      "point": 0.041768
+     }
+    },
+    "score": 48,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 0.98,
+    "date": "2026-10-31",
+    "effort": "low",
+    "lane": "opus",
+    "model": "claude-opus-5-5",
+    "plan_usd": {
+     "max20x_opus": {
+      "high": 0.016707,
+      "low": 0.003254,
+      "point": 0.016707
+     }
+    },
+    "score": 35,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 1.27,
+    "date": "2026-10-28",
+    "effort": "max",
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "plan_usd": {
+     "plus": {
+      "high": 0.10746,
+      "low": 0.098084,
+      "point": 0.10079
+     },
+     "prolite": {
+      "high": 0.046841,
+      "low": 0.039713,
+      "point": 0.043496
+     },
+     "prolite_before": {
+      "high": 0.093683,
+      "low": 0.079427,
+      "point": 0.086991
+     }
+    },
+    "score": 55,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra"
+   },
+   {
+    "api_usd": 0.76,
+    "date": "2026-10-28",
+    "effort": "xhigh",
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "plan_usd": {
+     "plus": {
+      "high": 0.064307,
+      "low": 0.058696,
+      "point": 0.060315
+     },
+     "prolite": {
+      "high": 0.028031,
+      "low": 0.023765,
+      "point": 0.026029
+     },
+     "prolite_before": {
+      "high": 0.056062,
+      "low": 0.047531,
+      "point": 0.052058
+     }
+    },
+    "score": 52,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-xhigh-vs-gpt-6-1-terra-xhigh"
+   },
+   {
+    "api_usd": 0.59,
+    "date": "2026-10-28",
+    "effort": "high",
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "plan_usd": {
+     "plus": {
+      "high": 0.049922,
+      "low": 0.045567,
+      "point": 0.046824
+     },
+     "prolite": {
+      "high": 0.021761,
+      "low": 0.018449,
+      "point": 0.020207
+     },
+     "prolite_before": {
+      "high": 0.043522,
+      "low": 0.036899,
+      "point": 0.040413
+     }
+    },
+    "score": 50,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-high-vs-gpt-6-1-terra-high"
+   },
+   {
+    "api_usd": 0.36,
+    "date": "2026-10-28",
+    "effort": "medium",
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "plan_usd": {
+     "plus": {
+      "high": 0.030461,
+      "low": 0.027803,
+      "point": 0.02857
+     },
+     "prolite": {
+      "high": 0.013278,
+      "low": 0.011257,
+      "point": 0.012329
+     },
+     "prolite_before": {
+      "high": 0.026556,
+      "low": 0.022515,
+      "point": 0.024659
+     }
+    },
+    "score": 46,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-medium-vs-gpt-6-1-terra-medium"
+   },
+   {
+    "api_usd": 0.16,
+    "date": "2026-10-28",
+    "effort": "low",
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "plan_usd": {
+     "plus": {
+      "high": 0.013538,
+      "low": 0.012357,
+      "point": 0.012698
+     },
+     "prolite": {
+      "high": 0.005901,
+      "low": 0.005003,
+      "point": 0.00548
+     },
+     "prolite_before": {
+      "high": 0.011803,
+      "low": 0.010007,
+      "point": 0.01096
+     }
+    },
+    "score": 35,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-low-vs-gpt-6-1-terra-low"
+   },
+   {
+    "api_usd": 10.02,
+    "date": "2026-10-31",
+    "effort": "max",
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "plan_usd": {
+     "max20x_sonnet": {
+      "high": 0.45351,
+      "low": 0.15122,
+      "point": 0.302439
+     }
+    },
+    "score": 54,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 4.09,
+    "date": "2026-10-31",
+    "effort": "xhigh",
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "plan_usd": {
+     "max20x_sonnet": {
+      "high": 0.185115,
+      "low": 0.061725,
+      "point": 0.123451
+     }
+    },
+    "score": 50,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 1.64,
+    "date": "2026-10-31",
+    "effort": "high",
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "plan_usd": {
+     "max20x_sonnet": {
+      "high": 0.074227,
+      "low": 0.024751,
+      "point": 0.049501
+     }
+    },
+    "score": 41,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 0.78,
+    "date": "2026-10-31",
+    "effort": "medium",
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "plan_usd": {
+     "max20x_sonnet": {
+      "high": 0.035303,
+      "low": 0.011772,
+      "point": 0.023543
+     }
+    },
+    "score": 30,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 0.51,
+    "date": "2026-10-31",
+    "effort": "low",
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "plan_usd": {
+     "max20x_sonnet": {
+      "high": 0.023083,
+      "low": 0.007697,
+      "point": 0.015394
+     }
+    },
+    "score": 25,
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/leaderboards/models"
+   },
+   {
+    "api_usd": 0.96,
+    "date": "2026-10-28",
+    "effort": "max",
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "plan_usd": {
+     "plus": {
+      "high": 0.081229,
+      "low": 0.074142,
+      "point": 0.076187
+     },
+     "prolite": {
+      "high": 0.035408,
+      "low": 0.03002,
+      "point": 0.032879
+     },
+     "prolite_before": {
+      "high": 0.070815,
+      "low": 0.060039,
+      "point": 0.065757
+     }
+    },
+    "score": 51,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra"
+   },
+   {
+    "api_usd": 0.4,
+    "date": "2026-10-28",
+    "effort": "xhigh",
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "plan_usd": {
+     "plus": {
+      "high": 0.033846,
+      "low": 0.030893,
+      "point": 0.031745
+     },
+     "prolite": {
+      "high": 0.014753,
+      "low": 0.012508,
+      "point": 0.013699
+     },
+     "prolite_before": {
+      "high": 0.029506,
+      "low": 0.025016,
+      "point": 0.027399
+     }
+    },
+    "score": 45,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-xhigh-vs-gpt-6-1-terra-xhigh"
+   },
+   {
+    "api_usd": 0.26,
+    "date": "2026-10-28",
+    "effort": "high",
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "plan_usd": {
+     "plus": {
+      "high": 0.022,
+      "low": 0.02008,
+      "point": 0.020634
+     },
+     "prolite": {
+      "high": 0.00959,
+      "low": 0.00813,
+      "point": 0.008905
+     },
+     "prolite_before": {
+      "high": 0.019179,
+      "low": 0.016261,
+      "point": 0.017809
+     }
+    },
+    "score": 42,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-high-vs-gpt-6-1-terra-high"
+   },
+   {
+    "api_usd": 0.17,
+    "date": "2026-10-28",
+    "effort": "medium",
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "plan_usd": {
+     "plus": {
+      "high": 0.014384,
+      "low": 0.013129,
+      "point": 0.013492
+     },
+     "prolite": {
+      "high": 0.00627,
+      "low": 0.005316,
+      "point": 0.005822
+     },
+     "prolite_before": {
+      "high": 0.01254,
+      "low": 0.010632,
+      "point": 0.011644
+     }
+    },
+    "score": 38,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-medium-vs-gpt-6-1-terra-medium"
+   },
+   {
+    "api_usd": 0.07,
+    "date": "2026-10-28",
+    "effort": "low",
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "plan_usd": {
+     "plus": {
+      "high": 0.005923,
+      "low": 0.005406,
+      "point": 0.005555
+     },
+     "prolite": {
+      "high": 0.002582,
+      "low": 0.002189,
+      "point": 0.002397
+     },
+     "prolite_before": {
+      "high": 0.005164,
+      "low": 0.004378,
+      "point": 0.004795
+     }
+    },
+    "score": 29,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-low-vs-gpt-6-1-terra-low"
+   }
+  ]
+ },
+ "sources": [
+  {
+   "date": "2026-10-31",
+   "index": "cai2",
+   "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex"
+  },
+  {
+   "date": "2026-10-31",
+   "index": "cai2",
+   "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-sdk-vs-codex"
+  },
+  {
+   "date": "2026-10-31",
+   "index": "cai2",
+   "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+   "date": "2026-10-31",
+   "index": "ii5",
+   "url": "https://artificialanalysis.ai/leaderboards/models"
+  },
+  {
+   "date": "2026-10-28",
+   "index": "ii5",
+   "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-high-vs-gpt-6-1-terra-high"
+  },
+  {
+   "date": "2026-10-28",
+   "index": "ii5",
+   "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-low-vs-gpt-6-1-terra-low"
+  },
+  {
+   "date": "2026-10-28",
+   "index": "ii5",
+   "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-medium-vs-gpt-6-1-terra-medium"
+  },
+  {
+   "date": "2026-10-28",
+   "index": "ii5",
+   "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra"
+  },
+  {
+   "date": "2026-10-28",
+   "index": "ii5",
+   "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-xhigh-vs-gpt-6-1-terra-xhigh"
+  }
+ ],
+ "subsidy": {
+  "_note": "Subsidy factor = API value of a month's allowance / the plan's monthly price; a month is 4.345 weeks. Intervals are [low, high]; null means unbounded, or n/a when the input is not known. Plan $ per task = API $ per task / factor. Assumes the whole allowance is used every week. Generated by tools/make-aa-cli-rate.py, checked by tools/check-aa-cli-rate.py.",
+  "as_of": "2026-10-31",
+  "doubling": {
+   "date": "2026-10-29T16:56:07Z",
+   "day": "2026-10-29",
+   "plan": "prolite",
+   "scale": 2.0,
+   "source": "Tibo (@thsottiaux, OpenAI) on X, 2026-10-29 16:56:07 UTC, https://x.com/thsottiaux/status/2115850175868727621: usage limits doubled for the Pro 100/200/500 tiers and Business Premium, effective that day, no end date given; Plus is not named. Meter: 6% -> 3% between 2026-10-29 04:02 and 10-30 00:24 UTC on the window resetting 2026-11-04T06:42Z with no spend between."
+  },
+  "factors": {
+   "ai_pro": {
+    "formula": "weekly $ = the lower-bound weekly $ in subsidy_inputs.gemini, so the factor is at least its point",
+    "inputs": {
+     "weekly_api_usd": {
+      "interval": [
+       80,
+       null
+      ],
+      "point": 80,
+      "source": "FINDINGS.md section 3 (window estimate 2026-10-28): at least about 100M gemini-3.8-flash tokens a week, about $80 at list; a lower bound"
+     },
+     "weekly_tokens": {
+      "model": "gemini-3.8-flash",
+      "point": 100000000,
+      "source": "FINDINGS.md section 3 (window estimate 2026-10-28): at least about 100M gemini-3.8-flash tokens a week, about $80 at list; a lower bound"
+     }
+    },
+    "interval": [
+     17.389,
+     null
+    ],
+    "lanes": [
+     "gemini"
+    ],
+    "monthly_api_usd": {
+     "interval": [
+      347.6,
+      null
+     ],
+     "point": 347.6
+    },
+    "note": "a lower bound: other Gemini use during the sizing calls would make the window larger",
+    "plan": "Google AI Pro",
+    "plan_id": "ai_pro",
+    "point": 17.389,
+    "price_usd_month": 19.99,
+    "source": "FINDINGS.md section 3 (window estimate 2026-10-28): at least about 100M gemini-3.8-flash tokens a week, about $80 at list; a lower bound; published monthly plan price, read 2026-10-31",
+    "status": "lower_bound",
+    "weekly_api_usd": {
+     "interval": [
+      80,
+      null
+     ],
+     "point": 80
+    }
+   },
+   "max20x_fable": {
+    "formula": "weekly $ = 0.5 x Sonnet weekly $ / weight; low and high as for the other models",
+    "inputs": {
+     "cross_check_fable_subcap_usd": {
+      "interval": [
+       443,
+       664
+      ],
+      "point": 531,
+      "source": "findings.json claude.windows.fable_subcap (not used in the formula)"
+     },
+     "sonnet_weekly_usd": {
+      "interval": [
+       1017,
+       3050
+      ],
+      "point": 1525,
+      "source": "findings.json claude.windows.weekly.H1",
+      "unit": "list_usd_per_week"
+     },
+     "weekly_share": {
+      "point": 0.5,
+      "source": "FINDINGS.md section 1: up to 50% of the shared weekly limit can go to Fable"
+     },
+     "weight": {
+      "interval": [
+       0.75,
+       4.49
+      ],
+      "point": 1.69,
+      "source": "findings.json claude.weights.fable.weekly",
+      "window": "weekly"
+     }
+    },
+    "interval": [
+     2.46,
+     44.174
+    ],
+    "lanes": [
+     "fable"
+    ],
+    "monthly_api_usd": {
+     "interval": [
+      492.08,
+      8834.83
+     ],
+     "point": 1960.39
+    },
+    "plan": "Claude Max 20x",
+    "plan_id": "max20x",
+    "point": 9.802,
+    "price_usd_month": 200,
+    "source": "findings.json claude.windows.weekly.H1; findings.json claude.weights.fable.weekly; FINDINGS.md section 1: up to 50% of the shared weekly limit can go to Fable; published monthly plan price, read 2026-10-31",
+    "status": "measured",
+    "weekly_api_usd": {
+     "interval": [
+      113.25,
+      2033.33
+     ],
+     "point": 451.18
+    }
+   },
+   "max20x_haiku": {
+    "formula": "weekly $ = Sonnet weekly $ / weight; low = Sonnet low / weight high; high = Sonnet high / weight low",
+    "inputs": {
+     "sonnet_weekly_usd": {
+      "interval": [
+       1017,
+       3050
+      ],
+      "point": 1525,
+      "source": "findings.json claude.windows.weekly.H1",
+      "unit": "list_usd_per_week"
+     },
+     "weight": {
+      "interval": [
+       0,
+       3.75
+      ],
+      "point": 1.72,
+      "source": "findings.json claude.weights.haiku.five_hour",
+      "window": "five_hour"
+     }
+    },
+    "interval": [
+     5.892,
+     null
+    ],
+    "lanes": [
+     "haiku"
+    ],
+    "monthly_api_usd": {
+     "interval": [
+      1178.36,
+      null
+     ],
+     "point": 3852.4
+    },
+    "note": "claude.weights.haiku.weekly is not measured yet; the 5h weight stands in until a probe fills it in",
+    "plan": "Claude Max 20x",
+    "plan_id": "max20x",
+    "point": 19.262,
+    "price_usd_month": 200,
+    "source": "findings.json claude.windows.weekly.H1; findings.json claude.weights.haiku.five_hour; published monthly plan price, read 2026-10-31",
+    "status": "pending",
+    "weekly_api_usd": {
+     "interval": [
+      271.2,
+      null
+     ],
+     "point": 886.63
+    }
+   },
+   "max20x_opus": {
+    "formula": "weekly $ = max(Sonnet weekly $ / weight, 2700) for point and low; high = Sonnet high / weight low",
+    "inputs": {
+     "floor_weekly_usd": {
+      "point": 2700,
+      "source": "FINDINGS.md section 18: turn-meter calibrate implies about $2,700 list a week of mostly Opus dollars, a lower bound"
+     },
+     "sonnet_weekly_usd": {
+      "interval": [
+       1017,
+       3050
+      ],
+      "point": 1525,
+      "source": "findings.json claude.windows.weekly.H1",
+      "unit": "list_usd_per_week"
+     },
+     "weight": {
+      "interval": [
+       0.22,
+       2
+      ],
+      "point": 0.67,
+      "source": "findings.json claude.weights.opus.weekly",
+      "window": "weekly"
+     }
+    },
+    "interval": [
+     58.657,
+     301.188
+    ],
+    "lanes": [
+     "opus"
+    ],
+    "monthly_api_usd": {
+     "interval": [
+      11731.5,
+      60237.5
+     ],
+     "point": 11731.5
+    },
+    "note": "point and low are held at the $2,700 calibration floor (the weight alone gives 2276)",
+    "plan": "Claude Max 20x",
+    "plan_id": "max20x",
+    "point": 58.657,
+    "price_usd_month": 200,
+    "source": "findings.json claude.windows.weekly.H1; findings.json claude.weights.opus.weekly; FINDINGS.md section 18: turn-meter calibrate implies about $2,700 list a week of mostly Opus dollars, a lower bound; published monthly plan price, read 2026-10-31",
+    "status": "lower_bound",
+    "weekly_api_usd": {
+     "interval": [
+      2700,
+      13863.64
+     ],
+     "point": 2700
+    }
+   },
+   "max20x_sonnet": {
+    "formula": "weekly $ = Sonnet weekly $ / weight; low = Sonnet low / weight high; high = Sonnet high / weight low",
+    "inputs": {
+     "sonnet_weekly_usd": {
+      "interval": [
+       1017,
+       3050
+      ],
+      "point": 1525,
+      "source": "findings.json claude.windows.weekly.H1",
+      "unit": "list_usd_per_week"
+     },
+     "weight": {
+      "interval": [
+       1,
+       1
+      ],
+      "point": 1,
+      "source": "findings.json claude.weights.sonnet.weekly",
+      "window": "weekly"
+     }
+    },
+    "interval": [
+     22.094,
+     66.261
+    ],
+    "lanes": [
+     "sonnet"
+    ],
+    "monthly_api_usd": {
+     "interval": [
+      4418.86,
+      13252.25
+     ],
+     "point": 6626.12
+    },
+    "plan": "Claude Max 20x",
+    "plan_id": "max20x",
+    "point": 33.131,
+    "price_usd_month": 200,
+    "source": "findings.json claude.windows.weekly.H1; findings.json claude.weights.sonnet.weekly; published monthly plan price, read 2026-10-31",
+    "status": "measured",
+    "weekly_api_usd": {
+     "interval": [
+      1017.0,
+      3050.0
+     ],
+     "point": 1525.0
+    }
+   },
+   "plus": {
+    "formula": "weekly $ = weekly card credits x $ per credit",
+    "inputs": {
+     "usd_per_credit": {
+      "point": 0.04,
+      "source": "findings.json rate_card.usd_per_credit"
+     },
+     "weekly_credits": {
+      "interval": [
+       1360,
+       1490
+      ],
+      "point": 1450,
+      "source": "findings.json codex.plus.weekly",
+      "unit": "card_credits"
+     }
+    },
+    "interval": [
+     11.818,
+     12.948
+    ],
+    "lanes": [
+     "astra",
+     "luna",
+     "sol",
+     "terra"
+    ],
+    "monthly_api_usd": {
+     "interval": [
+      236.37,
+      258.96
+     ],
+     "point": 252.01
+    },
+    "plan": "Codex Plus",
+    "plan_id": "plus",
+    "point": 12.601,
+    "price_usd_month": 20,
+    "source": "findings.json codex.plus.weekly; findings.json rate_card.usd_per_credit; published monthly plan price, read 2026-10-31",
+    "status": "measured",
+    "weekly_api_usd": {
+     "interval": [
+      54.4,
+      59.6
+     ],
+     "point": 58.0
+    }
+   },
+   "prolite": {
+    "formula": "weekly $ = weekly card credits x $ per credit",
+    "inputs": {
+     "doubling": {
+      "date": "2026-10-29T16:56:07Z",
+      "point": 2.0,
+      "source": "Tibo (@thsottiaux, OpenAI) on X, 2026-10-29 16:56:07 UTC, https://x.com/thsottiaux/status/2115850175868727621: usage limits doubled for the Pro 100/200/500 tiers and Business Premium, effective that day, no end date given; Plus is not named. Meter: 6% -> 3% between 2026-10-29 04:02 and 10-30 00:24 UTC on the window resetting 2026-11-04T06:42Z with no spend between."
+     },
+     "usd_per_credit": {
+      "point": 0.04,
+      "source": "findings.json rate_card.usd_per_credit"
+     },
+     "weekly_credits": {
+      "interval": [
+       15600.0,
+       18400.0
+      ],
+      "point": 16800.0,
+      "source": "2 x findings.json codex.pro_lite.weekly",
+      "unit": "card_credits"
+     }
+    },
+    "interval": [
+     27.113,
+     31.979
+    ],
+    "lanes": [
+     "astra",
+     "luna",
+     "sol",
+     "terra"
+    ],
+    "monthly_api_usd": {
+     "interval": [
+      2711.28,
+      3197.92
+     ],
+     "point": 2919.84
+    },
+    "note": "now: 2 x the measured week, since the 2026-10-29 doubling; not re-measured yet",
+    "plan": "Codex Pro Lite",
+    "plan_id": "prolite",
+    "point": 29.198,
+    "price_usd_month": 100,
+    "source": "2 x findings.json codex.pro_lite.weekly; findings.json rate_card.usd_per_credit; published monthly plan price, read 2026-10-31",
+    "status": "measured",
+    "weekly_api_usd": {
+     "interval": [
+      624.0,
+      736.0
+     ],
+     "point": 672.0
+    }
+   },
+   "prolite_before": {
+    "formula": "weekly $ = weekly card credits x $ per credit",
+    "inputs": {
+     "usd_per_credit": {
+      "point": 0.04,
+      "source": "findings.json rate_card.usd_per_credit"
+     },
+     "weekly_credits": {
+      "interval": [
+       7800,
+       9200
+      ],
+      "point": 8400,
+      "source": "findings.json codex.pro_lite.weekly",
+      "unit": "card_credits"
+     }
+    },
+    "interval": [
+     13.556,
+     15.99
+    ],
+    "lanes": [
+     "astra",
+     "luna",
+     "sol",
+     "terra"
+    ],
+    "monthly_api_usd": {
+     "interval": [
+      1355.64,
+      1598.96
+     ],
+     "point": 1459.92
+    },
+    "note": "before the 2026-10-29 doubling",
+    "plan": "Codex Pro Lite",
+    "plan_id": "prolite_before",
+    "point": 14.599,
+    "price_usd_month": 100,
+    "source": "findings.json codex.pro_lite.weekly; findings.json rate_card.usd_per_credit; published monthly plan price, read 2026-10-31",
+    "status": "measured",
+    "weekly_api_usd": {
+     "interval": [
+      312.0,
+      368.0
+     ],
+     "point": 336.0
+    }
+   }
+  },
+  "generated_by": "tools/make-aa-cli-rate.py",
+  "weeks_per_month": 4.345
+ }
+}
+</script>
+<script>
+(function () {
+  "use strict";
+  var D = JSON.parse(document.getElementById("data").textContent);
+  var NS = "http://www.w3.org/2000/svg";
+  var ORDER = ["low", "medium", "high", "xhigh", "max"];
+  var CODEX_LABEL = { prolite: "Pro Lite now", prolite_before: "Pro Lite before Oct 29", plus: "Plus" };
+  var FACTOR_ORDER = ["max20x_sonnet", "max20x_opus", "max20x_haiku", "max20x_fable", "prolite", "prolite_before", "plus", "ai_pro"];
+  var FONT = getComputedStyle(document.documentElement).getPropertyValue("--font-body").trim() || "sans-serif";
+  var ctx = document.createElement("canvas").getContext("2d");
+
+  function textW(s, size, weight) {
+    ctx.font = (weight || 400) + " " + size + "px " + FONT;
+    return ctx.measureText(s).width;
+  }
+  function S(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) if (attrs[k] !== undefined && attrs[k] !== null) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function T(parent, x, y, str, cls, attrs) {
+    var a = attrs || {};
+    a.x = x; a.y = y; a["class"] = cls;
+    var t = S("text", a, parent);
+    t.textContent = str;
+    return t;
+  }
+  function H(tag, cls, str, parent) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (str !== undefined && str !== null) e.textContent = str;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function usd(v) {
+    if (v === null || v === undefined) return "n/a";
+    if (v === 0) return "$0";
+    if (v >= 100) return "$" + Math.round(v).toLocaleString("en-US");
+    if (v >= 0.1) return "$" + v.toFixed(2);
+    return "$" + v.toPrecision(2);
+  }
+  function tick$(v) {
+    if (v === 0) return "$0";
+    if (v >= 1) return "$" + String(Number(v.toFixed(2)));
+    return "$" + String(Number(v.toPrecision(2)));
+  }
+  function fx(v) { return v.toFixed(1) + "×"; }
+  function fmt1(v) { return v === null || v === undefined ? "n/a" : v.toFixed(1); }
+  function factorText(f) { return (f.status === "lower_bound" ? ">= " : "") + fx(f.point); }
+  function notNull(v) { return v !== null && v !== undefined; }
+  function name(lane) { return (D.models[lane] || {}).name || lane; }
+  function maker(lane) { return (D.models[lane] || {}).maker || "anthropic"; }
+  function factor(key) { return D.subsidy.factors[key]; }
+  function planKey(row, codex) {
+    var m = D.models[row.lane];
+    return m.maker === "openai" ? codex : m.plans[0];
+  }
+  function plan(row, codex) {
+    if (!row.plan_usd) return null;
+    var key = planKey(row, codex);
+    return { key: key, v: row.plan_usd[key], f: factor(key) };
+  }
+  function planName(key) {
+    var f = factor(key);
+    if (f.plan_id === "max20x") return "Max 20x";
+    if (key in CODEX_LABEL) return "Codex " + CODEX_LABEL[key];
+    return f.plan;
+  }
+  function planRange(p) {
+    var lo = p.v.low, hi = p.v.high;
+    if (!notNull(hi)) return "n/a";
+    if (!notNull(lo)) return p.f.status === "pending" ? "pending to " + usd(hi) : "n/a";
+    if (p.f.interval[1] === null && p.f.status === "lower_bound") return "at most " + usd(hi);
+    if (p.f.interval[1] === null) return "up to " + usd(hi) + ", no lower bound";
+    return usd(lo) + " to " + usd(hi);
+  }
+  function niceStep(raw) {
+    var p = Math.pow(10, Math.floor(Math.log10(raw)));
+    var steps = [1, 2, 2.5, 5, 10];
+    for (var i = 0; i < steps.length; i++) if (steps[i] * p >= raw) return steps[i] * p;
+    return 10 * p;
+  }
+  function maxOf(list) { return list.reduce(function (a, b) { return Math.max(a, b); }, -Infinity); }
+  function minOf(list) { return list.reduce(function (a, b) { return Math.min(a, b); }, Infinity); }
+  function median(list) {
+    var s = list.slice().sort(function (a, b) { return a - b; });
+    var n = s.length;
+    return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+  }
+  function radio(name) {
+    var c = document.querySelector('input[name="' + name + '"]:checked');
+    return c ? c.value : null;
+  }
+
+  /* ---------- tooltip ---------- */
+  function makeTip(wrap) {
+    var tip = H("div", "tip", null, wrap);
+    tip.hidden = true;
+    tip.setAttribute("role", "status");
+    return tip;
+  }
+  function showTip(wrap, anchor, lines) {
+    var tip = wrap.querySelector(".tip");
+    tip.textContent = "";
+    lines.forEach(function (line, i) { H("div", i === 0 ? "tip-v" : "tip-l", line, tip); });
+    tip.hidden = false;
+    var wr = wrap.getBoundingClientRect();
+    var ar = anchor.getBoundingClientRect();
+    var tw = tip.offsetWidth, th = tip.offsetHeight;
+    var x = ar.left - wr.left + ar.width / 2 - tw / 2;
+    x = Math.max(0, Math.min(x, wrap.clientWidth - tw));
+    var y = ar.top - wr.top - th - 8;
+    if (y < 0) y = ar.bottom - wr.top + 8;
+    tip.style.left = x + "px";
+    tip.style.top = y + "px";
+  }
+  function hideTip(wrap) {
+    var tip = wrap.querySelector(".tip");
+    if (tip) tip.hidden = true;
+  }
+  function hover(wrap, el, lines, hi) {
+    var target = hi || el;
+    function on() { target.classList.add("on"); showTip(wrap, el, lines); }
+    function off() { target.classList.remove("on"); hideTip(wrap); }
+    el.addEventListener("pointerenter", on);
+    el.addEventListener("pointerdown", on);
+    el.addEventListener("pointerleave", off);
+    el.addEventListener("focus", on);
+    el.addEventListener("blur", off);
+  }
+  function start(wrap, w, h) {
+    wrap.textContent = "";
+    var svg = S("svg", { width: w, height: h, viewBox: "0 0 " + w + " " + h, role: "img" }, wrap);
+    makeTip(wrap);
+    return svg;
+  }
+
+  /* ---------- vertical score bars ---------- */
+  function barPath(x, y, w, h, r) {
+    r = Math.max(0, Math.min(r, w / 2, h));
+    return "M" + x + "," + (y + h) + "V" + (y + r) + "A" + r + "," + r + " 0 0 1 " + (x + r) + "," + y +
+      "H" + (x + w - r) + "A" + r + "," + r + " 0 0 1 " + (x + w) + "," + (y + r) + "V" + (y + h) + "Z";
+  }
+  function scoreBars(wrap, items, opts) {
+    var W = Math.max(300, wrap.clientWidth);
+    var fs = 11, n = items.length;
+    var m = { t: 24, r: 4, l: 30 };
+    var plotW = W - m.l - m.r, band = plotW / n;
+    var barW = Math.min(30, band * 0.64);
+    var twoLine = items.map(function (d) { return Math.max(textW(d.label, fs, 500), d.sub ? textW(d.sub, fs) : 0); });
+    var angled = maxOf(twoLine) + 6 > band;
+    var flat = items.map(function (d) { return d.sub ? d.label + " · " + d.sub : d.label; });
+    var A = 40 * Math.PI / 180;
+    var bottom = angled
+      ? Math.ceil(maxOf(flat.map(function (s) { return textW(s, fs); })) * Math.sin(A) + fs + 14)
+      : (items.some(function (d) { return d.sub; }) ? 40 : 26);
+    var plotH = W < 520 ? 190 : 230;
+    var Hh = m.t + plotH + bottom;
+    var svg = start(wrap, W, Hh);
+    svg.setAttribute("aria-label", opts.title);
+    var vmax = maxOf(items.map(function (d) { return d.value; }));
+    var step = vmax > 60 ? 20 : 10;
+    var ymax = Math.ceil(vmax / step) * step;
+    if (ymax === vmax) ymax += step;
+    function y(v) { return m.t + plotH - v / ymax * plotH; }
+    for (var g = 0; g <= ymax; g += step) {
+      S("line", { x1: m.l, x2: W - m.r, y1: y(g), y2: y(g), "class": g === 0 ? "baseline" : "gridline" }, svg);
+      T(svg, m.l - 6, y(g) + 4, String(g), "t-muted", { "text-anchor": "end", "font-size": fs });
+    }
+    items.forEach(function (d, i) {
+      var cx = m.l + band * i + band / 2;
+      var top = y(d.value);
+      var bar = S("path", { d: barPath(cx - barW / 2, top, barW, m.t + plotH - top, 4), "class": "bar f-" + maker(d.lane), tabindex: 0,
+        "aria-label": flat[i] + ": " + d.value }, svg);
+      T(svg, cx, top - 6, String(d.value), "t-ink", { "text-anchor": "middle", "font-size": fs, "font-weight": 600 });
+      var base = m.t + plotH;
+      if (angled) {
+        T(svg, cx + 3, base + 14, flat[i], "t-2", { "text-anchor": "end", "font-size": fs,
+          transform: "rotate(-40 " + (cx + 3) + " " + (base + 14) + ")" });
+      } else {
+        T(svg, cx, base + 16, d.label, "t-2", { "text-anchor": "middle", "font-size": fs, "font-weight": 500 });
+        if (d.sub) T(svg, cx, base + 30, d.sub, "t-muted", { "text-anchor": "middle", "font-size": fs });
+      }
+      hover(wrap, bar, d.tip);
+    });
+  }
+  function scoreTip(row, indexLabel) {
+    var lines = [indexLabel + ": " + row.score, name(row.lane) + " · " + row.effort];
+    var h = (D.models[row.lane] || {}).harness;
+    if (h) lines.push("Harness: " + h);
+    if (row.api_usd !== null) lines.push("API cost per task: " + usd(row.api_usd));
+    lines.push("Read " + row.date);
+    return lines;
+  }
+  function sortScores(rows) {
+    return rows.slice().sort(function (a, b) {
+      return b.score - a.score || ORDER.indexOf(b.effort) - ORDER.indexOf(a.effort) || name(a.lane).localeCompare(name(b.lane));
+    });
+  }
+  function drawCai2() {
+    var rows = sortScores(D.series.cai2);
+    scoreBars(document.getElementById("chart-cai2"), rows.map(function (r) {
+      return { lane: r.lane, value: r.score, label: name(r.lane), sub: r.effort,
+        tip: scoreTip(r, "Index").concat(r.tb4_pct !== null && r.tb4_pct !== undefined ? ["Terminal-Bench 4.0: " + r.tb4_pct + "%"] : []) };
+    }), { title: "Coding Agent Index v2.0 scores, high to low" });
+  }
+  function drawIi5() {
+    var effort = radio("ii-effort");
+    var rows = sortScores(D.series.ii5.filter(function (r) { return r.effort === effort; }));
+    scoreBars(document.getElementById("chart-ii5"), rows.map(function (r) {
+      return { lane: r.lane, value: r.score, label: name(r.lane), sub: null, tip: scoreTip(r, "Score") };
+    }), { title: "Intelligence Index v5.0 scores at " + effort + " effort, high to low" });
+    var lanes = {};
+    D.series.ii5.forEach(function (r) { lanes[r.lane] = true; });
+    var missing = Object.keys(lanes).filter(function (l) { return !rows.some(function (r) { return r.lane === l; }); });
+    document.getElementById("ii-note").textContent = missing.length
+      ? "Not listed at " + effort + ": " + missing.map(name).join(", ") + "."
+      : "All " + rows.length + " models are listed at " + effort + ".";
+  }
+
+  /* ---------- scatter ---------- */
+  function overlap(a, b) {
+    var w = Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1);
+    var h = Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1);
+    return w > 0 && h > 0 ? w * h : 0;
+  }
+  function drawScatter() {
+    var wrap = document.getElementById("chart-scatter");
+    var index = radio("sc-index"), basis = radio("sc-basis"), codex = radio("sc-codex");
+    document.getElementById("sc-codex").disabled = basis !== "plan";
+    var rows = D.series[index].filter(function (r) { return r.api_usd !== null; });
+    var pts = rows.map(function (r) {
+      var p = plan(r, codex);
+      return { r: r, p: p, x: basis === "api" ? r.api_usd : p.v.point, y: r.score };
+    });
+    var W = Math.max(320, wrap.parentNode.clientWidth);
+    var Hh = W < 560 ? 400 : 440;
+    var fs = 11;
+    var m = { t: 12, r: 14, b: 44, l: 44 };
+    var pw = W - m.l - m.r, ph = Hh - m.t - m.b;
+    var lx = pts.map(function (d) { return Math.log10(d.x); });
+    var lmin = minOf(lx), lmax = maxOf(lx);
+    var pad = Math.max(0.18, (lmax - lmin) * 0.07);
+    var lo = lmin - pad, hi = lmax + pad * 1.6;
+    var ys = pts.map(function (d) { return d.y; });
+    var y0 = Math.floor((minOf(ys) - 4) / 10) * 10, y1 = Math.ceil((maxOf(ys) + 4) / 10) * 10;
+    function X(v) { return m.l + (Math.log10(v) - lo) / (hi - lo) * pw; }
+    function Y(v) { return m.t + ph - (v - y0) / (y1 - y0) * ph; }
+    var svg = start(wrap, W, Hh);
+    var iLabel = D.indexes[index].label;
+    svg.setAttribute("aria-label", iLabel + " score against " + (basis === "api" ? "API" : "plan") + " cost per task");
+
+    var mx = Math.pow(10, median(lx)), my = median(ys);
+    var zone = { x1: m.l, y1: m.t, x2: X(mx), y2: Y(my) };
+    S("rect", { x: zone.x1, y: zone.y1, width: zone.x2 - zone.x1, height: zone.y2 - zone.y1, "class": "zone" }, svg);
+    var zoneLabel = "Most attractive";
+    var zl = { x1: m.l + 6, y1: m.t + 4, x2: m.l + 8 + textW(zoneLabel, fs, 600), y2: m.t + 18 };
+    var showZone = zl.x2 < zone.x2 - 4 && zone.y2 - zone.y1 > 24;
+    if (showZone) T(svg, m.l + 7, m.t + 15, zoneLabel, "t-zone", { "font-size": fs, "font-weight": 600 });
+
+    for (var g = y0; g <= y1; g += 10) {
+      S("line", { x1: m.l, x2: W - m.r, y1: Y(g), y2: Y(g), "class": g === y0 ? "baseline" : "gridline" }, svg);
+      T(svg, m.l - 6, Y(g) + 4, String(g), "t-muted", { "text-anchor": "end", "font-size": fs });
+    }
+    var decades = [];
+    for (var e = Math.ceil(lo); e <= Math.floor(hi); e++) decades.push(e);
+    var ticks = [];
+    decades.forEach(function (e) { ticks.push(Math.pow(10, e)); });
+    if (decades.length < 3) {
+      for (var e2 = Math.floor(lo); e2 <= Math.ceil(hi); e2++) {
+        [2, 5].forEach(function (k) { var v = k * Math.pow(10, e2); if (Math.log10(v) > lo && Math.log10(v) < hi) ticks.push(v); });
+      }
+    }
+    ticks.sort(function (a, b) { return a - b; }).forEach(function (v) {
+      var xx = X(v);
+      S("line", { x1: xx, x2: xx, y1: m.t, y2: m.t + ph, "class": "gridline" }, svg);
+      T(svg, xx, m.t + ph + 16, tick$(v), "t-muted", { "text-anchor": "middle", "font-size": fs });
+    });
+    T(svg, m.l + pw / 2, Hh - 8, basis === "api" ? "Cost per task at API list price (log scale)" : "Cost per task at plan rate (log scale)",
+      "t-2", { "text-anchor": "middle", "font-size": fs });
+    T(svg, 12, m.t + ph / 2, iLabel, "t-2", { "text-anchor": "middle", "font-size": fs, transform: "rotate(-90 12 " + (m.t + ph / 2) + ")" });
+
+    var byLane = {};
+    pts.forEach(function (d) { (byLane[d.r.lane] = byLane[d.r.lane] || []).push(d); });
+    var lanes = Object.keys(byLane).sort();
+    lanes.forEach(function (lane) {
+      var list = byLane[lane].sort(function (a, b) { return ORDER.indexOf(a.r.effort) - ORDER.indexOf(b.r.effort); });
+      if (list.length > 1) {
+        S("path", { d: list.map(function (d, i) { return (i ? "L" : "M") + X(d.x).toFixed(1) + "," + Y(d.y).toFixed(1); }).join(""),
+          "class": "effort-line s-" + maker(lane) }, svg);
+      }
+    });
+    var obstacles = [];
+    var topPoint = {};
+    pts.forEach(function (d) {
+      var t = topPoint[d.r.lane];
+      if (!t || ORDER.indexOf(d.r.effort) > ORDER.indexOf(t.r.effort)) topPoint[d.r.lane] = d;
+    });
+    pts.forEach(function (d) {
+      var cx = X(d.x), cy = Y(d.y);
+      obstacles.push({ x1: cx - 5, y1: cy - 5, x2: cx + 5, y2: cy + 5 });
+      if (basis === "plan" && d.p.f.status === "lower_bound" && topPoint[d.r.lane] === d) {
+        S("path", { d: "M" + (cx - 6) + "," + cy + "H" + (cx - 18) + "M" + (cx - 14) + "," + (cy - 3.5) + "L" + (cx - 18) + "," + cy + "L" + (cx - 14) + "," + (cy + 3.5),
+          "class": "whisker s-" + maker(d.r.lane) }, svg);
+      }
+    });
+    if (showZone) obstacles.push(zl);
+    var pending = false;
+    pts.forEach(function (d) {
+      var cx = X(d.x), cy = Y(d.y);
+      S("circle", { cx: cx, cy: cy, r: 4.5, "class": "ring f-" + maker(d.r.lane) }, svg);
+    });
+    pts.forEach(function (d) {
+      var cx = X(d.x), cy = Y(d.y);
+      var hit = S("circle", { cx: cx, cy: cy, r: 12, "class": "hit", tabindex: 0,
+        "aria-label": name(d.r.lane) + " " + d.r.effort + ": score " + d.y + ", " + usd(d.x) + " a task" }, svg);
+      var lines = [iLabel + ": " + d.y, name(d.r.lane) + " · " + d.r.effort, "API: " + usd(d.r.api_usd) + " a task"];
+      var pl = "Plan (" + planName(d.p.key) + "): " + usd(d.p.v.point);
+      if (d.p.f.status === "lower_bound") pl = "Plan (" + planName(d.p.key) + "): at most " + usd(d.p.v.point);
+      lines.push(pl, "Plan range: " + planRange(d.p));
+      if (d.p.f.status === "pending") lines.push("Weekly weight pending");
+      hover(wrap, hit, lines);
+    });
+    // One name label per model, at its highest effort.
+    var placed = [];
+    lanes.forEach(function (lane) {
+      var top = topPoint[lane];
+      var cx = X(top.x), cy = Y(top.y);
+      var label = name(lane);
+      if (basis === "plan" && top.p.f.status === "pending") { label += "*"; pending = true; }
+      var w = textW(label, fs, 500), h = 12;
+      var cands = [
+        [cx + 8, cy + 4, "start"], [cx - 8, cy + 4, "end"], [cx, cy - 9, "middle"], [cx, cy + 17, "middle"],
+        [cx + 6, cy - 8, "start"], [cx + 6, cy + 15, "start"], [cx - 6, cy - 8, "end"], [cx - 6, cy + 15, "end"]
+      ];
+      var best = null, bestCost = Infinity;
+      cands.forEach(function (c) {
+        var x1 = c[2] === "start" ? c[0] : c[2] === "end" ? c[0] - w : c[0] - w / 2;
+        var box = { x1: x1 - 4, y1: c[1] - h + 1, x2: x1 + w + 4, y2: c[1] + 4 };
+        var cost = 0;
+        if (box.x1 < m.l || box.x2 > W - m.r || box.y1 < m.t || box.y2 > m.t + ph) cost += 1e6;
+        obstacles.concat(placed).forEach(function (o) { cost += overlap(box, o); });
+        if (cost < bestCost) { bestCost = cost; best = { c: c, box: box }; }
+      });
+      placed.push(best.box);
+      T(svg, best.c[0], best.c[1], label, "t-ink", { "text-anchor": best.c[2], "font-size": fs, "font-weight": 500 });
+    });
+    var note = [];
+    note.push(showZone ? "Shaded: cheaper than the middle point and scoring above it." : "");
+    if (basis === "plan") {
+      note.push("Claude models on Max 20x. Codex models on " + CODEX_LABEL[codex] + ". Upper bounds carry an arrow: Gemini on Google AI Pro, and Opus on Max 20x at its calibration floor.");
+      if (pending) note.push("* Haiku's weekly weight is pending; its plan cost uses the 5-hour weight.");
+    } else {
+      note.push("Switch Cost to Plan rate to price each task out of a subscription.");
+    }
+    document.getElementById("sc-note").textContent = note.filter(Boolean).join(" ");
+  }
+
+  /* ---------- cost bars, API and plan side by side ---------- */
+  function axisFor(vmax) {
+    var step = niceStep(vmax / 3);
+    return { step: step, max: Math.ceil(vmax / step - 1e-9) * step };
+  }
+  function costRows(index, effort) {
+    var rows = index === "cai2" ? D.series.cai2 : D.series.ii5.filter(function (r) { return r.effort === effort; });
+    return rows;
+  }
+  function drawCost() {
+    var wrap = document.getElementById("chart-cost");
+    var index = radio("cb-index"), effort = radio("cb-effort"), codex = radio("cb-codex");
+    document.getElementById("cb-effort").disabled = index !== "ii5";
+    var all = costRows(index, effort);
+    var rows = all.filter(function (r) { return r.api_usd !== null; }).sort(function (a, b) {
+      return b.api_usd - a.api_usd || name(a.lane).localeCompare(name(b.lane));
+    });
+    var noCost = all.filter(function (r) { return r.api_usd === null; });
+    var W = Math.max(340, wrap.parentNode.clientWidth);
+    var fs = 11, rowH = 36, barH = 12;
+    var labelW = Math.ceil(maxOf(rows.map(function (r) { return textW(name(r.lane), fs, 500); }))) + 12;
+    var gap = 18, room = 50;
+    var panelW = (W - labelW - gap) / 2;
+    var scaleW = panelW - room;
+    var top = 44;
+    var Hh = top + rows.length * rowH + 6;
+    var svg = start(wrap, W, Hh);
+    svg.setAttribute("aria-label", "Cost per task at API list price and at plan rate");
+    var plans = rows.map(function (r) { return plan(r, codex); });
+    var pmax = maxOf(plans.map(function (p) { return p.v.point; }));
+    var highs = plans.map(function (p) { return p.v.high; }).filter(notNull);
+    var axes = [
+      axisFor(maxOf(rows.map(function (r) { return r.api_usd; }))),
+      axisFor(Math.min(highs.length ? maxOf(highs) : pmax, pmax * 2.2))
+    ];
+    var clipped = false;
+    var x0 = [labelW, labelW + panelW + gap];
+    var titles = ["API list price", "Plan rate"];
+    [0, 1].forEach(function (k) {
+      T(svg, x0[k], 13, titles[k], "t-ink", { "font-size": 12, "font-weight": 600 });
+      var tks = [];
+      for (var v = 0; v <= axes[k].max + 1e-9; v += axes[k].step) {
+        var tl = tick$(Number(v.toPrecision(6)));
+        tks.push({ x: x0[k] + v / axes[k].max * scaleW, label: tl, w: textW(tl, fs), first: v === 0 });
+      }
+      // Label every tick, or every 2nd, 3rd ... tick, whichever is the first that leaves no collision.
+      var every = 1;
+      for (; every < tks.length; every++) {
+        var right = -Infinity, fits = true;
+        for (var q = 0; q < tks.length; q += every) {
+          var left = tks[q].first ? tks[q].x : tks[q].x - tks[q].w / 2;
+          if (left < right + 6) { fits = false; break; }
+          right = left + tks[q].w;
+        }
+        if (fits) break;
+      }
+      tks.forEach(function (t, q) {
+        S("line", { x1: t.x, x2: t.x, y1: top - 8, y2: Hh - 4, "class": t.first ? "baseline" : "gridline" }, svg);
+        if (q % every === 0) T(svg, t.x, top - 14, t.label, "t-muted", { "text-anchor": t.first ? "start" : "middle", "font-size": fs });
+      });
+    });
+    rows.forEach(function (r, i) {
+      var p = plans[i];
+      var yy = top + i * rowH;
+      var cy = yy + rowH / 2;
+      var hit = S("rect", { x: 0, y: yy, width: W, height: rowH, "class": "row-hit", tabindex: 0,
+        "aria-label": name(r.lane) + " " + r.effort + ": API " + usd(r.api_usd) + ", plan " + usd(p.v.point) }, svg);
+      T(svg, labelW - 10, cy - 1, name(r.lane), "t-ink", { "text-anchor": "end", "font-size": fs, "font-weight": 500 });
+      T(svg, labelW - 10, cy + 12, r.effort, "t-muted", { "text-anchor": "end", "font-size": 10.5 });
+      var wa = r.api_usd / axes[0].max * scaleW;
+      S("path", { d: hbar(x0[0], cy - barH / 2, wa, barH, 3), "class": "f-" + maker(r.lane) }, svg);
+      T(svg, x0[0] + wa + 5, cy + 4, usd(r.api_usd), "t-ink", { "font-size": fs });
+      var sc = scaleW / axes[1].max;
+      var wp = p.v.point * sc;
+      var bound = p.f.status === "lower_bound";
+      S("path", { d: hbar(x0[1], cy - barH / 2, wp, barH, 3), "class": "f-" + maker(r.lane) + (bound ? " bound" : "") }, svg);
+      var end = x0[1] + scaleW;
+      if (notNull(p.v.high)) {
+        var wl = x0[1] + (notNull(p.v.low) ? p.v.low * sc : 0);
+        var wh = Math.min(end, x0[1] + p.v.high * sc);
+        var cut = p.v.high > axes[1].max + 1e-12;
+        var cap = 4;
+        var d = "M" + wl + "," + cy + "H" + wh;
+        d += cut ? "M" + (wh - 5) + "," + (cy - 4) + "L" + wh + "," + cy + "L" + (wh - 5) + "," + (cy + 4)
+                 : "M" + wh + "," + (cy - cap) + "V" + (cy + cap);
+        if (p.v.low > 0) d += "M" + wl + "," + (cy - cap) + "V" + (cy + cap);
+        if (cut) clipped = true;
+        S("path", { d: d, "class": "whisker" + (notNull(p.v.low) ? "" : " pending") }, svg);
+      }
+      var lab = (bound ? "≤ " : "") + usd(p.v.point) + (p.f.status === "pending" ? "*" : "");
+      T(svg, Math.max(x0[1] + wp, wh) + 5, cy + 4, lab, "t-ink", { "font-size": fs });
+      hover(wrap, hit, [
+        "Plan " + usd(p.v.point) + " · API " + usd(r.api_usd),
+        name(r.lane) + " · " + r.effort,
+        "Plan: " + planName(p.key) + ", factor " + fx(p.f.point),
+        "Plan range: " + planRange(p)
+      ], hit);
+    });
+    var note = ["Claude models on Max 20x, each at its own weekly weight. Codex models on " + CODEX_LABEL[codex] + ". Gemini on Google AI Pro. Where ≤ marks an upper bound: Gemini, and Opus at its calibration floor."];
+    if (rows.some(function (r) { return factor(planKey(r, codex)).status === "pending"; })) note.push("* Haiku's weekly weight is pending, so its low end is pending.");
+    if (clipped) note.push("An arrow means the range runs past the end of the axis; hover or open the table for its value.");
+    if (noCost.length) note.push("No published cost: " + noCost.map(function (r) { return name(r.lane) + " " + r.effort; }).join(", ") + ".");
+    document.getElementById("cb-note").textContent = note.join(" ");
+    costTable(index, codex);
+  }
+  function hbar(x, y, w, h, r) {
+    r = Math.max(0, Math.min(r, h / 2, w));
+    return "M" + x + "," + y + "H" + (x + w - r) + "A" + r + "," + r + " 0 0 1 " + (x + w) + "," + (y + r) +
+      "V" + (y + h - r) + "A" + r + "," + r + " 0 0 1 " + (x + w - r) + "," + (y + h) + "H" + x + "Z";
+  }
+  function costTable(index, codex) {
+    var table = document.getElementById("cb-table");
+    table.textContent = "";
+    var head = H("tr", null, null, H("thead", null, null, table));
+    [["Model", ""], ["Effort", ""], ["Score", "num"], ["API $ / task", "num"], ["Plan", ""], ["Plan $ / task", "num"], ["Plan range", "num"]]
+      .forEach(function (c) { H("th", c[1], c[0], head); });
+    var body = H("tbody", null, null, table);
+    D.series[index].slice().sort(function (a, b) {
+      return name(a.lane).localeCompare(name(b.lane)) || ORDER.indexOf(b.effort) - ORDER.indexOf(a.effort);
+    }).forEach(function (r) {
+      var tr = H("tr", null, null, body);
+      var p = plan(r, codex);
+      H("td", null, name(r.lane), tr);
+      H("td", null, r.effort, tr);
+      H("td", "num", String(r.score), tr);
+      H("td", "num", usd(r.api_usd), tr);
+      H("td", null, p ? planName(p.key) : "n/a", tr);
+      H("td", "num", p ? (p.f.status === "lower_bound" ? "≤ " : "") + usd(p.v.point) : "n/a", tr);
+      H("td", "num", p ? planRange(p) : "n/a", tr);
+    });
+  }
+
+  /* ---------- subsidy table, summary, sources ---------- */
+  function money(m) {
+    var s = usd(m.point);
+    var lo = m.interval[0], hi = m.interval[1];
+    if (lo === null && hi === null) return s + " (n/a)";
+    if (hi === null) return s + " (" + usd(lo) + " or more)";
+    if (lo === hi && lo === m.point) return s;
+    return s + " (" + usd(lo) + " to " + usd(hi) + ")";
+  }
+  function drawSubsidy() {
+    var table = document.getElementById("subsidy-table");
+    table.textContent = "";
+    var head = H("tr", null, null, H("thead", null, null, table));
+    [["Plan", ""], ["Price / month", "num"], ["API value / month", "num"], ["Factor", "num"], ["Interval", "num"], ["Source", ""]]
+      .forEach(function (c) { H("th", c[1], c[0], head); });
+    var body = H("tbody", null, null, table);
+    FACTOR_ORDER.filter(function (k) { return D.subsidy.factors[k]; }).forEach(function (key) {
+      var f = factor(key);
+      var tr = H("tr", null, null, body);
+      var td = H("td", "plan", null, tr);
+      var title = f.plan_id === "max20x" ? f.plan + ", " + name(f.lanes[0]) : f.plan;
+      td.appendChild(document.createTextNode(title));
+      if (f.status === "pending") H("span", "pill", "pending", td);
+      if (f.status === "lower_bound") H("span", "pill", "lower bound", td);
+      var day = D.subsidy.doubling.day;
+      var sub = key === "prolite" ? "now, since the " + day + " doubling" : key === "prolite_before" ? "before the " + day + " doubling" :
+        f.plan_id === "max20x" ? "weekly weight " + f.inputs.weight.point + (f.inputs.weight.window === "five_hour" ? " (5h)" : "") :
+        f.lanes.join(", ");
+      H("small", null, sub, td);
+      var cells = [
+        ["num", "Price / month", "$" + (f.price_usd_month % 1 ? f.price_usd_month.toFixed(2) : f.price_usd_month)],
+        ["num", "API value / month", money(f.monthly_api_usd)],
+        ["num strong", "Factor", factorText(f)],
+        ["num", "Interval", f.interval[0] === null ? "n/a" : f.interval[1] === null ? fmt1(f.interval[0]) + " or more" : fmt1(f.interval[0]) + " to " + fmt1(f.interval[1])],
+        ["src", "Source", f.source.split("; ").filter(function (s) { return s.indexOf("published monthly") !== 0; }).join("; ")]
+      ];
+      cells.forEach(function (c) { H("td", c[0], c[2], tr).setAttribute("data-label", c[1]); });
+    });
+    document.getElementById("doubling-note").textContent = "Pro Lite doubling, per its source: " + D.subsidy.doubling.source;
+  }
+  function drawSummary() {
+    var ul = document.getElementById("summary");
+    ul.textContent = "";
+    var f = D.subsidy.factors;
+    var son = f.max20x_sonnet, pl = f.prolite, plb = f.prolite_before, plus = f.plus;
+    if (son) H("li", null, "A Claude Max 20x month holds about " + usd(son.monthly_api_usd.point) + " of Sonnet at API list prices. That is " +
+      son.point.toFixed(1) + " times its $" + son.price_usd_month + " price (range " + fmt1(son.interval[0]) + " to " + fmt1(son.interval[1]) + ").", ul);
+    if (pl && plb && plus) H("li", null, "Codex Pro Lite now holds about " + usd(pl.monthly_api_usd.point) + " a month, " + pl.point.toFixed(1) +
+      " times its $" + pl.price_usd_month + " price. Before the " + D.subsidy.doubling.day + " doubling it was " + plb.point.toFixed(1) + " times. Plus is " + plus.point.toFixed(1) + " times.", ul);
+    function topOf(mk) {
+      return sortScores(D.series.cai2.filter(function (r) { return maker(r.lane) === mk && r.api_usd !== null; }))[0];
+    }
+    var a = topOf("anthropic"), o = topOf("openai");
+    if (a && o) {
+      var pa = plan(a, "prolite"), po = plan(o, "prolite");
+      H("li", null, "On Coding Agent Index v2.0, " + name(a.lane) + " scores " + a.score + " at " + usd(a.api_usd) + " a task at API prices, or about " +
+        usd(pa.v.point) + " out of Max 20x. " + name(o.lane) + " scores " + o.score + " at " + usd(o.api_usd) + ", or about " + usd(po.v.point) + " out of Pro Lite.", ul);
+    }
+    H("li", null, "Plan rates assume you use the whole allowance every week.", ul);
+    document.getElementById("meta-line").textContent = "Scores and API costs per task: Artificial Analysis, read " + D.as_of +
+      ". Plan allowances: the kit's own meter measurements.";
+  }
+  function drawSources() {
+    var ul = document.getElementById("source-list");
+    ul.textContent = "";
+    D.sources.forEach(function (s) {
+      if (!/^https:\/\//.test(s.url)) return;
+      var li = H("li", null, null, ul);
+      li.appendChild(document.createTextNode(D.indexes[s.index].label + ": "));
+      var a = H("a", null, s.url.replace(/^https:\/\//, ""), li);
+      a.href = s.url;
+      a.target = "_blank";
+      a.rel = "noopener";
+      li.appendChild(document.createTextNode(" (read " + s.date + ")"));
+    });
+  }
+
+  function drawCharts() { drawCai2(); drawIi5(); drawScatter(); drawCost(); }
+  function drawAll() { drawSummary(); drawSubsidy(); drawSources(); drawCharts(); }
+
+  document.querySelectorAll('input[name="ii-effort"]').forEach(function (i) { i.addEventListener("change", drawIi5); });
+  ["sc-index", "sc-basis", "sc-codex"].forEach(function (n) {
+    document.querySelectorAll('input[name="' + n + '"]').forEach(function (i) { i.addEventListener("change", drawScatter); });
+  });
+  ["cb-index", "cb-effort", "cb-codex"].forEach(function (n) {
+    document.querySelectorAll('input[name="' + n + '"]').forEach(function (i) { i.addEventListener("change", drawCost); });
+  });
+
+  drawAll();
+  var lastW = document.querySelector(".page").clientWidth;
+  var queued = false;
+  window.addEventListener("resize", function () {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(function () {
+      queued = false;
+      var w = document.querySelector(".page").clientWidth;
+      if (w !== lastW) { lastW = w; drawCharts(); }
+    });
+  });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawCharts);
+})();
+</script>

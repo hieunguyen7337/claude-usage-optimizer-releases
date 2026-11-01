@@ -1,0 +1,17 @@
+{
+  "catalog_version": "fixture",
+  "lanes": {
+    "luna": {"model": "gpt-6-luna", "provider": "codex"},
+    "haiku": {"model": "claude-haiku-5-5", "provider": "claude"}
+  },
+  "providers": {
+    "codex": {"basis": "fixture", "scarcity": 1},
+    "claude": {"basis": "fixture", "scarcity": 1}
+  },
+  "arms": [
+    {"lane": "luna", "model": "gpt-6-luna", "effort": "high", "status": "active", "classes": ["review"],
+     "weight": 1, "prior_pct": 0.1, "prior_usable": 0.5},
+    {"lane": "haiku", "model": "claude-haiku-5-5", "effort": "low", "status": "active", "classes": ["review"],
+     "weight": 1, "prior_pct": 0.1, "prior_usable": 0.5}
+  ]
+}

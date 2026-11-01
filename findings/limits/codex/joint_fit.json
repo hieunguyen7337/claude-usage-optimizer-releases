@@ -1,0 +1,524 @@
+{
+  "Way_A_all_intra_block_rises": {
+    "n_intervals": 16,
+    "pooled_coef": 0.012735,
+    "pooled_se": 0.001253,
+    "implied_pool_window": 7852.7,
+    "terms": {
+      "uncached": {
+        "coef": 0.014531,
+        "se": 0.003304,
+        "ratio_to_pooled": 1.1411,
+        "ratio_to_uncached": 1.0,
+        "implied_window": 6881.8
+      },
+      "cached": {
+        "coef": 0.012866,
+        "se": 0.003041,
+        "ratio_to_pooled": 1.0103,
+        "ratio_to_uncached": 0.8854,
+        "implied_window": 7772.6
+      },
+      "output": {
+        "coef": 0.011388,
+        "se": 0.002582,
+        "ratio_to_pooled": 0.8942,
+        "ratio_to_uncached": 0.7837,
+        "implied_window": 8781.4
+      }
+    },
+    "intervals": [
+      {
+        "block": "P1",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 2.0,
+        "to_up": 3.0,
+        "uncached_cr": 2.82225,
+        "cached_cr": 0.7168,
+        "output_cr": 8.469999999999999,
+        "total_cr": 12.009049999999998
+      },
+      {
+        "block": "P1",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 3.0,
+        "to_up": 4.0,
+        "uncached_cr": 23.340750000000003,
+        "cached_cr": 5.632000000000001,
+        "output_cr": 66.36125,
+        "total_cr": 95.334
+      },
+      {
+        "block": "P1",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 4.0,
+        "to_up": 5.0,
+        "uncached_cr": 23.58375,
+        "cached_cr": 5.5520000000000005,
+        "output_cr": 68.79,
+        "total_cr": 97.92575000000001
+      },
+      {
+        "block": "P1",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 5.0,
+        "to_up": 6.0,
+        "uncached_cr": 20.776500000000002,
+        "cached_cr": 5.936,
+        "output_cr": 68.7875,
+        "total_cr": 95.5
+      },
+      {
+        "block": "P1",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 6.0,
+        "to_up": 7.0,
+        "uncached_cr": 23.2395,
+        "cached_cr": 5.6192,
+        "output_cr": 65.26124999999999,
+        "total_cr": 94.11994999999999
+      },
+      {
+        "block": "P2",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 7.0,
+        "to_up": 8.0,
+        "uncached_cr": 18.357,
+        "cached_cr": 2.4415999999999998,
+        "output_cr": 0.08125,
+        "total_cr": 20.87985
+      },
+      {
+        "block": "P2",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 8.0,
+        "to_up": 9.0,
+        "uncached_cr": 1.95825,
+        "cached_cr": 64.94080000000002,
+        "output_cr": 0.8762500000000006,
+        "total_cr": 67.77530000000003
+      },
+      {
+        "block": "P2",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 9.0,
+        "to_up": 10.0,
+        "uncached_cr": 2.2659999999999996,
+        "cached_cr": 78.07680000000002,
+        "output_cr": 1.0250000000000008,
+        "total_cr": 81.36780000000003
+      },
+      {
+        "block": "P2",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 10.0,
+        "to_up": 11.0,
+        "uncached_cr": 2.1905000000000006,
+        "cached_cr": 78.23040000000005,
+        "output_cr": 1.010000000000001,
+        "total_cr": 81.43090000000005
+      },
+      {
+        "block": "P3",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 11.0,
+        "to_up": 12.0,
+        "uncached_cr": 39.321,
+        "cached_cr": 1.5359999999999998,
+        "output_cr": 0.03125,
+        "total_cr": 40.88825
+      },
+      {
+        "block": "P3",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 12.0,
+        "to_up": 13.0,
+        "uncached_cr": 77.57624999999999,
+        "cached_cr": 3.2192,
+        "output_cr": 0.06249999999999999,
+        "total_cr": 80.85794999999999
+      },
+      {
+        "block": "P3",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 13.0,
+        "to_up": 14.0,
+        "uncached_cr": 77.421,
+        "cached_cr": 3.2192,
+        "output_cr": 0.06249999999999999,
+        "total_cr": 80.70270000000001
+      },
+      {
+        "block": "P4",
+        "model": "gpt-6.1-sol",
+        "dy": 1.0,
+        "from_up": 14.0,
+        "to_up": 15.0,
+        "uncached_cr": 6.66235,
+        "cached_cr": 1.0089599999999999,
+        "output_cr": 28.328249999999993,
+        "total_cr": 35.999559999999995
+      },
+      {
+        "block": "P4",
+        "model": "gpt-6.1-sol",
+        "dy": 1.0,
+        "from_up": 15.0,
+        "to_up": 16.0,
+        "uncached_cr": 17.6593,
+        "cached_cr": 2.2313600000000005,
+        "output_cr": 54.875749999999975,
+        "total_cr": 74.76640999999998
+      },
+      {
+        "block": "P4",
+        "model": "gpt-6.1-sol",
+        "dy": 1.0,
+        "from_up": 16.0,
+        "to_up": 17.0,
+        "uncached_cr": 15.128400000000001,
+        "cached_cr": 2.2243200000000005,
+        "output_cr": 52.2955,
+        "total_cr": 69.64822
+      },
+      {
+        "block": "P4",
+        "model": "gpt-6.1-sol",
+        "dy": 1.0,
+        "from_up": 17.0,
+        "to_up": 18.0,
+        "uncached_cr": 13.708849999999998,
+        "cached_cr": 2.3164799999999994,
+        "output_cr": 51.871749999999984,
+        "total_cr": 67.89707999999999
+      }
+    ]
+  },
+  "Way_B_full_step_rises": {
+    "n_intervals": 12,
+    "pooled_coef": 0.012378,
+    "pooled_se": 0.000502,
+    "implied_pool_window": 8078.7,
+    "terms": {
+      "uncached": {
+        "coef": 0.013681,
+        "se": 0.001376,
+        "ratio_to_pooled": 1.1052,
+        "ratio_to_uncached": 1.0,
+        "implied_window": 7309.5
+      },
+      "cached": {
+        "coef": 0.013279,
+        "se": 0.001096,
+        "ratio_to_pooled": 1.0728,
+        "ratio_to_uncached": 0.9707,
+        "implied_window": 7530.4
+      },
+      "output": {
+        "coef": 0.011134,
+        "se": 0.000937,
+        "ratio_to_pooled": 0.8995,
+        "ratio_to_uncached": 0.8138,
+        "implied_window": 8981.5
+      }
+    },
+    "intervals": [
+      {
+        "block": "P1",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 3.0,
+        "to_up": 4.0,
+        "uncached_cr": 21.651000000000003,
+        "cached_cr": 5.2224,
+        "output_cr": 66.355,
+        "total_cr": 93.22840000000001
+      },
+      {
+        "block": "P1",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 4.0,
+        "to_up": 5.0,
+        "uncached_cr": 21.924,
+        "cached_cr": 5.1424,
+        "output_cr": 68.78375000000001,
+        "total_cr": 95.85015000000001
+      },
+      {
+        "block": "P1",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 5.0,
+        "to_up": 6.0,
+        "uncached_cr": 19.0455,
+        "cached_cr": 5.5264,
+        "output_cr": 68.78125,
+        "total_cr": 93.35315
+      },
+      {
+        "block": "P1",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 6.0,
+        "to_up": 7.0,
+        "uncached_cr": 20.681,
+        "cached_cr": 5.312,
+        "output_cr": 65.255,
+        "total_cr": 91.24799999999999
+      },
+      {
+        "block": "P2",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 8.0,
+        "to_up": 9.0,
+        "uncached_cr": 1.90225,
+        "cached_cr": 62.745600000000024,
+        "output_cr": 0.8475000000000006,
+        "total_cr": 65.49535000000002
+      },
+      {
+        "block": "P2",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 9.0,
+        "to_up": 10.0,
+        "uncached_cr": 2.2039999999999997,
+        "cached_cr": 75.81120000000001,
+        "output_cr": 0.9962500000000009,
+        "total_cr": 79.01145000000001
+      },
+      {
+        "block": "P2",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 10.0,
+        "to_up": 11.0,
+        "uncached_cr": 2.1112500000000005,
+        "cached_cr": 75.89760000000004,
+        "output_cr": 0.9625000000000009,
+        "total_cr": 78.97135000000004
+      },
+      {
+        "block": "P3",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 12.0,
+        "to_up": 13.0,
+        "uncached_cr": 69.5405,
+        "cached_cr": 2.912,
+        "output_cr": 0.056249999999999994,
+        "total_cr": 72.50875
+      },
+      {
+        "block": "P3",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 13.0,
+        "to_up": 14.0,
+        "uncached_cr": 70.263,
+        "cached_cr": 2.8383999999999996,
+        "output_cr": 0.056249999999999994,
+        "total_cr": 73.15765
+      },
+      {
+        "block": "P4",
+        "model": "gpt-6.1-sol",
+        "dy": 1.0,
+        "from_up": 15.0,
+        "to_up": 16.0,
+        "uncached_cr": 17.3184,
+        "cached_cr": 2.1900800000000005,
+        "output_cr": 53.15049999999997,
+        "total_cr": 72.65897999999997
+      },
+      {
+        "block": "P4",
+        "model": "gpt-6.1-sol",
+        "dy": 1.0,
+        "from_up": 16.0,
+        "to_up": 17.0,
+        "uncached_cr": 14.78015,
+        "cached_cr": 2.1520000000000006,
+        "output_cr": 52.29425,
+        "total_cr": 69.2264
+      },
+      {
+        "block": "P4",
+        "model": "gpt-6.1-sol",
+        "dy": 1.0,
+        "from_up": 17.0,
+        "to_up": 18.0,
+        "uncached_cr": 13.379399999999999,
+        "cached_cr": 2.2428799999999995,
+        "output_cr": 51.870499999999986,
+        "total_cr": 67.49277999999998
+      }
+    ]
+  },
+  "Way_C_continuous_3_to_14": {
+    "n_intervals": 11,
+    "pooled_coef": 0.011728,
+    "pooled_se": 0.000467,
+    "implied_pool_window": 8526.5,
+    "terms": {
+      "uncached": {
+        "coef": 0.013355,
+        "se": 0.000687,
+        "ratio_to_pooled": 1.1387,
+        "ratio_to_uncached": 1.0,
+        "implied_window": 7487.8
+      },
+      "cached": {
+        "coef": 0.013136,
+        "se": 0.000543,
+        "ratio_to_pooled": 1.12,
+        "ratio_to_uncached": 0.9836,
+        "implied_window": 7612.8
+      },
+      "output": {
+        "coef": 0.009409,
+        "se": 0.000543,
+        "ratio_to_pooled": 0.8023,
+        "ratio_to_uncached": 0.7045,
+        "implied_window": 10628.3
+      }
+    },
+    "intervals": [
+      {
+        "block": "continuous",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 3.0,
+        "to_up": 4.0,
+        "uncached_cr": 21.651000000000003,
+        "cached_cr": 5.2224,
+        "output_cr": 66.355,
+        "total_cr": 93.22840000000001
+      },
+      {
+        "block": "continuous",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 4.0,
+        "to_up": 5.0,
+        "uncached_cr": 21.924,
+        "cached_cr": 5.1424,
+        "output_cr": 68.78375000000001,
+        "total_cr": 95.85015000000001
+      },
+      {
+        "block": "continuous",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 5.0,
+        "to_up": 6.0,
+        "uncached_cr": 19.0455,
+        "cached_cr": 5.5264,
+        "output_cr": 68.78125,
+        "total_cr": 93.35315
+      },
+      {
+        "block": "continuous",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 6.0,
+        "to_up": 7.0,
+        "uncached_cr": 20.681,
+        "cached_cr": 5.312,
+        "output_cr": 65.255,
+        "total_cr": 91.24799999999999
+      },
+      {
+        "block": "continuous",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 7.0,
+        "to_up": 8.0,
+        "uncached_cr": 34.76025,
+        "cached_cr": 5.635199999999999,
+        "output_cr": 58.32875000000001,
+        "total_cr": 98.7242
+      },
+      {
+        "block": "continuous",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 8.0,
+        "to_up": 9.0,
+        "uncached_cr": 1.90225,
+        "cached_cr": 62.745600000000024,
+        "output_cr": 0.8475000000000006,
+        "total_cr": 65.49535000000002
+      },
+      {
+        "block": "continuous",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 9.0,
+        "to_up": 10.0,
+        "uncached_cr": 2.2039999999999997,
+        "cached_cr": 75.81120000000001,
+        "output_cr": 0.9962500000000009,
+        "total_cr": 79.01145000000001
+      },
+      {
+        "block": "continuous",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 10.0,
+        "to_up": 11.0,
+        "uncached_cr": 2.1112500000000005,
+        "cached_cr": 75.89760000000004,
+        "output_cr": 0.9625000000000009,
+        "total_cr": 78.97135000000004
+      },
+      {
+        "block": "continuous",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 11.0,
+        "to_up": 12.0,
+        "uncached_cr": 32.7995,
+        "cached_cr": 48.34240000000002,
+        "output_cr": 0.5775,
+        "total_cr": 81.71940000000002
+      },
+      {
+        "block": "continuous",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 12.0,
+        "to_up": 13.0,
+        "uncached_cr": 69.5405,
+        "cached_cr": 2.912,
+        "output_cr": 0.056249999999999994,
+        "total_cr": 72.50875
+      },
+      {
+        "block": "continuous",
+        "model": "gpt-6-astra",
+        "dy": 1.0,
+        "from_up": 13.0,
+        "to_up": 14.0,
+        "uncached_cr": 70.263,
+        "cached_cr": 2.8383999999999996,
+        "output_cr": 0.056249999999999994,
+        "total_cr": 73.15765
+      }
+    ]
+  }
+}

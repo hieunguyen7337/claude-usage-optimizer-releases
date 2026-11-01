@@ -1,0 +1,290 @@
+#!/usr/bin/env python3
+"""List the prompts a person typed in one Claude Code session, on the session's current branch.
+
+The mobile-view mod runs this to build its Questions pane (a mod cannot read a transcript over
+4 MiB itself); it also works on its own in any terminal.
+
+  claude-prompts --transcript PATH          one transcript file
+  claude-prompts --session-id ID            looked up under ~/.claude/projects/*/ID.jsonl
+  claude-prompts --latest [--cwd DIR]       the newest session of DIR's project (default: here)
+  add --text for a numbered list instead of JSON
+
+JSON: {version, path, size, mtimeMs, title, prompts: [{uuid, n, ts, title, text, isBeforeCompact}]}.
+Exit 2, with {"error": ...} on stdout, when the transcript cannot be found or read.
+"""
+
+import argparse
+import datetime
+import glob
+import json
+import os
+import re
+import sys
+
+VERSION = 1
+TITLE_CELLS = 160
+TEXT_CHARS = 600
+# Text that opens an injected row rather than something the person typed.
+INJECTED_PREFIXES = (
+    "<command-", "<local-command", "<bash-", "<task-notification", "<system-reminder",
+    "[Request interrupted", "This session is being continued",
+)
+PERSON_SOURCES = (None, "typed", "queued", "suggestion_accepted")
+PASTED = re.compile(r"<pasted_content[^>]*>.*?</pasted_content[^>]*>", re.S)
+SPACE = re.compile(r"\s+")
+
+
+def config_dir():
+    return os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(os.path.expanduser("~"), ".claude")
+
+
+def project_dir_name(cwd):
+    # Claude Code names a project's folder after its path with every non-alphanumeric character as "-".
+    return re.sub(r"[^A-Za-z0-9]", "-", cwd)
+
+
+def find_by_session(session_id):
+    pattern = os.path.join(config_dir(), "projects", "*", glob.escape(session_id) + ".jsonl")
+    matches = sorted(glob.glob(pattern), key=os.path.getmtime, reverse=True)
+    return matches[0] if matches else None
+
+
+def find_latest(cwd):
+    folder = os.path.join(config_dir(), "projects", project_dir_name(os.path.abspath(cwd)))
+    matches = sorted(glob.glob(os.path.join(folder, "*.jsonl")), key=os.path.getmtime, reverse=True)
+    return matches[0] if matches else None
+
+
+def text_of(content):
+    """The typed text of a user row's content and whether it carries a tool result or an image."""
+    if isinstance(content, str):
+        return content, False, False
+    if not isinstance(content, list):
+        return "", False, False
+    parts, has_image = [], False
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        kind = block.get("type")
+        if kind == "tool_result":
+            return "", True, False
+        if kind == "text" and isinstance(block.get("text"), str):
+            parts.append(block["text"])
+        elif kind == "image":
+            has_image = True
+    return "\n".join(parts), False, has_image
+
+
+def is_prompt(row):
+    if row.get("isSidechain"):
+        return False
+    if row.get("_queued"):
+        stripped = row["_text"].lstrip()
+        return bool(stripped or row["_image"]) and not stripped.startswith(INJECTED_PREFIXES)
+    if row.get("type") != "user":
+        return False
+    if row.get("isMeta") or row.get("isCompactSummary") or row.get("isVisibleInTranscriptOnly"):
+        return False
+    if "toolUseResult" in row:
+        return False
+    origin = row.get("origin")
+    if isinstance(origin, dict):
+        if origin.get("kind") != "human":
+            return False
+    elif row.get("promptSource") not in PERSON_SOURCES:
+        return False
+    text, is_result, has_image = row["_text"], row["_result"], row["_image"]
+    if is_result:
+        return False
+    stripped = text.lstrip()
+    if not stripped and not has_image:
+        return False
+    return not stripped.startswith(INJECTED_PREFIXES)
+
+
+def title_of(text, has_image):
+    """The prompt's first line; a paste is shown as [pasted] followed by the first typed line."""
+    lines = [SPACE.sub(" ", candidate.strip()) for candidate in PASTED.sub("\n[pasted]\n", text).splitlines()]
+    lines = [candidate for candidate in lines if candidate]
+    line = lines[0] if lines else ""
+    if line == "[pasted]":
+        typed = next((candidate for candidate in lines[1:] if candidate != "[pasted]"), "")
+        line = ("[pasted] " + typed).strip()
+    if has_image:
+        line = ("[image] " + line).strip()
+    if len(line) > TITLE_CELLS:
+        line = line[:TITLE_CELLS - 1].rstrip() + "…"
+    return line or "[empty]"
+
+
+def load(path):
+    """Every row with a uuid, slimmed to what the walk and the filter read, in file order."""
+    rows, title = [], ""
+    with open(path, encoding="utf-8", errors="replace") as stream:
+        for line in stream:
+            if not line.strip():
+                continue
+            try:
+                data = json.loads(line)
+            except ValueError:
+                continue  # a half-written last line, or damage
+            if not isinstance(data, dict):
+                continue
+            kind = data.get("type")
+            if kind in ("ai-title", "custom-title"):
+                value = data.get("customTitle") or data.get("aiTitle") or data.get("title")
+                if isinstance(value, str) and value.strip() and (kind == "custom-title" or not title.startswith("\0")):
+                    title = ("\0" if kind == "custom-title" else "") + value.strip()
+                continue
+            uuid = data.get("uuid")
+            if not isinstance(uuid, str):
+                continue
+            row = {
+                "uuid": uuid,
+                "parentUuid": data.get("parentUuid"),
+                "logicalParentUuid": data.get("logicalParentUuid"),
+                "type": kind,
+                "subtype": data.get("subtype"),
+                "isSidechain": bool(data.get("isSidechain")),
+                "timestamp": data.get("timestamp"),
+            }
+            attachment = data.get("attachment")
+            if kind == "attachment" and isinstance(attachment, dict) and attachment.get("type") == "queued_command":
+                # A message the person sent while a turn ran, folded into that turn.
+                prompt = attachment.get("prompt")
+                origin = attachment.get("origin")
+                if attachment.get("commandMode", "prompt") == "prompt" and (
+                        attachment.get("humanTurn") or (isinstance(origin, dict) and origin.get("kind") == "human")):
+                    row["_queued"] = True
+                    row["_text"], row["_result"], row["_image"] = text_of(prompt)
+            if kind == "user":
+                for key in ("isMeta", "isCompactSummary", "isVisibleInTranscriptOnly", "origin", "promptSource"):
+                    if key in data:
+                        row[key] = data[key]
+                if "toolUseResult" in data:
+                    row["toolUseResult"] = True
+                message = data.get("message")
+                content = message.get("content") if isinstance(message, dict) else None
+                row["_text"], row["_result"], row["_image"] = text_of(content)
+            rows.append(row)
+    return rows, title.lstrip("\0")
+
+
+def current_branch(rows):
+    """The rows of the branch the session is on, oldest first: back from the newest main-thread row."""
+    position = {}
+    for index, row in enumerate(rows):
+        position[row["uuid"]] = index  # a repeated uuid keeps its last copy
+    index = len(rows) - 1
+    while index >= 0 and rows[index]["isSidechain"]:
+        index -= 1
+    chain, seen = [], set()
+    while index >= 0 and index not in seen:
+        seen.add(index)
+        row = rows[index]
+        chain.append(row)
+        parent = row["parentUuid"]
+        if parent is not None:
+            target = position.get(parent)
+            if target is not None:
+                index = target
+                continue
+        logical = row["logicalParentUuid"]
+        target = position.get(logical) if logical is not None else None
+        if target is not None and target < index:
+            index = target
+            continue
+        if parent is None and row["subtype"] != "compact_boundary":
+            break  # the session's first row
+        # A compaction boundary that names no earlier row, or a parent the file lost: step back.
+        index -= 1
+        while index >= 0 and rows[index]["isSidechain"]:
+            index -= 1
+    chain.reverse()
+    return chain
+
+
+def prompts_of(path):
+    rows, title = load(path)
+    chain = current_branch(rows)
+    last_compact = -1
+    for index, row in enumerate(chain):
+        if row["subtype"] == "compact_boundary":
+            last_compact = index
+    prompts = []
+    for index, row in enumerate(chain):
+        if not is_prompt(row):
+            continue
+        text = row["_text"]
+        prompts.append({
+            "uuid": row["uuid"],
+            "n": len(prompts) + 1,
+            "ts": row["timestamp"],
+            "title": title_of(text, row["_image"]),
+            "text": text[:TEXT_CHARS],
+            "isBeforeCompact": index < last_compact,
+        })
+    stat = os.stat(path)
+    return {
+        "version": VERSION,
+        "path": path,
+        "size": stat.st_size,
+        "mtimeMs": int(stat.st_mtime * 1000),
+        "title": title,
+        "prompts": prompts,
+    }
+
+
+def local_time(stamp):
+    """HH:MM in this machine's time zone for a transcript's UTC ISO timestamp."""
+    if not isinstance(stamp, str):
+        return "     "
+    try:
+        moment = datetime.datetime.strptime(stamp[:19], "%Y-%m-%dT%H:%M:%S")
+    except ValueError:
+        return "     "
+    return moment.replace(tzinfo=datetime.timezone.utc).astimezone().strftime("%H:%M")
+
+
+def fail(message):
+    sys.stdout.write(json.dumps({"version": VERSION, "error": message}) + "\n")
+    sys.exit(2)
+
+
+def main(argv=None):
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8")
+        except (AttributeError, ValueError):
+            pass
+    parser = argparse.ArgumentParser(description="List the prompts typed in one Claude Code session.")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--transcript", help="path to a session's .jsonl transcript")
+    source.add_argument("--session-id", help="a session id, looked up under ~/.claude/projects")
+    source.add_argument("--latest", action="store_true", help="the newest session of --cwd's project")
+    parser.add_argument("--cwd", default=os.getcwd(), help="the project folder for --latest")
+    parser.add_argument("--text", action="store_true", help="print a numbered list instead of JSON")
+    args = parser.parse_args(argv)
+
+    if args.transcript:
+        path = args.transcript
+    elif args.session_id:
+        path = find_by_session(args.session_id)
+    else:
+        path = find_latest(args.cwd)
+    if not path or not os.path.isfile(path):
+        fail("transcript not found: %s" % (path or args.session_id or args.cwd))
+    try:
+        result = prompts_of(path)
+    except OSError as error:
+        fail("cannot read %s: %s" % (path, error))
+
+    if args.text:
+        for prompt in result["prompts"]:
+            sys.stdout.write("#%-3d %s  %s\n" % (prompt["n"], local_time(prompt["ts"]), prompt["title"]))
+        return
+    sys.stdout.write(json.dumps(result, ensure_ascii=False) + "\n")
+
+
+if __name__ == "__main__":
+    main()

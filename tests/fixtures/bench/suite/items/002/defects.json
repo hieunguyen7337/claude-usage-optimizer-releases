@@ -1,0 +1,4 @@
+[
+  {"id": "D1", "file": "src/util.py", "line": 5, "line_end": 6, "type": "wrong-value",
+   "description": "returns the input instead of the upper bound"}
+]

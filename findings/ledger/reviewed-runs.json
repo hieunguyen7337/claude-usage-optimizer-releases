@@ -1,0 +1,699 @@
+[
+  {
+    "lane": "astra",
+    "effort": "max",
+    "class": "review",
+    "runs": 110,
+    "ok%": 100.0,
+    "reviewed": 2,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 1.3674499999999998,
+    "med_tokens": 40398.0,
+    "wk%/run": 0.2086513366833622,
+    "wk%/usable": 11.475823517584923,
+    "$list/usable": 25.339305000000003,
+    "wave_count": 8,
+    "attributed_percent": {
+      "weekly": 22.951647035169845
+    }
+  },
+  {
+    "lane": "astra",
+    "effort": "xhigh",
+    "class": "review",
+    "runs": 115,
+    "ok%": 96.52173913043478,
+    "reviewed": 4,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 1.1104666666666667,
+    "med_tokens": 37148.0,
+    "wk%/run": 0.152314743255195,
+    "wk%/usable": 4.379048868586856,
+    "$list/usable": 11.7692485,
+    "wave_count": 5,
+    "attributed_percent": {
+      "weekly": 17.516195474347423
+    }
+  },
+  {
+    "lane": "gemini",
+    "effort": "high",
+    "class": "mechanical",
+    "runs": 1,
+    "ok%": 100.0,
+    "reviewed": 1,
+    "accepted%": 0.0,
+    "usable%": 100.0,
+    "med_min": 18.097916666666666,
+    "med_tokens": 284459.0,
+    "wk%/run": 0.6662625805374326,
+    "wk%/usable": 0.6662625805374326,
+    "$list/usable": null,
+    "wave_count": 1,
+    "attributed_percent": {
+      "weekly": 0.6662625805374326,
+      "5h": 2.331917849041791
+    }
+  },
+  {
+    "lane": "gemini",
+    "effort": "medium",
+    "class": "research",
+    "runs": 2,
+    "ok%": 50.0,
+    "reviewed": 2,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 18.199708333333334,
+    "med_tokens": 357225.5,
+    "wk%/run": 0.8810452088697918,
+    "wk%/usable": 0.8810452088697918,
+    "$list/usable": null,
+    "wave_count": 2,
+    "attributed_percent": {
+      "weekly": 1.7620904177395835,
+      "5h": 6.167312351026868
+    }
+  },
+  {
+    "lane": "gemini",
+    "effort": "medium",
+    "class": "substantive",
+    "runs": 2,
+    "ok%": 100.0,
+    "reviewed": 2,
+    "accepted%": 50.0,
+    "usable%": 50.0,
+    "med_min": 15.417316666666668,
+    "med_tokens": 480258.0,
+    "wk%/run": 0.7606952555077932,
+    "wk%/usable": 1.5213905110155863,
+    "$list/usable": null,
+    "wave_count": 2,
+    "attributed_percent": {
+      "weekly": 1.5213905110155863,
+      "5h": 5.324869102223212
+    }
+  },
+  {
+    "lane": "haiku",
+    "effort": "high",
+    "class": "substantive",
+    "runs": 2,
+    "ok%": 0.0,
+    "reviewed": 2,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 23.851816666666664,
+    "med_tokens": 7282585.5,
+    "wk%/run": 0.05486346267026546,
+    "wk%/usable": 0.05486346267026546,
+    "$list/usable": 0.8807939049999998,
+    "wave_count": 1,
+    "attributed_percent": {
+      "weekly": 0.10972692534053093
+    }
+  },
+  {
+    "lane": "haiku",
+    "effort": "low",
+    "class": "mechanical",
+    "runs": 2,
+    "ok%": 50.0,
+    "reviewed": 2,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 5.8176749999999995,
+    "med_tokens": 310265.0,
+    "wk%/run": 0.0,
+    "wk%/usable": 0.0,
+    "$list/usable": 0.0242866,
+    "wave_count": 2,
+    "attributed_percent": {
+      "weekly": 0.0,
+      "5h": 0.0
+    }
+  },
+  {
+    "lane": "haiku",
+    "effort": "medium",
+    "class": "mechanical",
+    "runs": 2,
+    "ok%": 50.0,
+    "reviewed": 2,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 2.6719333333333335,
+    "med_tokens": 323058.5,
+    "wk%/run": 0.0,
+    "wk%/usable": 0.0,
+    "$list/usable": 0.015207934999999999,
+    "wave_count": 2,
+    "attributed_percent": {
+      "weekly": 0.0,
+      "5h": 0.0
+    }
+  },
+  {
+    "lane": "haiku",
+    "effort": "xhigh",
+    "class": "mechanical",
+    "runs": 1,
+    "ok%": 0.0,
+    "reviewed": 1,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 12.033283333333333,
+    "med_tokens": 1154971.0,
+    "wk%/run": 0.0,
+    "wk%/usable": 0.0,
+    "$list/usable": 0.47650003,
+    "wave_count": 1,
+    "attributed_percent": {
+      "weekly": 0.0,
+      "5h": 0.0
+    }
+  },
+  {
+    "lane": "haiku",
+    "effort": "xhigh",
+    "class": "substantive",
+    "runs": 1,
+    "ok%": 100.0,
+    "reviewed": 1,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 29.623883333333332,
+    "med_tokens": 11481376.0,
+    "wk%/run": 0.0,
+    "wk%/usable": 0.0,
+    "$list/usable": 1.24372068,
+    "wave_count": 1,
+    "attributed_percent": {
+      "weekly": 0.0,
+      "5h": 1.3461466351753468
+    }
+  },
+  {
+    "lane": "luna",
+    "effort": "high",
+    "class": "mechanical",
+    "runs": 1,
+    "ok%": 100.0,
+    "reviewed": 1,
+    "accepted%": 0.0,
+    "usable%": 0.0,
+    "med_min": 1.5776833333333333,
+    "med_tokens": null,
+    "wk%/run": 0.0,
+    "wk%/usable": null,
+    "$list/usable": null,
+    "wave_count": 1,
+    "attributed_percent": {
+      "weekly": 0.0
+    }
+  },
+  {
+    "lane": "luna",
+    "effort": "high",
+    "class": "research",
+    "runs": 5,
+    "ok%": 100.0,
+    "reviewed": 5,
+    "accepted%": 60.0,
+    "usable%": 80.0,
+    "med_min": 9.292983333333332,
+    "med_tokens": 242857.0,
+    "wk%/run": 0.3241086533624544,
+    "wk%/usable": 0.405135816703068,
+    "$list/usable": 0.09698558,
+    "wave_count": 4,
+    "attributed_percent": {
+      "weekly": 1.620543266812272
+    }
+  },
+  {
+    "lane": "luna",
+    "effort": "high",
+    "class": "substantive",
+    "runs": 3,
+    "ok%": 100.0,
+    "reviewed": 3,
+    "accepted%": 33.333333333333336,
+    "usable%": 100.0,
+    "med_min": 5.56895,
+    "med_tokens": 142886.0,
+    "wk%/run": 0.0,
+    "wk%/usable": 0.0,
+    "$list/usable": 0.0147362,
+    "wave_count": 3,
+    "attributed_percent": {
+      "weekly": 0.0
+    }
+  },
+  {
+    "lane": "luna",
+    "effort": "low",
+    "class": "mechanical",
+    "runs": 8,
+    "ok%": 87.5,
+    "reviewed": 7,
+    "accepted%": 71.42857142857143,
+    "usable%": 85.71428571428571,
+    "med_min": 4.470883333333333,
+    "med_tokens": 33826.5,
+    "wk%/run": 0.11162992356708079,
+    "wk%/usable": 0.14883989808944106,
+    "$list/usable": 0.020903539999999998,
+    "wave_count": 5,
+    "attributed_percent": {
+      "weekly": 0.8930393885366463
+    }
+  },
+  {
+    "lane": "luna",
+    "effort": "low",
+    "class": "research",
+    "runs": 43,
+    "ok%": 97.67441860465117,
+    "reviewed": 2,
+    "accepted%": 0.0,
+    "usable%": 50.0,
+    "med_min": 3.2930833333333336,
+    "med_tokens": 43287.5,
+    "wk%/run": 0.003527357002818854,
+    "wk%/usable": 0.15167635112121072,
+    "$list/usable": 0.042933780000000005,
+    "wave_count": 3,
+    "attributed_percent": {
+      "weekly": 0.15167635112121072
+    }
+  },
+  {
+    "lane": "luna",
+    "effort": "max",
+    "class": "design",
+    "runs": 1,
+    "ok%": 100.0,
+    "reviewed": 1,
+    "accepted%": 0.0,
+    "usable%": 0.0,
+    "med_min": 28.31451666666667,
+    "med_tokens": 355552.0,
+    "wk%/run": 0.0,
+    "wk%/usable": null,
+    "$list/usable": null,
+    "wave_count": 1,
+    "attributed_percent": {
+      "weekly": 0.0
+    }
+  },
+  {
+    "lane": "luna",
+    "effort": "max",
+    "class": "review",
+    "runs": 147,
+    "ok%": 100.0,
+    "reviewed": 3,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 1.04985,
+    "med_tokens": 42541.0,
+    "wk%/run": 0.011736158499126147,
+    "wk%/usable": 0.5750717664571813,
+    "$list/usable": 0.23811662,
+    "wave_count": 8,
+    "attributed_percent": {
+      "weekly": 1.725215299371544
+    }
+  },
+  {
+    "lane": "luna",
+    "effort": "max",
+    "class": "substantive",
+    "runs": 1,
+    "ok%": 100.0,
+    "reviewed": 1,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 17.426166666666667,
+    "med_tokens": null,
+    "wk%/run": 0.0,
+    "wk%/usable": 0.0,
+    "$list/usable": 0.13528108,
+    "wave_count": 1,
+    "attributed_percent": {
+      "weekly": 0.0
+    }
+  },
+  {
+    "lane": "luna",
+    "effort": "medium",
+    "class": "mechanical",
+    "runs": 1,
+    "ok%": 100.0,
+    "reviewed": 1,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 1.1918499999999999,
+    "med_tokens": null,
+    "wk%/run": 0.0,
+    "wk%/usable": 0.0,
+    "$list/usable": 0.0043162800000000005,
+    "wave_count": 1,
+    "attributed_percent": {
+      "weekly": 0.0
+    }
+  },
+  {
+    "lane": "luna",
+    "effort": "medium",
+    "class": "substantive",
+    "runs": 3,
+    "ok%": 100.0,
+    "reviewed": 3,
+    "accepted%": 0.0,
+    "usable%": 33.333333333333336,
+    "med_min": 7.563116666666667,
+    "med_tokens": 105270.0,
+    "wk%/run": 0.00395412821699009,
+    "wk%/usable": 0.01186238465097027,
+    "$list/usable": 0.04376552,
+    "wave_count": 2,
+    "attributed_percent": {
+      "weekly": 0.01186238465097027
+    }
+  },
+  {
+    "lane": "luna",
+    "effort": "xhigh",
+    "class": "hard",
+    "runs": 2,
+    "ok%": 100.0,
+    "reviewed": 2,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 26.229275,
+    "med_tokens": null,
+    "wk%/run": 0.12661465595592247,
+    "wk%/usable": 0.12661465595592247,
+    "$list/usable": 0.21096663,
+    "wave_count": 2,
+    "attributed_percent": {
+      "weekly": 0.25322931191184495
+    }
+  },
+  {
+    "lane": "luna",
+    "effort": "xhigh",
+    "class": "research",
+    "runs": 3,
+    "ok%": 100.0,
+    "reviewed": 3,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 12.19325,
+    "med_tokens": null,
+    "wk%/run": 0.4863930246080476,
+    "wk%/usable": 0.4863930246080476,
+    "$list/usable": 0.11376108666666668,
+    "wave_count": 2,
+    "attributed_percent": {
+      "weekly": 1.4591790738241428
+    }
+  },
+  {
+    "lane": "luna",
+    "effort": "xhigh",
+    "class": "substantive",
+    "runs": 1,
+    "ok%": 100.0,
+    "reviewed": 1,
+    "accepted%": 0.0,
+    "usable%": 100.0,
+    "med_min": 6.230033333333334,
+    "med_tokens": 133273.0,
+    "wk%/run": 0.0,
+    "wk%/usable": 0.0,
+    "$list/usable": null,
+    "wave_count": 1,
+    "attributed_percent": {
+      "weekly": 0.0
+    }
+  },
+  {
+    "lane": "opus",
+    "effort": "high",
+    "class": "substantive",
+    "runs": 3,
+    "ok%": 100.0,
+    "reviewed": 3,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 15.924949999999999,
+    "med_tokens": 5916144.0,
+    "wk%/run": 0.0,
+    "wk%/usable": 0.0,
+    "$list/usable": 4.963614933333334,
+    "wave_count": 3,
+    "attributed_percent": {
+      "weekly": 0.0,
+      "5h": 3.9029699596441207
+    }
+  },
+  {
+    "lane": "opus",
+    "effort": "xhigh",
+    "class": "review",
+    "runs": 90,
+    "ok%": 20.0,
+    "reviewed": 18,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 2.012125,
+    "med_tokens": 364012.5,
+    "wk%/run": 0.06596220006610833,
+    "wk%/usable": 0.32981100033054167,
+    "$list/usable": 8.51928833611111,
+    "wave_count": 7,
+    "attributed_percent": {
+      "weekly": 5.93659800594975,
+      "5h": 35.87543809782831
+    }
+  },
+  {
+    "lane": "sol",
+    "effort": "high",
+    "class": "design",
+    "runs": 1,
+    "ok%": 100.0,
+    "reviewed": 1,
+    "accepted%": 0.0,
+    "usable%": 0.0,
+    "med_min": 17.336850000000002,
+    "med_tokens": 203074.0,
+    "wk%/run": 0.0,
+    "wk%/usable": null,
+    "$list/usable": null,
+    "wave_count": 1,
+    "attributed_percent": {
+      "weekly": 0.0
+    }
+  },
+  {
+    "lane": "sol",
+    "effort": "high",
+    "class": "review",
+    "runs": 111,
+    "ok%": 98.1981981981982,
+    "reviewed": 1,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 0.7394666666666667,
+    "med_tokens": 34630.0,
+    "wk%/run": 0.07045884613915332,
+    "wk%/usable": 7.820931921446022,
+    "$list/usable": 3.512131600000001,
+    "wave_count": 6,
+    "attributed_percent": {
+      "weekly": 7.820931921446022
+    }
+  },
+  {
+    "lane": "sol",
+    "effort": "low",
+    "class": "mechanical",
+    "runs": 1,
+    "ok%": 100.0,
+    "reviewed": 1,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 1.0202333333333333,
+    "med_tokens": null,
+    "wk%/run": 0.0,
+    "wk%/usable": 0.0,
+    "$list/usable": 0.0986192,
+    "wave_count": 1,
+    "attributed_percent": {
+      "weekly": 0.0
+    }
+  },
+  {
+    "lane": "sol",
+    "effort": "low",
+    "class": "substantive",
+    "runs": 2,
+    "ok%": 100.0,
+    "reviewed": 2,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 8.419841666666667,
+    "med_tokens": 178326.0,
+    "wk%/run": 0.11762776993740379,
+    "wk%/usable": 0.11762776993740379,
+    "$list/usable": 0.0813156,
+    "wave_count": 2,
+    "attributed_percent": {
+      "weekly": 0.23525553987480757
+    }
+  },
+  {
+    "lane": "sol",
+    "effort": "medium",
+    "class": "research",
+    "runs": 1,
+    "ok%": 100.0,
+    "reviewed": 1,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 13.267883333333334,
+    "med_tokens": null,
+    "wk%/run": 0.26979992238879824,
+    "wk%/usable": 0.26979992238879824,
+    "$list/usable": 0.9428684,
+    "wave_count": 1,
+    "attributed_percent": {
+      "weekly": 0.26979992238879824
+    }
+  },
+  {
+    "lane": "sol",
+    "effort": "medium",
+    "class": "substantive",
+    "runs": 2,
+    "ok%": 100.0,
+    "reviewed": 2,
+    "accepted%": 50.0,
+    "usable%": 50.0,
+    "med_min": 19.00443333333333,
+    "med_tokens": 335257.5,
+    "wk%/run": 0.5290178229685232,
+    "wk%/usable": 1.0580356459370464,
+    "$list/usable": null,
+    "wave_count": 1,
+    "attributed_percent": {
+      "weekly": 1.0580356459370464
+    }
+  },
+  {
+    "lane": "sol",
+    "effort": "xhigh",
+    "class": "review",
+    "runs": 128,
+    "ok%": 98.4375,
+    "reviewed": 20,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 1.0480749999999999,
+    "med_tokens": 39533.0,
+    "wk%/run": 0.17822530073842938,
+    "wk%/usable": 1.1406419247259478,
+    "$list/usable": 1.494022,
+    "wave_count": 7,
+    "attributed_percent": {
+      "weekly": 22.812838494518957
+    }
+  },
+  {
+    "lane": "sonnet",
+    "effort": "high",
+    "class": "review",
+    "runs": 76,
+    "ok%": 52.63157894736842,
+    "reviewed": 4,
+    "accepted%": 100.0,
+    "usable%": 100.0,
+    "med_min": 0.4004833333333333,
+    "med_tokens": 140754.0,
+    "wk%/run": 0.015295996269122219,
+    "wk%/usable": 0.29062392911332224,
+    "$list/usable": 3.8681851,
+    "wave_count": 3,
+    "attributed_percent": {
+      "weekly": 1.162495716453289,
+      "5h": 8.222242489586113
+    }
+  },
+  {
+    "lane": "sonnet",
+    "effort": "high",
+    "class": "substantive",
+    "runs": 2,
+    "ok%": 100.0,
+    "reviewed": 2,
+    "accepted%": 0.0,
+    "usable%": 100.0,
+    "med_min": 15.869416666666666,
+    "med_tokens": 5590150.5,
+    "wk%/run": 0.0,
+    "wk%/usable": 0.0,
+    "$list/usable": 1.63041465,
+    "wave_count": 2,
+    "attributed_percent": {
+      "weekly": 0.0,
+      "5h": 1.0
+    }
+  },
+  {
+    "lane": "sonnet",
+    "effort": "medium",
+    "class": "substantive",
+    "runs": 2,
+    "ok%": 100.0,
+    "reviewed": 2,
+    "accepted%": 50.0,
+    "usable%": 100.0,
+    "med_min": 12.44275,
+    "med_tokens": 164130.0,
+    "wk%/run": 0.0,
+    "wk%/usable": 0.0,
+    "$list/usable": 0.41870815000000006,
+    "wave_count": 2,
+    "attributed_percent": {
+      "weekly": 0.0,
+      "5h": 0.6538533648246532
+    }
+  },
+  {
+    "lane": "sonnet",
+    "effort": "xhigh",
+    "class": "substantive",
+    "runs": 2,
+    "ok%": 100.0,
+    "reviewed": 2,
+    "accepted%": 50.0,
+    "usable%": 100.0,
+    "med_min": 8.845783333333333,
+    "med_tokens": 553091.5,
+    "wk%/run": 0.0,
+    "wk%/usable": 0.0,
+    "$list/usable": 1.3389573000000001,
+    "wave_count": 2,
+    "attributed_percent": {
+      "weekly": 0.0,
+      "5h": 0.0
+    }
+  }
+]

@@ -1,0 +1,49 @@
+{
+  "issues_by_final_verdict": {
+    "not_a_defect": 20,
+    "real": 36,
+    "speculative": 22,
+    "wrong": 26
+  },
+  "real_by_scope": {
+    "in_diff": 34,
+    "touched_unchanged": 2
+  },
+  "real_by_severity": {
+    "high": 6,
+    "low": 4,
+    "medium": 26
+  },
+  "real_per_item": {
+    "001": 3,
+    "002": 1,
+    "005": 1,
+    "007": 1,
+    "008": 2,
+    "011": 3,
+    "012": 2,
+    "013": 5,
+    "015": 1,
+    "018": 2,
+    "019": 3,
+    "020": 4,
+    "021": 1,
+    "023": 1,
+    "024": 1,
+    "026": 2,
+    "027": 1,
+    "028": 1,
+    "030": 1
+  },
+  "judging": {
+    "judges_agree": 78,
+    "tiebreaks": 26,
+    "tiebreak_agrees_codex": 23,
+    "tiebreak_agrees_sonnet": 3
+  },
+  "matched_audit_labels": {
+    "describes": 2221,
+    "other_issue": 23,
+    "partial": 1
+  }
+}

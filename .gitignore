@@ -1,0 +1,21 @@
+dist/
+__pycache__/
+*.pyc
+.briefs/
+.tmp-tests/
+.knowledge-export-*/
+mods/*/.claude-plugin/types/
+mods/*/tsconfig.json
+mods/*/node_modules/
+scratch/
+# Codex CLI writes error.log into the folder it runs in; it can hold account ids.
+error.log
+.hpc-spool/
+# Local Claude Code files stay out of git; the cloud-notify hook and the settings that register it are shared.
+/.claude/*
+!/.claude/settings.json
+!/.claude/hooks/
+/.claude/hooks/*
+!/.claude/hooks/cloud-notify.py
+# cloud-notify: marks this checkout's main cloud session; never commit it
+.claude/main-session

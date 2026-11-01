@@ -1,0 +1,5 @@
+ts,label,plan_type,window_minutes,used_percent,resets_at
+2026-10-19T09:05:57Z,pre-p4,prolite,10080,14.0,2026-10-26T01:32:37Z
+2026-10-19T10:49:44Z,post-p4,prolite,10080,18.0,2026-10-26T01:32:37Z
+2026-10-19T10:49:45Z,pre-p5,prolite,10080,18.0,2026-10-26T01:32:37Z
+2026-10-19T11:27:44Z,post-p5,prolite,10080,18.0,2026-10-26T01:32:37Z

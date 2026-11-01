@@ -1,0 +1,495 @@
+{
+  "arms": [
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "effort": "high",
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.14258629298941802,
+          "recall": 0.9078947368421053,
+          "n": 72,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "effort": "low",
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.10737028769841268,
+          "recall": 0.9210526315789473,
+          "n": 72,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "effort": "max",
+      "measured": {
+        "review": {
+          "usable": 1.0,
+          "pct_week": 0.22274050374779542,
+          "recall": 0.9824561403508771,
+          "n": 108,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "effort": "medium",
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.11119639550264547,
+          "recall": 0.8947368421052632,
+          "n": 72,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "effort": "xhigh",
+      "measured": {
+        "review": {
+          "usable": 0.9907407407407407,
+          "pct_week": 0.19888888888888887,
+          "recall": 0.9385964912280702,
+          "n": 107,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "effort": "high",
+      "measured": {
+        "review": {
+          "usable": 0.9444444444444444,
+          "pct_week": 0.0010988037887067399,
+          "recall": 0.9473684210526315,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "effort": "low",
+      "measured": {
+        "review": {
+          "usable": 0.9444444444444444,
+          "pct_week": 0.0005368257559198544,
+          "recall": 0.8947368421052632,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "effort": "max",
+      "measured": {
+        "review": {
+          "usable": 0.9444444444444444,
+          "pct_week": 0.01057762338797814,
+          "recall": 0.9736842105263158,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "effort": "medium",
+      "measured": {
+        "review": {
+          "usable": 0.9444444444444444,
+          "pct_week": 0.0007372791621129326,
+          "recall": 0.9473684210526315,
+          "n": 35,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "effort": "xhigh",
+      "measured": {
+        "review": {
+          "usable": 0.9166666666666666,
+          "pct_week": 0.0033189615118397087,
+          "recall": 1.0,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "effort": "high",
+      "measured": {
+        "review": {
+          "usable": 0.875,
+          "pct_week": 0.0016800243055555557,
+          "recall": 0.7171052631578947,
+          "n": 136,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "measured": {
+        "review": {
+          "usable": 0.5763888888888888,
+          "pct_week": 0.001511482432208995,
+          "recall": 0.3881578947368421,
+          "n": 118,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "effort": "max",
+      "measured": {
+        "review": {
+          "usable": 0.9027777777777778,
+          "pct_week": 0.002457276207010582,
+          "recall": 0.8157894736842105,
+          "n": 136,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "effort": "medium",
+      "measured": {
+        "review": {
+          "usable": 0.7708333333333334,
+          "pct_week": 0.0011839262566137564,
+          "recall": 0.5723684210526315,
+          "n": 129,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "effort": "xhigh",
+      "measured": {
+        "review": {
+          "usable": 0.8819444444444444,
+          "pct_week": 0.0022907170965608464,
+          "recall": 0.7828947368421053,
+          "n": 131,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "effort": "high",
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.07152165801457194,
+          "recall": 0.9210526315789473,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "effort": "low",
+      "measured": {
+        "review": {
+          "usable": 1.0,
+          "pct_week": 0.0471815154826958,
+          "recall": 0.9473684210526315,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "effort": "medium",
+      "measured": {
+        "review": {
+          "usable": 0.9444444444444444,
+          "pct_week": 0.0531496170309654,
+          "recall": 0.9736842105263158,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "effort": "xhigh",
+      "measured": {
+        "review": {
+          "usable": 1.0,
+          "pct_week": 0.11177174726775954,
+          "recall": 0.9473684210526315,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "high",
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.02269540145719491,
+          "recall": 0.9473684210526315,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "low",
+      "measured": {
+        "review": {
+          "usable": 1.0,
+          "pct_week": 0.015031238615664848,
+          "recall": 0.9210526315789473,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "max",
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.09407310892531878,
+          "recall": 1.0,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "medium",
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.018891152276867038,
+          "recall": 0.9473684210526315,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "xhigh",
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.037001864845173045,
+          "recall": 0.9473684210526315,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.028830961199294534,
+          "recall": 0.9035087719298246,
+          "n": 108,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "measured": {
+        "review": {
+          "usable": 0.9351851851851852,
+          "pct_week": 0.01921081349206349,
+          "recall": 0.8421052631578947,
+          "n": 108,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "max",
+      "measured": {
+        "review": {
+          "usable": 0.9907407407407407,
+          "pct_week": 0.03784920304232804,
+          "recall": 0.9473684210526315,
+          "n": 108,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "measured": {
+        "review": {
+          "usable": 0.9537037037037037,
+          "pct_week": 0.023061240079365077,
+          "recall": 0.8771929824561403,
+          "n": 108,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "xhigh",
+      "measured": {
+        "review": {
+          "usable": 0.9907407407407407,
+          "pct_week": 0.03468558972663139,
+          "recall": 0.9210526315789473,
+          "n": 106,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "effort": "high",
+      "measured": {
+        "review": {
+          "usable": 0.9861111111111112,
+          "pct_week": 0.009109192167577416,
+          "recall": 0.8947368421052632,
+          "n": 72,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "effort": "low",
+      "measured": {
+        "review": {
+          "usable": 0.9166666666666666,
+          "pct_week": 0.007434881420765028,
+          "recall": 0.8421052631578947,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "effort": "max",
+      "measured": {
+        "review": {
+          "usable": 1.0,
+          "pct_week": 0.06000939918032788,
+          "recall": 0.9736842105263158,
+          "n": 72,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "effort": "medium",
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.007734306739526412,
+          "recall": 0.868421052631579,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "effort": "xhigh",
+      "measured": {
+        "review": {
+          "usable": 0.9861111111111112,
+          "pct_week": 0.015336746083788703,
+          "recall": 0.9342105263157895,
+          "n": 72,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    }
+  ]
+}

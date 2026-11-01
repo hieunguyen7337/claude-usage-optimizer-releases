@@ -1,0 +1,3431 @@
+{
+  "class": "review",
+  "items": 36,
+  "public": "findings/public.json",
+  "rows": [
+    {
+      "api_usd_per_item": 0.7195181111111111,
+      "arms": [
+        "opus-low-claude-fable-5-1"
+      ],
+      "catalog": "absent",
+      "classes": null,
+      "cost_per_item": 0.7195181111111111,
+      "cost_unit": "list_usd",
+      "effort": "low",
+      "fa_per_control_item": 0.3333333333333333,
+      "fa_per_planted_item": 0.2,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 2119,
+      "items_run": 36,
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "pct_5h_per_item": 0.5835461846019248,
+      "pct_week_per_item": 0.04718151548269581,
+      "precision": 0.8181818181818182,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-fable-5-1-low",
+          "value": 2.37
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-fable-5-1-low",
+          "value": 47.0
+        },
+        "qodo_f1": {
+          "date": "2026-10-12",
+          "source": "Qodo code review benchmark vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 53.4
+        },
+        "review_precision_pct": {
+          "date": "2026-09-01",
+          "source": "CodeRabbit internal review eval",
+          "url": "https://www.coderabbit.ai/blog/fable-5-1-model-review",
+          "value": 37.3
+        },
+        "review_recall_pct": {
+          "date": "2026-09-01",
+          "source": "CodeRabbit internal review eval, 105 known-issue points, 45 tasks (vendor-run)",
+          "url": "https://www.coderabbit.ai/blog/fable-5-1-model-review",
+          "value": 61.0
+        }
+      },
+      "recall": 0.9473684210526315,
+      "recall_max": 0.9473684210526315,
+      "recall_min": 0.9473684210526315,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 206711.11111111112,
+      "usable": 1.0,
+      "wall_median_s": 35.321,
+      "wall_p90_s": 59.1465,
+      "wilson_hi": 0.9854457918527075,
+      "wilson_lo": 0.8271453786822962
+    },
+    {
+      "api_usd_per_item": 0.8105316597222223,
+      "arms": [
+        "opus-medium-claude-fable-5-1"
+      ],
+      "catalog": "absent",
+      "classes": null,
+      "cost_per_item": 0.8105316597222223,
+      "cost_unit": "list_usd",
+      "effort": "medium",
+      "fa_per_control_item": 0.8333333333333334,
+      "fa_per_planted_item": 0.4,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 1881,
+      "items_run": 36,
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "pct_5h_per_item": 0.6573603224518811,
+      "pct_week_per_item": 0.05314961703096539,
+      "precision": 0.6851851851851852,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-fable-5-1-medium",
+          "value": 2.98
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-fable-5-1-medium",
+          "value": 49.0
+        }
+      },
+      "recall": 0.9736842105263158,
+      "recall_max": 0.9736842105263158,
+      "recall_min": 0.9736842105263158,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 242383.44444444444,
+      "usable": 0.9166666666666666,
+      "wall_median_s": 48.717,
+      "wall_p90_s": 91.1895,
+      "wilson_hi": 0.9953394123142312,
+      "wilson_lo": 0.8650512388404787
+    },
+    {
+      "api_usd_per_item": 1.090705284722222,
+      "arms": [
+        "opus-high-claude-fable-5-1"
+      ],
+      "catalog": "absent",
+      "classes": null,
+      "cost_per_item": 1.090705284722222,
+      "cost_unit": "list_usd",
+      "effort": "high",
+      "fa_per_control_item": 0.5,
+      "fa_per_planted_item": 0.43333333333333335,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 1398,
+      "items_run": 36,
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "pct_5h_per_item": 0.8845877506014873,
+      "pct_week_per_item": 0.07152165801457194,
+      "precision": 0.6862745098039216,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-fable-5-1-high",
+          "value": 3.91
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-fable-5-1-high",
+          "value": 51.0
+        },
+        "qodo_cost_per_task_usd": {
+          "date": "2026-10-12",
+          "source": "Qodo vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 2.31
+        },
+        "qodo_f1": {
+          "date": "2026-10-12",
+          "source": "Qodo vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 53.5
+        },
+        "review_precision_pct": {
+          "date": "2026-09-01",
+          "source": "CodeRabbit internal review eval",
+          "url": "https://www.coderabbit.ai/blog/fable-5-1-model-review",
+          "value": 36.4
+        },
+        "review_recall_pct": {
+          "date": "2026-09-01",
+          "source": "CodeRabbit internal review eval",
+          "url": "https://www.coderabbit.ai/blog/fable-5-1-model-review",
+          "value": 57.1
+        }
+      },
+      "recall": 0.9210526315789473,
+      "recall_max": 0.9210526315789473,
+      "recall_min": 0.9210526315789473,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 291171.6388888889,
+      "usable": 0.9444444444444444,
+      "wall_median_s": 64.60849999999999,
+      "wall_p90_s": 126.47399999999999,
+      "wilson_hi": 0.9727854044930122,
+      "wilson_lo": 0.7920062854222853
+    },
+    {
+      "api_usd_per_item": 1.7045191458333333,
+      "arms": [
+        "opus-xhigh-claude-fable-5-1"
+      ],
+      "catalog": "absent",
+      "classes": null,
+      "cost_per_item": 1.7045191458333333,
+      "cost_unit": "list_usd",
+      "effort": "xhigh",
+      "fa_per_control_item": 0.16666666666666666,
+      "fa_per_planted_item": 0.5,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 895,
+      "items_run": 36,
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "pct_5h_per_item": 1.3824052915026246,
+      "pct_week_per_item": 0.11177174726775957,
+      "precision": 0.6923076923076923,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-fable-5-1-xhigh",
+          "value": 5.98
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-fable-5-1-xhigh",
+          "value": 53.0
+        },
+        "hle_scale_score_pct": {
+          "date": "2026-09-17",
+          "source": "HLE Scale (vendor-run)",
+          "url": "https://labs.scale.com/leaderboard/humanitys_last_exam",
+          "value": 46.5
+        },
+        "swe_atlas_qna_score": {
+          "date": "2026-07-28",
+          "source": "SWE-Atlas QnA Scale vendor-run",
+          "url": "https://labs.scale.com/leaderboard/sweatlas-qna",
+          "value": 59.95
+        },
+        "swe_atlas_refactoring_score": {
+          "date": "2026-10-19",
+          "source": "SWE-Atlas Refactoring BenchLM",
+          "url": "https://benchlm.ai/benchmarks/sweatlasrefactoring",
+          "value": 56.7
+        }
+      },
+      "recall": 0.9473684210526315,
+      "recall_max": 0.9473684210526315,
+      "recall_min": 0.9473684210526315,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 335070.8888888889,
+      "usable": 1.0,
+      "wall_median_s": 150.9875,
+      "wall_p90_s": 217.9325,
+      "wilson_hi": 0.9854457918527075,
+      "wilson_lo": 0.8271453786822962
+    },
+    {
+      "api_usd_per_item": 2.5670501666666663,
+      "arms": [
+        "opus-max-claude-fable-5-1"
+      ],
+      "catalog": "absent",
+      "classes": null,
+      "cost_per_item": 2.5670501666666663,
+      "cost_unit": "list_usd",
+      "effort": "max",
+      "fa_per_control_item": null,
+      "fa_per_planted_item": 0.5555555555555556,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 594,
+      "items_run": 18,
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "pct_5h_per_item": 2.0819383241469813,
+      "pct_week_per_item": 0.16833115846994534,
+      "precision": 0.6875,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 12.39
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 62.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 58.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 5.7
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-fable-5-1",
+          "value": 7.63
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-fable-5-1",
+          "value": 53.0
+        },
+        "frontiercode_cost_per_task_usd": {
+          "date": "2026-10-12",
+          "source": "FrontierCode 1.1 Main independent AA",
+          "url": "https://artificialanalysis.ai/articles/frontiercode",
+          "value": 12.0
+        },
+        "frontiercode_score_pct": {
+          "date": "2026-10-12",
+          "source": "FrontierCode 1.1 Main independent AA",
+          "url": "https://artificialanalysis.ai/articles/frontiercode",
+          "value": 49.0
+        }
+      },
+      "recall": 0.5789473684210527,
+      "recall_max": 0.5789473684210527,
+      "recall_min": 0.5789473684210527,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "partial",
+      "status_note": "partial (18 of 36 items)",
+      "suite_items": 36,
+      "tokens_per_item": 473641.72222222225,
+      "usable": 0.5,
+      "wall_median_s": 246.1515,
+      "wall_p90_s": 319.8078,
+      "wilson_hi": 0.7214749884224129,
+      "wilson_lo": 0.42192345343670545
+    },
+    {
+      "api_usd_per_item": 0.008186592777777777,
+      "arms": [
+        "haiku-low"
+      ],
+      "catalog": "active",
+      "classes": [
+        "mechanical",
+        "review"
+      ],
+      "cost_per_item": 0.008186592777777777,
+      "cost_unit": "list_usd",
+      "effort": "low",
+      "fa_per_control_item": 0.3333333333333333,
+      "fa_per_planted_item": 0.23333333333333334,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 186280,
+      "items_run": 36,
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "pct_5h_per_item": 0.00554367699912511,
+      "pct_week_per_item": 0.0005368257559198544,
+      "precision": 0.7906976744186046,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 0.14
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 28.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 6.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 2.4
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-low",
+          "value": 0.02
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-low",
+          "value": 29.0
+        }
+      },
+      "recall": 0.8947368421052632,
+      "recall_max": 0.8947368421052632,
+      "recall_min": 0.8947368421052632,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 160153.80555555556,
+      "usable": 0.9444444444444444,
+      "wall_median_s": 23.9875,
+      "wall_p90_s": 37.44,
+      "wilson_hi": 0.9582974265244647,
+      "wilson_lo": 0.7586947827711269
+    },
+    {
+      "api_usd_per_item": 0.011243507222222223,
+      "arms": [
+        "haiku-medium"
+      ],
+      "catalog": "active",
+      "classes": [
+        "mechanical",
+        "research",
+        "review"
+      ],
+      "cost_per_item": 0.011243507222222223,
+      "cost_unit": "list_usd",
+      "effort": "medium",
+      "fa_per_control_item": 0.3333333333333333,
+      "fa_per_planted_item": 0.41379310344827586,
+      "format_fail": 1,
+      "format_fail_rate": 0.027777777777777776,
+      "infra_failures": 0,
+      "items_per_week": 135634,
+      "items_run": 36,
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "pct_5h_per_item": 0.007613713552055994,
+      "pct_week_per_item": 0.0007372791621129326,
+      "precision": 0.72,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 0.23
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 34.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 12.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 3.5
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-medium",
+          "value": 0.05
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-medium",
+          "value": 34.0
+        }
+      },
+      "recall": 0.9473684210526315,
+      "recall_max": 0.9473684210526315,
+      "recall_min": 0.9473684210526315,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 205779.77777777778,
+      "usable": 0.9444444444444444,
+      "wall_median_s": 34.638000000000005,
+      "wall_p90_s": 61.0475,
+      "wilson_hi": 0.9854457918527075,
+      "wilson_lo": 0.8271453786822962
+    },
+    {
+      "api_usd_per_item": 0.01675675777777778,
+      "arms": [
+        "haiku-high"
+      ],
+      "catalog": "active",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "research"
+      ],
+      "cost_per_item": 0.01675675777777778,
+      "cost_unit": "list_usd",
+      "effort": "high",
+      "fa_per_control_item": 0.3333333333333333,
+      "fa_per_planted_item": 0.9333333333333333,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 91008,
+      "items_run": 36,
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "pct_5h_per_item": 0.011347095818022747,
+      "pct_week_per_item": 0.0010988037887067397,
+      "precision": 0.5454545454545454,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 0.36
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 35.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 13.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 5.1
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-high",
+          "value": 0.08
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-high",
+          "value": 38.0
+        }
+      },
+      "recall": 0.9473684210526315,
+      "recall_max": 0.9473684210526315,
+      "recall_min": 0.9473684210526315,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 279036.6666666667,
+      "usable": 0.8888888888888888,
+      "wall_median_s": 66.29599999999999,
+      "wall_p90_s": 101.9285,
+      "wilson_hi": 0.9854457918527075,
+      "wilson_lo": 0.8271453786822962
+    },
+    {
+      "api_usd_per_item": 0.05061416305555556,
+      "arms": [
+        "haiku-xhigh"
+      ],
+      "catalog": "active",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "hard",
+        "research",
+        "review"
+      ],
+      "cost_per_item": 0.05061416305555556,
+      "cost_unit": "list_usd",
+      "effort": "xhigh",
+      "fa_per_control_item": 0.8333333333333334,
+      "fa_per_planted_item": 1.0333333333333334,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 30130,
+      "items_run": 36,
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "pct_5h_per_item": 0.03427415765966754,
+      "pct_week_per_item": 0.0033189615118397087,
+      "precision": 0.5135135135135135,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 0.61
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 41.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 24.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 7.1
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-xhigh",
+          "value": 0.12
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-xhigh",
+          "value": 41.0
+        },
+        "frontiercode_score_pct": {
+          "date": "2026-10-08",
+          "source": "FrontierCode 1.1 vendor secondary Anthropic system card via Apidog",
+          "url": "https://apidog.com/blog/claude-haiku-5-5-benchmarks/",
+          "value": 45.8
+        }
+      },
+      "recall": 1.0,
+      "recall_max": 1.0,
+      "recall_min": 1.0,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 512823.8333333333,
+      "usable": 0.8333333333333334,
+      "wall_median_s": 140.308,
+      "wall_p90_s": 222.2885,
+      "wilson_hi": 0.9999999999999999,
+      "wilson_lo": 0.908190131774416
+    },
+    {
+      "api_usd_per_item": 0.16130875666666666,
+      "arms": [
+        "haiku-max"
+      ],
+      "catalog": "retired",
+      "classes": [],
+      "cost_per_item": 0.16130875666666666,
+      "cost_unit": "list_usd",
+      "effort": "max",
+      "fa_per_control_item": 0.8333333333333334,
+      "fa_per_planted_item": 1.2,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 9454,
+      "items_run": 36,
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "pct_5h_per_item": 0.10923270136482939,
+      "pct_week_per_item": 0.010577623387978142,
+      "precision": 0.47435897435897434,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 2.58
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 36.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 30.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 13.8
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-haiku-5-5",
+          "value": 0.21
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-haiku-5-5",
+          "value": 43.0
+        },
+        "aa_standalone_tb4_pct": {
+          "date": "2026-10-07",
+          "source": "AA Haiku 5.5 article (Terminal-Bench 4.0 standalone)",
+          "url": "https://artificialanalysis.ai/articles/claude-haiku-5-5",
+          "value": 33.0
+        },
+        "frontiercode_score_pct": {
+          "date": "2026-10-08",
+          "source": "FrontierCode 1.1 vendor secondary Anthropic system card via Apidog",
+          "url": "https://apidog.com/blog/claude-haiku-5-5-benchmarks/",
+          "value": 46.4
+        }
+      },
+      "recall": 0.9736842105263158,
+      "recall_max": 0.9736842105263158,
+      "recall_min": 0.9736842105263158,
+      "reps": 1,
+      "retired_reason": "Artificial Analysis v1.5: 36 at $2.58 a task, below xhigh's 41 at $0.61; Suite R 2026-10-20 agrees: no recall gain over xhigh at a higher price",
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 852734.1111111111,
+      "usable": 0.8333333333333334,
+      "wall_median_s": 336.985,
+      "wall_p90_s": 480.1735,
+      "wilson_hi": 0.9953394123142312,
+      "wilson_lo": 0.8650512388404787
+    },
+    {
+      "api_usd_per_item": 0.2292263888888889,
+      "arms": [
+        "opus-low"
+      ],
+      "catalog": "absent",
+      "classes": null,
+      "cost_per_item": 0.2292263888888889,
+      "cost_unit": "list_usd",
+      "effort": "low",
+      "fa_per_control_item": 0.16666666666666666,
+      "fa_per_planted_item": 0.26666666666666666,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 6653,
+      "items_run": 36,
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "pct_5h_per_item": 0.0857342793088364,
+      "pct_week_per_item": 0.015031238615664846,
+      "precision": 0.7954545454545454,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-opus-5-5-low",
+          "value": 0.55
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-opus-5-5-low",
+          "value": 42.0
+        },
+        "known_bugs_caught_pct_customer_quote": {
+          "date": "2026-09-22",
+          "source": "Deloitte quote in Anthropic launch post [vendor/customer, not a benchmark]; 'lowest effort'",
+          "url": "https://www.anthropic.com/news/claude-opus-5-5",
+          "value": 72.0
+        }
+      },
+      "recall": 0.9210526315789473,
+      "recall_max": 0.9210526315789473,
+      "recall_min": 0.9210526315789473,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 125812.5,
+      "usable": 0.9444444444444444,
+      "wall_median_s": 19.817999999999998,
+      "wall_p90_s": 27.6465,
+      "wilson_hi": 0.9727854044930122,
+      "wilson_lo": 0.7920062854222853
+    },
+    {
+      "api_usd_per_item": 0.2880900722222222,
+      "arms": [
+        "opus-medium"
+      ],
+      "catalog": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "review"
+      ],
+      "cost_per_item": 0.2880900722222222,
+      "cost_unit": "list_usd",
+      "effort": "medium",
+      "fa_per_control_item": 0.5,
+      "fa_per_planted_item": 0.43333333333333335,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 5293,
+      "items_run": 36,
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "pct_5h_per_item": 0.10775022386264216,
+      "pct_week_per_item": 0.01889115227686703,
+      "precision": 0.6923076923076923,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-opus-5-5-medium",
+          "value": 1.34
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-opus-5-5-medium",
+          "value": 51.0
+        },
+        "frontiercode_score_pct": {
+          "date": "2026-10-22",
+          "source": "FrontierCode 1.1 live page independent AA",
+          "url": "https://artificialanalysis.ai/evaluations/frontiercode",
+          "value": 57.1
+        },
+        "vendor_cursorbench_4_pct": {
+          "date": "2026-09-22",
+          "source": "Anthropic Opus 5.5 launch post (vendor)",
+          "url": "https://www.anthropic.com/news/claude-opus-5-5",
+          "value": 52.5
+        },
+        "vendor_frontiercode_v11_main_pct": {
+          "date": "2026-09-22",
+          "source": "Anthropic Opus 5.5 launch post (vendor)",
+          "url": "https://www.anthropic.com/news/claude-opus-5-5",
+          "value": 54.6
+        }
+      },
+      "recall": 0.9473684210526315,
+      "recall_max": 0.9473684210526315,
+      "recall_min": 0.9473684210526315,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 178979.22222222222,
+      "usable": 0.9722222222222222,
+      "wall_median_s": 30.703,
+      "wall_p90_s": 40.1565,
+      "wilson_hi": 0.9854457918527075,
+      "wilson_lo": 0.8271453786822962
+    },
+    {
+      "api_usd_per_item": 0.3461048722222222,
+      "arms": [
+        "opus-high"
+      ],
+      "catalog": "active",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "cost_per_item": 0.3461048722222222,
+      "cost_unit": "list_usd",
+      "effort": "high",
+      "fa_per_control_item": 0.6666666666666666,
+      "fa_per_planted_item": 0.5666666666666667,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 4406,
+      "items_run": 36,
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "pct_5h_per_item": 0.1294486726815398,
+      "pct_week_per_item": 0.0226954014571949,
+      "precision": 0.631578947368421,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-opus-5-5-high",
+          "value": 1.82
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-opus-5-5-high",
+          "value": 54.0
+        },
+        "frontiercode_score_pct": {
+          "date": "2026-10-22",
+          "source": "FrontierCode 1.1 live page independent AA",
+          "url": "https://artificialanalysis.ai/evaluations/frontiercode",
+          "value": 54.0
+        },
+        "qodo_cost_per_task_usd": {
+          "date": "2026-10-12",
+          "source": "Qodo vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 1.0
+        },
+        "qodo_f1": {
+          "date": "2026-10-12",
+          "source": "Qodo vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 56.8
+        }
+      },
+      "recall": 0.9473684210526315,
+      "recall_max": 0.9473684210526315,
+      "recall_min": 0.9473684210526315,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 238164.25,
+      "usable": 0.9444444444444444,
+      "wall_median_s": 39.458,
+      "wall_p90_s": 57.607,
+      "wilson_hi": 0.9854457918527075,
+      "wilson_lo": 0.8271453786822962
+    },
+    {
+      "api_usd_per_item": 0.564278438888889,
+      "arms": [
+        "opus-xhigh"
+      ],
+      "catalog": "active",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "cost_per_item": 0.564278438888889,
+      "cost_unit": "list_usd",
+      "effort": "xhigh",
+      "fa_per_control_item": 0.6666666666666666,
+      "fa_per_planted_item": 0.6666666666666666,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 2703,
+      "items_run": 36,
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "pct_5h_per_item": 0.21104902241907258,
+      "pct_week_per_item": 0.037001864845173045,
+      "precision": 0.6,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-opus-5-5-xhigh",
+          "value": 3.46
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-opus-5-5-xhigh",
+          "value": 56.0
+        },
+        "frontiercode_score_pct": {
+          "date": "2026-10-22",
+          "source": "FrontierCode 1.1 live page independent AA",
+          "url": "https://artificialanalysis.ai/evaluations/frontiercode",
+          "value": 53.5
+        },
+        "qodo_f1": {
+          "date": "2026-10-12",
+          "source": "Qodo code review benchmark vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 54.0
+        },
+        "vendor_terminal_bench_4_pct": {
+          "date": "2026-09-22",
+          "source": "Anthropic Opus 5.5 launch post (vendor)",
+          "url": "https://www.anthropic.com/news/claude-opus-5-5",
+          "value": 66.4
+        }
+      },
+      "recall": 0.9473684210526315,
+      "recall_max": 0.9473684210526315,
+      "recall_min": 0.9473684210526315,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 370258.75,
+      "usable": 0.9166666666666666,
+      "wall_median_s": 72.32900000000001,
+      "wall_p90_s": 114.8435,
+      "wilson_hi": 0.9854457918527075,
+      "wilson_lo": 0.8271453786822962
+    },
+    {
+      "api_usd_per_item": 1.434614911111111,
+      "arms": [
+        "opus-max"
+      ],
+      "catalog": "active",
+      "classes": [
+        "hard",
+        "design"
+      ],
+      "cost_per_item": 1.434614911111111,
+      "cost_unit": "list_usd",
+      "effort": "max",
+      "fa_per_control_item": 0.3333333333333333,
+      "fa_per_planted_item": 0.8,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 1063,
+      "items_run": 36,
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "pct_5h_per_item": 0.5365685691163604,
+      "pct_week_per_item": 0.09407310892531877,
+      "precision": 0.59375,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 13.04
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 66.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 63.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 15.6
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-opus-5-5",
+          "value": 5.98
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-opus-5-5",
+          "value": 58.0
+        },
+        "aa_standalone_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA Terminal-Bench 4.0 evaluation page (also xhigh = 59.6)",
+          "url": "https://artificialanalysis.ai/evaluations/terminalbench-4-0",
+          "value": 59.6
+        },
+        "frontiercode_cost_per_task_usd": {
+          "date": "2026-10-12",
+          "source": "FrontierCode 1.1 Main independent AA",
+          "url": "https://artificialanalysis.ai/articles/frontiercode",
+          "value": 10.15
+        },
+        "frontiercode_score_pct": {
+          "date": "2026-10-12",
+          "source": "FrontierCode 1.1 Main independent AA",
+          "url": "https://artificialanalysis.ai/articles/frontiercode",
+          "value": 52.0
+        },
+        "vendor_cursorbench_4_pct": {
+          "date": "2026-09-22",
+          "source": "Anthropic Opus 5.5 launch post (vendor)",
+          "url": "https://www.anthropic.com/news/claude-opus-5-5",
+          "value": 57.8
+        }
+      },
+      "recall": 1.0,
+      "recall_max": 1.0,
+      "recall_min": 1.0,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 724639.3333333334,
+      "usable": 0.8888888888888888,
+      "wall_median_s": 312.9815,
+      "wall_p90_s": 508.58050000000003,
+      "wilson_hi": 0.9999999999999999,
+      "wilson_lo": 0.908190131774416
+    },
+    {
+      "api_usd_per_item": 0.11338194166666667,
+      "arms": [
+        "sonnet-low"
+      ],
+      "catalog": "absent",
+      "classes": null,
+      "cost_per_item": 0.11338194166666667,
+      "cost_unit": "list_usd",
+      "effort": "low",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.03333333333333333,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 13450,
+      "items_run": 36,
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "pct_5h_per_item": 0.04463855971128609,
+      "pct_week_per_item": 0.007434881420765028,
+      "precision": 0.9696969696969697,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 0.48
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 42.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 25.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 0.977
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-low",
+          "value": 0.35
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-low",
+          "value": 36.0
+        }
+      },
+      "recall": 0.8421052631578947,
+      "recall_max": 0.8421052631578947,
+      "recall_min": 0.8421052631578947,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 130108.69444444444,
+      "usable": 0.9166666666666666,
+      "wall_median_s": 21.756999999999998,
+      "wall_p90_s": 30.6805,
+      "wilson_hi": 0.9255613658484106,
+      "wilson_lo": 0.6958318822077686
+    },
+    {
+      "api_usd_per_item": 0.11794817777777777,
+      "arms": [
+        "sonnet-medium"
+      ],
+      "catalog": "active",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "research",
+        "review"
+      ],
+      "cost_per_item": 0.11794817777777777,
+      "cost_unit": "list_usd",
+      "effort": "medium",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.1,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 12929,
+      "items_run": 36,
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "pct_5h_per_item": 0.04643629046369204,
+      "pct_week_per_item": 0.007734306739526412,
+      "precision": 0.9166666666666666,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 0.62
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 46.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 27.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 1.3
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-medium",
+          "value": 0.48
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-medium",
+          "value": 41.0
+        }
+      },
+      "recall": 0.868421052631579,
+      "recall_max": 0.868421052631579,
+      "recall_min": 0.868421052631579,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 133600.27777777778,
+      "usable": 0.9444444444444444,
+      "wall_median_s": 22.5565,
+      "wall_p90_s": 36.3655,
+      "wilson_hi": 0.9424613230987987,
+      "wilson_lo": 0.7267314055770869
+    },
+    {
+      "api_usd_per_item": 0.13891518055555555,
+      "arms": [
+        "sonnet-high",
+        "sonnet-high-r2"
+      ],
+      "catalog": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "research",
+        "review"
+      ],
+      "cost_per_item": 0.13891518055555555,
+      "cost_unit": "list_usd",
+      "effort": "high",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.18333333333333332,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 10978,
+      "items_run": 72,
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "pct_5h_per_item": 0.05469101596675416,
+      "pct_week_per_item": 0.009109192167577412,
+      "precision": 0.8607594936708861,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 1.24
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 55.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 42.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 2.7
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-high",
+          "value": 0.88
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-high",
+          "value": 47.0
+        },
+        "qodo_cost_per_task_usd": {
+          "date": "2026-10-12",
+          "source": "Qodo code review benchmark vendor-run prose result",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 0.31
+        },
+        "qodo_f1": {
+          "date": "2026-10-12",
+          "source": "Qodo code review benchmark vendor-run prose result",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 51.7
+        }
+      },
+      "recall": 0.8947368421052632,
+      "recall_max": 0.9210526315789473,
+      "recall_min": 0.868421052631579,
+      "reps": 2,
+      "retired_reason": null,
+      "stable_share": 0.9428571428571428,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 163250.22222222222,
+      "usable": 0.9444444444444444,
+      "wall_median_s": 23.6745,
+      "wall_p90_s": 37.8289,
+      "wilson_hi": 0.945688738171781,
+      "wilson_lo": 0.805800536776795
+    },
+    {
+      "api_usd_per_item": 0.23388537777777774,
+      "arms": [
+        "sonnet-xhigh",
+        "sonnet-xhigh-r2"
+      ],
+      "catalog": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "design",
+        "review"
+      ],
+      "cost_per_item": 0.23388537777777774,
+      "cost_unit": "list_usd",
+      "effort": "xhigh",
+      "fa_per_control_item": 0.25,
+      "fa_per_planted_item": 0.5,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 6520,
+      "items_run": 72,
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "pct_5h_per_item": 0.0920808573928259,
+      "pct_week_per_item": 0.015336746083788707,
+      "precision": 0.6826923076923077,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 3.33
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 63.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-17",
+          "source": "Artificial Analysis coding-agent index v1.5, quoted in POLICY.md",
+          "url": null,
+          "value": 57.99999999999999
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 7.1
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-xhigh",
+          "value": 2.01
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-xhigh",
+          "value": 52.0
+        },
+        "frontiercode_score_pct": {
+          "date": "2026-10-08",
+          "source": "FrontierCode 1.1 vendor secondary Anthropic system card via Apidog",
+          "url": "https://apidog.com/blog/claude-haiku-5-5-benchmarks/",
+          "value": 52.1
+        },
+        "hle_scale_score_pct": {
+          "date": "2026-09-17",
+          "source": "HLE Scale (vendor-run)",
+          "url": "https://labs.scale.com/leaderboard/humanitys_last_exam",
+          "value": 46.1
+        },
+        "vendor_frontiercode_v11_main_pct": {
+          "date": "2026-09-28",
+          "source": "Anthropic Sonnet 5.5 launch post (vendor)",
+          "url": "https://www.anthropic.com/news/claude-sonnet-5-5",
+          "value": 52.1
+        }
+      },
+      "recall": 0.9342105263157895,
+      "recall_max": 0.9473684210526315,
+      "recall_min": 0.9210526315789473,
+      "reps": 2,
+      "retired_reason": null,
+      "stable_share": 0.9722222222222222,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 296274.625,
+      "usable": 0.9444444444444444,
+      "wall_median_s": 50.643,
+      "wall_p90_s": 99.4613,
+      "wilson_hi": 0.9715734677804679,
+      "wilson_lo": 0.8550647346629656
+    },
+    {
+      "api_usd_per_item": 0.9151433375000002,
+      "arms": [
+        "sonnet-max",
+        "sonnet-max-r2"
+      ],
+      "catalog": "active",
+      "classes": [
+        "hard",
+        "design"
+      ],
+      "cost_per_item": 0.9151433375000002,
+      "cost_unit": "list_usd",
+      "effort": "max",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.26666666666666666,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 1666,
+      "items_run": 72,
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "pct_5h_per_item": 0.36029265255905507,
+      "pct_week_per_item": 0.06000939918032787,
+      "precision": 0.8222222222222222,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 14.19
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 68.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 66.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 27.7
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5",
+          "value": 5.46
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5",
+          "value": 56.0
+        },
+        "aa_standalone_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA Terminal-Bench 4.0 evaluation page",
+          "url": "https://artificialanalysis.ai/evaluations/terminalbench-4-0",
+          "value": 63.6
+        },
+        "frontiercode_cost_per_task_usd": {
+          "date": "2026-10-12",
+          "source": "FrontierCode 1.1 Main independent AA",
+          "url": "https://artificialanalysis.ai/articles/frontiercode",
+          "value": 8.26
+        },
+        "frontiercode_score_pct": {
+          "date": "2026-10-08",
+          "source": "FrontierCode 1.1 vendor secondary Anthropic system card via Apidog",
+          "url": "https://apidog.com/blog/claude-haiku-5-5-benchmarks/",
+          "value": 46.2
+        },
+        "vendor_frontiercode_v11_main_pct": {
+          "date": "2026-09-28",
+          "source": "Anthropic Sonnet 5.5 launch post (vendor; mapping inferred from footnote)",
+          "url": "https://www.anthropic.com/news/claude-sonnet-5-5",
+          "value": 46.2
+        }
+      },
+      "recall": 0.9736842105263158,
+      "recall_max": 0.9736842105263158,
+      "recall_min": 0.9736842105263158,
+      "reps": 2,
+      "retired_reason": null,
+      "stable_share": 1.0,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 902437.3611111111,
+      "usable": 1.0,
+      "wall_median_s": 308.0715,
+      "wall_p90_s": 486.5725,
+      "wilson_hi": 0.9927533409248718,
+      "wilson_lo": 0.9090337890134194
+    },
+    {
+      "api_usd_per_item": null,
+      "arms": [],
+      "catalog": "manual",
+      "classes": [],
+      "cost_per_item": null,
+      "cost_unit": null,
+      "effort": "*",
+      "fa_per_control_item": null,
+      "fa_per_planted_item": null,
+      "format_fail": null,
+      "format_fail_rate": null,
+      "infra_failures": null,
+      "items_per_week": null,
+      "items_run": 0,
+      "lane": "luna",
+      "model": "gpt-5.6-luna",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": null,
+      "precision": null,
+      "public": {},
+      "recall": null,
+      "recall_max": null,
+      "recall_min": null,
+      "reps": 0,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "not run",
+      "suite_items": 36,
+      "tokens_per_item": null,
+      "usable": null,
+      "wall_median_s": null,
+      "wall_p90_s": null,
+      "wilson_hi": null,
+      "wilson_lo": null
+    },
+    {
+      "api_usd_per_item": 0.3607641666666667,
+      "arms": [
+        "astra-low",
+        "astra-low-r2"
+      ],
+      "catalog": "absent",
+      "classes": null,
+      "cost_per_item": 9.019104166666668,
+      "cost_unit": "credits",
+      "effort": "low",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.36666666666666664,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 931,
+      "items_run": 72,
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.10737028769841268,
+      "precision": 0.7608695652173914,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-astra-low",
+          "value": 0.82
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-astra-low",
+          "value": 46.0
+        },
+        "deepswe_epoch_score_pct": {
+          "date": "2026-09",
+          "source": "DeepSWE per effort independent Epoch",
+          "url": "https://llmrun.dev/benchmark/deepswe?show=all",
+          "value": 67.0
+        }
+      },
+      "recall": 0.9210526315789473,
+      "recall_max": 0.9210526315789473,
+      "recall_min": 0.9210526315789473,
+      "reps": 2,
+      "retired_reason": null,
+      "stable_share": 1.0,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 22246.916666666668,
+      "usable": 0.9722222222222222,
+      "wall_median_s": 31.3505,
+      "wall_p90_s": 38.666599999999995,
+      "wilson_hi": 0.9633159947665283,
+      "wilson_lo": 0.8382725651786193
+    },
+    {
+      "api_usd_per_item": 0.3736198888888888,
+      "arms": [
+        "astra-medium",
+        "astra-medium-r2"
+      ],
+      "catalog": "absent",
+      "classes": null,
+      "cost_per_item": 9.34049722222222,
+      "cost_unit": "credits",
+      "effort": "medium",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.3,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 899,
+      "items_run": 72,
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.1111963955026455,
+      "precision": 0.7906976744186046,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-astra-medium",
+          "value": 1.54
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-astra-medium",
+          "value": 50.0
+        },
+        "deepswe_epoch_score_pct": {
+          "date": "2026-09",
+          "source": "DeepSWE per effort independent Epoch",
+          "url": "https://llmrun.dev/benchmark/deepswe?show=all",
+          "value": 72.8
+        }
+      },
+      "recall": 0.8947368421052632,
+      "recall_max": 0.8947368421052632,
+      "recall_min": 0.8947368421052632,
+      "reps": 2,
+      "retired_reason": null,
+      "stable_share": 1.0,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 23212.055555555555,
+      "usable": 0.9722222222222222,
+      "wall_median_s": 30.2635,
+      "wall_p90_s": 38.7209,
+      "wilson_hi": 0.945688738171781,
+      "wilson_lo": 0.805800536776795
+    },
+    {
+      "api_usd_per_item": 0.4790899444444445,
+      "arms": [
+        "astra-high",
+        "astra-high-r2"
+      ],
+      "catalog": "absent",
+      "classes": null,
+      "cost_per_item": 11.977248611111113,
+      "cost_unit": "credits",
+      "effort": "high",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.36666666666666664,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 701,
+      "items_run": 72,
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.142586292989418,
+      "precision": 0.7582417582417582,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-astra-high",
+          "value": 1.73
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-astra-high",
+          "value": 51.0
+        },
+        "deepswe_epoch_score_pct": {
+          "date": "2026-09",
+          "source": "DeepSWE per effort independent Epoch",
+          "url": "https://llmrun.dev/benchmark/deepswe?show=all",
+          "value": 73.2
+        },
+        "qodo_cost_per_task_usd": {
+          "date": "2026-10-12",
+          "source": "Qodo code review benchmark vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 1.56
+        },
+        "qodo_f1": {
+          "date": "2026-10-12",
+          "source": "Qodo code review benchmark vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 46.6
+        }
+      },
+      "recall": 0.9078947368421053,
+      "recall_max": 0.9210526315789473,
+      "recall_min": 0.8947368421052632,
+      "reps": 2,
+      "retired_reason": null,
+      "stable_share": 0.9166666666666666,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 30178.305555555555,
+      "usable": 0.9722222222222222,
+      "wall_median_s": 37.3925,
+      "wall_p90_s": 49.2816,
+      "wilson_hi": 0.9546659959362239,
+      "wilson_lo": 0.8218729215106378
+    },
+    {
+      "api_usd_per_item": 0.6682666666666666,
+      "arms": [
+        "astra-xhigh",
+        "astra-xhigh-r2",
+        "astra-xhigh-r3"
+      ],
+      "catalog": "active",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "cost_per_item": 16.706666666666663,
+      "cost_unit": "credits",
+      "effort": "xhigh",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.42696629213483145,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 503,
+      "items_run": 108,
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.19888888888888887,
+      "precision": 0.7379310344827587,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-astra-xhigh",
+          "value": 2.31
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-astra-xhigh",
+          "value": 52.0
+        },
+        "deepswe_datacurve_cost_per_task_usd": {
+          "date": "2026-09-22",
+          "source": "DeepSWE v1.1 independent Datacurve",
+          "url": "https://deepswe.datacurve.ai/",
+          "value": 4.43
+        },
+        "deepswe_datacurve_score_pct": {
+          "date": "2026-09-22",
+          "source": "DeepSWE v1.1 independent Datacurve",
+          "url": "https://deepswe.datacurve.ai/",
+          "value": 74.0
+        },
+        "deepswe_epoch_score_pct": {
+          "date": "2026-09",
+          "source": "DeepSWE per effort independent Epoch",
+          "url": "https://llmrun.dev/benchmark/deepswe?show=all",
+          "value": 74.1
+        },
+        "swe_atlas_qna_score": {
+          "date": "2026-07-28",
+          "source": "SWE-Atlas QnA Scale vendor-run",
+          "url": "https://labs.scale.com/leaderboard/sweatlas-qna",
+          "value": 59.14
+        },
+        "swe_atlas_refactoring_score": {
+          "date": "2026-10-19",
+          "source": "SWE-Atlas Refactoring BenchLM",
+          "url": "https://benchlm.ai/benchmarks/sweatlasrefactoring",
+          "value": 59.0
+        }
+      },
+      "recall": 0.9385964912280702,
+      "recall_max": 0.9736842105263158,
+      "recall_min": 0.8947368421052632,
+      "reps": 3,
+      "retired_reason": null,
+      "stable_share": 0.918918918918919,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 38281.34722222222,
+      "usable": 0.9907407407407407,
+      "wall_median_s": 65.69800000000001,
+      "wall_p90_s": 97.1483,
+      "wilson_hi": 0.9699407180801347,
+      "wilson_lo": 0.8786570589735132
+    },
+    {
+      "api_usd_per_item": 0.7484080925925927,
+      "arms": [
+        "astra-max",
+        "astra-max-r2",
+        "astra-max-r3"
+      ],
+      "catalog": "active",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "cost_per_item": 18.710202314814815,
+      "cost_unit": "credits",
+      "effort": "max",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.37777777777777777,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 449,
+      "items_run": 108,
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.22274050374779542,
+      "precision": 0.7671232876712328,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 7.47
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 62.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-17",
+          "source": "Artificial Analysis coding-agent index v1.5, quoted in POLICY.md",
+          "url": null,
+          "value": 56.00000000000001
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 3.3
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-astra",
+          "value": 3.26
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-astra",
+          "value": 53.0
+        },
+        "aa_standalone_tb4_pct": {
+          "date": "2026-09-09",
+          "source": "AA Astra article (TB4 standalone; same article also gives 56 in coding section)",
+          "url": "https://artificialanalysis.ai/articles/benchmarking-gpt-6-astra",
+          "value": 59.0
+        },
+        "deepswe_epoch_score_pct": {
+          "date": "2026-09",
+          "source": "DeepSWE per effort independent Epoch",
+          "url": "https://llmrun.dev/benchmark/deepswe?show=all",
+          "value": 73.2
+        },
+        "frontiercode_cost_per_task_usd": {
+          "date": "2026-10-12",
+          "source": "FrontierCode 1.1 Main independent AA",
+          "url": "https://artificialanalysis.ai/articles/frontiercode",
+          "value": 4.22
+        },
+        "frontiercode_score_pct": {
+          "date": "2026-10-12",
+          "source": "FrontierCode independent AA inferred",
+          "url": "https://artificialanalysis.ai/articles/frontiercode",
+          "value": 47.0
+        },
+        "review_cost_per_task_usd": {
+          "date": "2026-09-22",
+          "source": "Macroscope MacroscopeBench",
+          "url": "https://macroscope.com/content/ai-code-review-benchmark-best-models",
+          "value": 7.87
+        },
+        "review_f1_like_score": {
+          "date": "2026-09-22",
+          "source": "Macroscope MacroscopeBench all-bug leaderboard (vendor-run, unversioned)",
+          "url": "https://macroscope.com/content/ai-code-review-benchmark-best-models",
+          "value": 78.0
+        },
+        "review_precision_pct": {
+          "date": "2026-09-22",
+          "source": "Macroscope MacroscopeBench",
+          "url": "https://macroscope.com/content/ai-code-review-benchmark-best-models",
+          "value": 91.7
+        },
+        "review_recall_pct": {
+          "date": "2026-09-22",
+          "source": "Macroscope MacroscopeBench",
+          "url": "https://macroscope.com/content/ai-code-review-benchmark-best-models",
+          "value": 67.8
+        }
+      },
+      "recall": 0.9824561403508771,
+      "recall_max": 1.0,
+      "recall_min": 0.9736842105263158,
+      "reps": 3,
+      "retired_reason": null,
+      "stable_share": 0.9736842105263158,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 41644.291666666664,
+      "usable": 1.0,
+      "wall_median_s": 81.67099999999999,
+      "wall_p90_s": 134.19469999999998,
+      "wilson_hi": 0.9951755812189311,
+      "wilson_lo": 0.9382819735400814
+    },
+    {
+      "api_usd_per_item": 0.005078580972222223,
+      "arms": [
+        "luna-low",
+        "luna-low-r2",
+        "luna-low-r3",
+        "luna-low-r4"
+      ],
+      "catalog": "active",
+      "classes": [
+        "mechanical"
+      ],
+      "cost_per_item": 0.12696452430555558,
+      "cost_unit": "credits",
+      "effort": "low",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.2,
+      "format_fail": 6,
+      "format_fail_rate": 0.041666666666666664,
+      "infra_failures": 0,
+      "items_per_week": 66160,
+      "items_run": 144,
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.0015114824322089947,
+      "precision": 0.7468354430379747,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-luna-low",
+          "value": 0.0045
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-luna-low",
+          "value": 22.0
+        }
+      },
+      "recall": 0.3881578947368421,
+      "recall_max": 0.5,
+      "recall_min": 0.2631578947368421,
+      "reps": 4,
+      "retired_reason": null,
+      "stable_share": 0.15384615384615385,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 30195.569444444445,
+      "usable": 0.5138888888888888,
+      "wall_median_s": 27.9755,
+      "wall_p90_s": 49.93420000000005,
+      "wilson_hi": 0.4674765939081062,
+      "wilson_lo": 0.31435296378925043
+    },
+    {
+      "api_usd_per_item": 0.003977992222222222,
+      "arms": [
+        "luna-medium",
+        "luna-medium-r2",
+        "luna-medium-r3",
+        "luna-medium-r4"
+      ],
+      "catalog": "active",
+      "classes": [
+        "mechanical"
+      ],
+      "cost_per_item": 0.09944980555555555,
+      "cost_unit": "credits",
+      "effort": "medium",
+      "fa_per_control_item": 0.041666666666666664,
+      "fa_per_planted_item": 0.24761904761904763,
+      "format_fail": 13,
+      "format_fail_rate": 0.09027777777777778,
+      "infra_failures": 0,
+      "items_per_week": 84465,
+      "items_run": 144,
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.0011839262566137566,
+      "precision": 0.7631578947368421,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-luna-medium",
+          "value": 0.02
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-luna-medium",
+          "value": 30.0
+        }
+      },
+      "recall": 0.5723684210526315,
+      "recall_max": 0.631578947368421,
+      "recall_min": 0.5,
+      "reps": 4,
+      "retired_reason": null,
+      "stable_share": 0.3548387096774194,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 24235.76388888889,
+      "usable": 0.7291666666666666,
+      "wall_median_s": 28.2425,
+      "wall_p90_s": 45.03290000000001,
+      "wilson_hi": 0.6482796862240238,
+      "wilson_lo": 0.4928894235012159
+    },
+    {
+      "api_usd_per_item": 0.0056448816666666655,
+      "arms": [
+        "luna-high",
+        "luna-high-r2",
+        "luna-high-r3",
+        "luna-high-r4"
+      ],
+      "catalog": "active",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "research"
+      ],
+      "cost_per_item": 0.14112204166666664,
+      "cost_unit": "credits",
+      "effort": "high",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.2831858407079646,
+      "format_fail": 7,
+      "format_fail_rate": 0.04861111111111111,
+      "infra_failures": 0,
+      "items_per_week": 59523,
+      "items_run": 144,
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.0016800243055555557,
+      "precision": 0.7730496453900709,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-luna-high",
+          "value": 0.03
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-luna-high",
+          "value": 33.0
+        },
+        "qodo_cost_per_task_usd": {
+          "date": "2026-10-12",
+          "source": "Qodo vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 0.02
+        },
+        "qodo_f1": {
+          "date": "2026-10-12",
+          "source": "Qodo vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 42.2
+        }
+      },
+      "recall": 0.7171052631578947,
+      "recall_max": 0.7894736842105263,
+      "recall_min": 0.6052631578947368,
+      "reps": 4,
+      "retired_reason": null,
+      "stable_share": 0.59375,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 32639.791666666668,
+      "usable": 0.8541666666666666,
+      "wall_median_s": 40.3005,
+      "wall_p90_s": 63.12470000000001,
+      "wilson_hi": 0.7826707022418267,
+      "wilson_lo": 0.6408366269338925
+    },
+    {
+      "api_usd_per_item": 0.0076968094444444446,
+      "arms": [
+        "luna-xhigh",
+        "luna-xhigh-r2",
+        "luna-xhigh-r3",
+        "luna-xhigh-r4"
+      ],
+      "catalog": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "research",
+        "review"
+      ],
+      "cost_per_item": 0.19242023611111111,
+      "cost_unit": "credits",
+      "effort": "xhigh",
+      "fa_per_control_item": 0.08333333333333333,
+      "fa_per_planted_item": 0.411214953271028,
+      "format_fail": 13,
+      "format_fail_rate": 0.09027777777777778,
+      "infra_failures": 0,
+      "items_per_week": 43654,
+      "items_run": 144,
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.0022907170965608464,
+      "precision": 0.7212121212121212,
+      "public": {
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-luna-xhigh",
+          "value": 0.04
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-luna-xhigh",
+          "value": 35.0
+        },
+        "qodo_cost_per_task_usd": {
+          "date": "2026-10-12",
+          "source": "Qodo code review benchmark vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 0.02
+        },
+        "qodo_f1": {
+          "date": "2026-10-12",
+          "source": "Qodo code review benchmark vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 41.7
+        }
+      },
+      "recall": 0.7828947368421053,
+      "recall_max": 0.8421052631578947,
+      "recall_min": 0.7631578947368421,
+      "reps": 4,
+      "retired_reason": null,
+      "stable_share": 0.5833333333333334,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 39206.125,
+      "usable": 0.8680555555555556,
+      "wall_median_s": 57.138999999999996,
+      "wall_p90_s": 90.64460000000001,
+      "wilson_hi": 0.8410241697800206,
+      "wilson_lo": 0.7108187136913712
+    },
+    {
+      "api_usd_per_item": 0.008256448055555556,
+      "arms": [
+        "luna-max",
+        "luna-max-r2",
+        "luna-max-r3",
+        "luna-max-r4"
+      ],
+      "catalog": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "design",
+        "review"
+      ],
+      "cost_per_item": 0.2064112013888889,
+      "cost_unit": "credits",
+      "effort": "max",
+      "fa_per_control_item": 0.16666666666666666,
+      "fa_per_planted_item": 0.4732142857142857,
+      "format_fail": 8,
+      "format_fail_rate": 0.05555555555555555,
+      "infra_failures": 0,
+      "items_per_week": 40695,
+      "items_run": 144,
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.002457276207010582,
+      "precision": 0.6850828729281768,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 0.18
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 41.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 15.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 10.2
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-luna",
+          "value": 0.07
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-luna",
+          "value": 38.0
+        },
+        "aa_standalone_tb4_pct": {
+          "date": "2026-10-07",
+          "source": "AA Haiku 5.5 article (Terminal-Bench 4.0 standalone)",
+          "url": "https://artificialanalysis.ai/articles/claude-haiku-5-5",
+          "value": 13.0
+        },
+        "frontiercode_cost_per_task_usd": {
+          "date": "2026-10-12",
+          "source": "FrontierCode 1.1 Main independent AA",
+          "url": "https://artificialanalysis.ai/articles/frontiercode",
+          "value": 0.09
+        },
+        "frontiercode_score_pct": {
+          "date": "2026-10-12",
+          "source": "FrontierCode 1.1 Main independent AA",
+          "url": "https://artificialanalysis.ai/articles/frontiercode",
+          "value": 42.0
+        }
+      },
+      "recall": 0.8157894736842105,
+      "recall_max": 0.868421052631579,
+      "recall_min": 0.7894736842105263,
+      "reps": 4,
+      "retired_reason": null,
+      "stable_share": 0.5945945945945946,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 42646.38888888889,
+      "usable": 0.8819444444444444,
+      "wall_median_s": 62.6225,
+      "wall_p90_s": 101.76050000000004,
+      "wilson_hi": 0.8693640231489522,
+      "wilson_lo": 0.7466466374702757
+    },
+    {
+      "api_usd_per_item": 0.06454833333333333,
+      "arms": [
+        "sol-low",
+        "sol-low-r2",
+        "sol-low-r3"
+      ],
+      "catalog": "active",
+      "classes": [
+        "mechanical",
+        "substantive"
+      ],
+      "cost_per_item": 1.6137083333333333,
+      "cost_unit": "credits",
+      "effort": "low",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.32222222222222224,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 5205,
+      "items_run": 108,
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.01921081349206349,
+      "precision": 0.768,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 0.5
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 57.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 49.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 1.7
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-low",
+          "value": 0.13
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-low",
+          "value": 42.0
+        },
+        "aa_ii_v5_cost_per_task_usd": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-low-vs-gpt-6-1-terra-low",
+          "value": 0.16
+        },
+        "aa_ii_v5_score": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-low-vs-gpt-6-1-terra-low",
+          "value": 35.0
+        },
+        "aa_ii_v5_tb4_pct": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-low-vs-gpt-6-1-terra-low",
+          "value": 31.0
+        }
+      },
+      "recall": 0.8421052631578947,
+      "recall_max": 0.868421052631579,
+      "recall_min": 0.8157894736842105,
+      "reps": 3,
+      "retired_reason": null,
+      "stable_share": 0.9090909090909091,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 23193.916666666668,
+      "usable": 0.9351851851851852,
+      "wall_median_s": 29.604,
+      "wall_p90_s": 44.0739,
+      "wilson_hi": 0.8977273881243898,
+      "wilson_lo": 0.7641788779774553
+    },
+    {
+      "api_usd_per_item": 0.07748576666666666,
+      "arms": [
+        "sol-medium",
+        "sol-medium-r2",
+        "sol-medium-r3"
+      ],
+      "catalog": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "review",
+        "research"
+      ],
+      "cost_per_item": 1.9371441666666667,
+      "cost_unit": "credits",
+      "effort": "medium",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.32222222222222224,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 4336,
+      "items_run": 108,
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.023061240079365077,
+      "precision": 0.7751937984496124,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 0.7
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 61.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 52.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 2.3
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-medium",
+          "value": 0.21
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-medium",
+          "value": 48.0
+        },
+        "aa_ii_v5_cost_per_task_usd": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-medium-vs-gpt-6-1-terra-medium",
+          "value": 0.36
+        },
+        "aa_ii_v5_score": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-medium-vs-gpt-6-1-terra-medium",
+          "value": 46.0
+        },
+        "aa_ii_v5_tb4_pct": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-medium-vs-gpt-6-1-terra-medium",
+          "value": 48.0
+        },
+        "qodo_cost_per_task_usd": {
+          "date": "2026-10-12",
+          "source": "Qodo vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 0.18
+        },
+        "qodo_f1": {
+          "date": "2026-10-12",
+          "source": "Qodo vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 48.7
+        }
+      },
+      "recall": 0.8771929824561403,
+      "recall_max": 0.8947368421052632,
+      "recall_min": 0.868421052631579,
+      "reps": 3,
+      "retired_reason": null,
+      "stable_share": 0.9411764705882353,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 29393.166666666668,
+      "usable": 0.9537037037037037,
+      "wall_median_s": 33.021,
+      "wall_p90_s": 48.1413,
+      "wilson_hi": 0.9254187922140598,
+      "wilson_lo": 0.8043752960520771
+    },
+    {
+      "api_usd_per_item": 0.09687202962962964,
+      "arms": [
+        "sol-high",
+        "sol-high-r2",
+        "sol-high-r3"
+      ],
+      "catalog": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "design",
+        "review"
+      ],
+      "cost_per_item": 2.421800740740741,
+      "cost_unit": "credits",
+      "effort": "high",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.43333333333333335,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 3468,
+      "items_run": 108,
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.02883096119929453,
+      "precision": 0.7253521126760564,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 0.89
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 60.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 50.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 2.8
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-high",
+          "value": 0.32
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-high",
+          "value": 50.0
+        },
+        "aa_ii_v5_cost_per_task_usd": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-high-vs-gpt-6-1-terra-high",
+          "value": 0.59
+        },
+        "aa_ii_v5_score": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-high-vs-gpt-6-1-terra-high",
+          "value": 50.0
+        },
+        "aa_ii_v5_tb4_pct": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-high-vs-gpt-6-1-terra-high",
+          "value": 52.0
+        }
+      },
+      "recall": 0.9035087719298246,
+      "recall_max": 0.9210526315789473,
+      "recall_min": 0.8947368421052632,
+      "reps": 3,
+      "retired_reason": null,
+      "stable_share": 0.9428571428571428,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 35492.708333333336,
+      "usable": 0.9722222222222222,
+      "wall_median_s": 43.64,
+      "wall_p90_s": 74.38649999999998,
+      "wilson_hi": 0.9452638509547862,
+      "wilson_lo": 0.8354461039345698
+    },
+    {
+      "api_usd_per_item": 0.11654358148148149,
+      "arms": [
+        "sol-xhigh",
+        "sol-xhigh-r2",
+        "sol-xhigh-r3"
+      ],
+      "catalog": "active",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "cost_per_item": 2.913589537037037,
+      "cost_unit": "credits",
+      "effort": "xhigh",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.4157303370786517,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 1,
+      "items_per_week": 2883,
+      "items_run": 108,
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.03468558972663139,
+      "precision": 0.7394366197183099,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 1.04
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 63.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-17",
+          "source": "Artificial Analysis coding-agent index v1.5, quoted in POLICY.md",
+          "url": null,
+          "value": 55.00000000000001
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 3.2
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-xhigh",
+          "value": 0.39
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-xhigh",
+          "value": 51.0
+        },
+        "aa_ii_v5_cost_per_task_usd": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-xhigh-vs-gpt-6-1-terra-xhigh",
+          "value": 0.76
+        },
+        "aa_ii_v5_score": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-xhigh-vs-gpt-6-1-terra-xhigh",
+          "value": 52.0
+        },
+        "aa_ii_v5_tb4_pct": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-xhigh-vs-gpt-6-1-terra-xhigh",
+          "value": 54.0
+        },
+        "qodo_cost_per_task_usd": {
+          "date": "2026-10-12",
+          "source": "Qodo vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 0.51
+        },
+        "qodo_f1": {
+          "date": "2026-10-12",
+          "source": "Qodo vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 48.4
+        }
+      },
+      "recall": 0.9210526315789473,
+      "recall_max": 0.9473684210526315,
+      "recall_min": 0.8947368421052632,
+      "reps": 3,
+      "retired_reason": null,
+      "stable_share": 0.9166666666666666,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 41618.291666666664,
+      "usable": 0.9814814814814815,
+      "wall_median_s": 60.6135,
+      "wall_p90_s": 98.0694,
+      "wilson_hi": 0.957911385425773,
+      "wilson_lo": 0.8567424805457289
+    },
+    {
+      "api_usd_per_item": 0.12717332222222225,
+      "arms": [
+        "sol-max",
+        "sol-max-r2",
+        "sol-max-r3"
+      ],
+      "catalog": "retired",
+      "classes": [],
+      "cost_per_item": 3.179333055555556,
+      "cost_unit": "credits",
+      "effort": "max",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.37777777777777777,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 2642,
+      "items_run": 108,
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.03784920304232804,
+      "precision": 0.7605633802816901,
+      "public": {
+        "aa_cai_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 1.55
+        },
+        "aa_cai_index": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 60.0
+        },
+        "aa_cai_tb4_pct": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 53.0
+        },
+        "aa_cai_tokens_per_task_m": {
+          "date": "2026-10-20",
+          "source": "AA-CAI",
+          "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+          "value": 4.0
+        },
+        "aa_ii_cost_per_task_usd": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-1-sol",
+          "value": 0.72
+        },
+        "aa_ii_score": {
+          "date": "2026-10-20",
+          "source": "AA-II",
+          "url": "https://artificialanalysis.ai/models/gpt-6-1-sol",
+          "value": 52.0
+        },
+        "aa_ii_v5_cost_per_task_usd": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra",
+          "value": 1.27
+        },
+        "aa_ii_v5_score": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra",
+          "value": 55.0
+        },
+        "aa_ii_v5_tb4_pct": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra",
+          "value": 56.0
+        },
+        "frontiercode_cost_per_task_usd": {
+          "date": "2026-10-12",
+          "source": "FrontierCode 1.1 Main independent AA",
+          "url": "https://artificialanalysis.ai/articles/frontiercode",
+          "value": 0.81
+        },
+        "frontiercode_score_pct": {
+          "date": "2026-10-12",
+          "source": "FrontierCode 1.1 Main independent AA",
+          "url": "https://artificialanalysis.ai/articles/frontiercode",
+          "value": 49.0
+        },
+        "frontiercode_v2_pct": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra",
+          "value": 41.0
+        }
+      },
+      "recall": 0.9473684210526315,
+      "recall_max": 0.9473684210526315,
+      "recall_min": 0.9473684210526315,
+      "reps": 3,
+      "retired_reason": "Artificial Analysis v1.5: 60 at $1.55 a task, below xhigh's 63 at $1.04; Suite R 2026-10-20 agrees: no recall gain over xhigh at a higher price",
+      "stable_share": 0.9459459459459459,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 43058.26388888889,
+      "usable": 0.9907407407407407,
+      "wall_median_s": 74.051,
+      "wall_p90_s": 113.8523,
+      "wilson_hi": 0.9756578384920905,
+      "wilson_lo": 0.8899118941026302
+    },
+    {
+      "api_usd_per_item": 0.027849994444444442,
+      "arms": [
+        "terra-low"
+      ],
+      "catalog": "active",
+      "classes": [
+        "mechanical",
+        "review",
+        "research"
+      ],
+      "cost_per_item": 0.6962498611111111,
+      "cost_unit": "credits",
+      "effort": "low",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.43333333333333335,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 12065,
+      "items_run": 36,
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.008288688822751323,
+      "precision": 0.7291666666666666,
+      "public": {
+        "aa_ii_v5_cost_per_task_usd": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-low-vs-gpt-6-1-terra-low",
+          "value": 0.07
+        },
+        "aa_ii_v5_score": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-low-vs-gpt-6-1-terra-low",
+          "value": 29.0
+        },
+        "aa_ii_v5_tb4_pct": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-low-vs-gpt-6-1-terra-low",
+          "value": 15.0
+        }
+      },
+      "recall": 0.9210526315789473,
+      "recall_max": 0.9210526315789473,
+      "recall_min": 0.9210526315789473,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 160799.86111111112,
+      "usable": 0.9166666666666666,
+      "wall_median_s": 67.487,
+      "wall_p90_s": 94.607,
+      "wilson_hi": 0.9727854044930122,
+      "wilson_lo": 0.7920062854222853
+    },
+    {
+      "api_usd_per_item": 0.032179122222222224,
+      "arms": [
+        "terra-medium"
+      ],
+      "catalog": "active",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "hard",
+        "review",
+        "research"
+      ],
+      "cost_per_item": 0.8044780555555556,
+      "cost_unit": "credits",
+      "effort": "medium",
+      "fa_per_control_item": 0.0,
+      "fa_per_planted_item": 0.5666666666666667,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 10442,
+      "items_run": 36,
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.009577119708994709,
+      "precision": 0.6730769230769231,
+      "public": {
+        "aa_ii_v5_cost_per_task_usd": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-medium-vs-gpt-6-1-terra-medium",
+          "value": 0.17
+        },
+        "aa_ii_v5_score": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-medium-vs-gpt-6-1-terra-medium",
+          "value": 38.0
+        },
+        "aa_ii_v5_tb4_pct": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-medium-vs-gpt-6-1-terra-medium",
+          "value": 32.0
+        }
+      },
+      "recall": 0.9210526315789473,
+      "recall_max": 0.9210526315789473,
+      "recall_min": 0.9210526315789473,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 172209.61111111112,
+      "usable": 0.9444444444444444,
+      "wall_median_s": 64.96799999999999,
+      "wall_p90_s": 85.37450000000001,
+      "wilson_hi": 0.9727854044930122,
+      "wilson_lo": 0.7920062854222853
+    },
+    {
+      "api_usd_per_item": 0.03657018333333333,
+      "arms": [
+        "terra-high"
+      ],
+      "catalog": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "design",
+        "review"
+      ],
+      "cost_per_item": 0.9142545833333333,
+      "cost_unit": "credits",
+      "effort": "high",
+      "fa_per_control_item": 0.16666666666666666,
+      "fa_per_planted_item": 0.6333333333333333,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 9188,
+      "items_run": 36,
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.010883983134920635,
+      "precision": 0.6363636363636364,
+      "public": {
+        "aa_ii_v5_cost_per_task_usd": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-high-vs-gpt-6-1-terra-high",
+          "value": 0.26
+        },
+        "aa_ii_v5_score": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-high-vs-gpt-6-1-terra-high",
+          "value": 42.0
+        },
+        "aa_ii_v5_tb4_pct": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-high-vs-gpt-6-1-terra-high",
+          "value": 42.0
+        }
+      },
+      "recall": 0.9210526315789473,
+      "recall_max": 0.9210526315789473,
+      "recall_min": 0.9210526315789473,
+      "reps": 1,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "measured",
+      "suite_items": 36,
+      "tokens_per_item": 214127.91666666666,
+      "usable": 0.9444444444444444,
+      "wall_median_s": 71.1335,
+      "wall_p90_s": 92.783,
+      "wilson_hi": 0.9727854044930122,
+      "wilson_lo": 0.7920062854222853
+    },
+    {
+      "api_usd_per_item": 0.05293339090909092,
+      "arms": [
+        "terra-xhigh"
+      ],
+      "catalog": "retired",
+      "classes": [],
+      "cost_per_item": 1.3233347727272728,
+      "cost_unit": "credits",
+      "effort": "xhigh",
+      "fa_per_control_item": null,
+      "fa_per_planted_item": 0.9545454545454546,
+      "format_fail": 0,
+      "format_fail_rate": 0.0,
+      "infra_failures": 0,
+      "items_per_week": 6348,
+      "items_run": 23,
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": 0.01575398538961039,
+      "precision": 0.5714285714285714,
+      "public": {
+        "aa_ii_v5_cost_per_task_usd": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-xhigh-vs-gpt-6-1-terra-xhigh",
+          "value": 0.4
+        },
+        "aa_ii_v5_score": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-xhigh-vs-gpt-6-1-terra-xhigh",
+          "value": 45.0
+        },
+        "aa_ii_v5_tb4_pct": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-xhigh-vs-gpt-6-1-terra-xhigh",
+          "value": 46.0
+        }
+      },
+      "recall": 0.7368421052631579,
+      "recall_max": 0.7368421052631579,
+      "recall_min": 0.7368421052631579,
+      "reps": 1,
+      "retired_reason": "AA v5.0 (2026-10-28): 45 at $0.40 a task, below sol medium's 46 at $0.36; Suite R 2026-10-28 (23 of 36 items): the same defects as terra low at 1.9x the cost and 2.2x the unmatched findings.",
+      "stable_share": null,
+      "status": "partial",
+      "status_note": "partial (23 of 36 items)",
+      "suite_items": 36,
+      "tokens_per_item": 303479.3181818182,
+      "usable": 0.6111111111111112,
+      "wall_median_s": 104.249,
+      "wall_p90_s": 160.0088,
+      "wilson_hi": 0.8502837874520186,
+      "wilson_lo": 0.5799115381253364
+    },
+    {
+      "api_usd_per_item": null,
+      "arms": [],
+      "catalog": "retired",
+      "classes": [],
+      "cost_per_item": null,
+      "cost_unit": null,
+      "effort": "max",
+      "fa_per_control_item": null,
+      "fa_per_planted_item": null,
+      "format_fail": null,
+      "format_fail_rate": null,
+      "infra_failures": null,
+      "items_per_week": null,
+      "items_run": 0,
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": null,
+      "precision": null,
+      "public": {
+        "aa_ii_v5_cost_per_task_usd": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra",
+          "value": 0.96
+        },
+        "aa_ii_v5_score": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra",
+          "value": 51.0
+        },
+        "aa_ii_v5_tb4_pct": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra",
+          "value": 56.0
+        },
+        "frontiercode_v2_pct": {
+          "date": "2026-10-28",
+          "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+          "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra",
+          "value": 42.0
+        },
+        "vendor_terminal_bench_4_pct": {
+          "date": "2026-10-26",
+          "source": "OpenAI terra announcement (vendor; read through search snippets, page returned 403)",
+          "url": "https://openai.com/index/introducing-gpt-6-1-terra/",
+          "value": 50.3
+        }
+      },
+      "recall": null,
+      "recall_max": null,
+      "recall_min": null,
+      "reps": 0,
+      "retired_reason": "AA v5.0 (2026-10-28): 51 at $0.96 a task against sol xhigh's 52 at $0.76; not run on Suite R. Terra costs 0.76x sol per task at max (0.44-0.53x below it) because it writes almost as many tokens.",
+      "stable_share": null,
+      "status": "not run",
+      "suite_items": 36,
+      "tokens_per_item": null,
+      "usable": null,
+      "wall_median_s": null,
+      "wall_p90_s": null,
+      "wilson_hi": null,
+      "wilson_lo": null
+    },
+    {
+      "api_usd_per_item": null,
+      "arms": [],
+      "catalog": "active",
+      "classes": [
+        "mechanical",
+        "research"
+      ],
+      "cost_per_item": null,
+      "cost_unit": null,
+      "effort": "low",
+      "fa_per_control_item": null,
+      "fa_per_planted_item": null,
+      "format_fail": null,
+      "format_fail_rate": null,
+      "infra_failures": null,
+      "items_per_week": null,
+      "items_run": 0,
+      "lane": "gemini",
+      "model": "gemini-3.8-flash-low",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": null,
+      "precision": null,
+      "public": {},
+      "recall": null,
+      "recall_max": null,
+      "recall_min": null,
+      "reps": 0,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "not run",
+      "suite_items": 36,
+      "tokens_per_item": null,
+      "usable": null,
+      "wall_median_s": null,
+      "wall_p90_s": null,
+      "wilson_hi": null,
+      "wilson_lo": null
+    },
+    {
+      "api_usd_per_item": null,
+      "arms": [],
+      "catalog": "active",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "research"
+      ],
+      "cost_per_item": null,
+      "cost_unit": null,
+      "effort": "medium",
+      "fa_per_control_item": null,
+      "fa_per_planted_item": null,
+      "format_fail": null,
+      "format_fail_rate": null,
+      "infra_failures": null,
+      "items_per_week": null,
+      "items_run": 0,
+      "lane": "gemini",
+      "model": "gemini-3.8-flash-medium",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": null,
+      "precision": null,
+      "public": {
+        "deepswe_epoch_score_pct": {
+          "date": "2026-09",
+          "source": "DeepSWE per effort independent Epoch",
+          "url": "https://llmrun.dev/benchmark/deepswe?show=all",
+          "value": 71.0
+        }
+      },
+      "recall": null,
+      "recall_max": null,
+      "recall_min": null,
+      "reps": 0,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "not run",
+      "suite_items": 36,
+      "tokens_per_item": null,
+      "usable": null,
+      "wall_median_s": null,
+      "wall_p90_s": null,
+      "wilson_hi": null,
+      "wilson_lo": null
+    },
+    {
+      "api_usd_per_item": null,
+      "arms": [],
+      "catalog": "active",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "research",
+        "review"
+      ],
+      "cost_per_item": null,
+      "cost_unit": null,
+      "effort": "high",
+      "fa_per_control_item": null,
+      "fa_per_planted_item": null,
+      "format_fail": null,
+      "format_fail_rate": null,
+      "infra_failures": null,
+      "items_per_week": null,
+      "items_run": 0,
+      "lane": "gemini",
+      "model": "gemini-3.8-flash-high",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": null,
+      "precision": null,
+      "public": {
+        "deepswe_datacurve_cost_per_task_usd": {
+          "date": "2026-09-22",
+          "source": "DeepSWE v1.1 independent Datacurve",
+          "url": "https://deepswe.datacurve.ai/",
+          "value": 2.36
+        },
+        "deepswe_datacurve_score_pct": {
+          "date": "2026-09-22",
+          "source": "DeepSWE v1.1 independent Datacurve",
+          "url": "https://deepswe.datacurve.ai/",
+          "value": 74.0
+        },
+        "deepswe_epoch_score_pct": {
+          "date": "2026-09",
+          "source": "DeepSWE per effort independent Epoch",
+          "url": "https://llmrun.dev/benchmark/deepswe?show=all",
+          "value": 73.8
+        },
+        "qodo_cost_per_task_usd": {
+          "date": "2026-10-12",
+          "source": "Qodo code review benchmark vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 3.63
+        },
+        "qodo_f1": {
+          "date": "2026-10-12",
+          "source": "Qodo code review benchmark vendor-run",
+          "url": "https://www.qodo.ai/?p=22396",
+          "value": 47.0
+        }
+      },
+      "recall": null,
+      "recall_max": null,
+      "recall_min": null,
+      "reps": 0,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "not run",
+      "suite_items": 36,
+      "tokens_per_item": null,
+      "usable": null,
+      "wall_median_s": null,
+      "wall_p90_s": null,
+      "wilson_hi": null,
+      "wilson_lo": null
+    },
+    {
+      "api_usd_per_item": null,
+      "arms": [],
+      "catalog": "manual",
+      "classes": [],
+      "cost_per_item": null,
+      "cost_unit": null,
+      "effort": "*",
+      "fa_per_control_item": null,
+      "fa_per_planted_item": null,
+      "format_fail": null,
+      "format_fail_rate": null,
+      "infra_failures": null,
+      "items_per_week": null,
+      "items_run": 0,
+      "lane": "glm",
+      "model": "z-ai/glm-5.3-flash",
+      "pct_5h_per_item": null,
+      "pct_week_per_item": null,
+      "precision": null,
+      "public": {},
+      "recall": null,
+      "recall_max": null,
+      "recall_min": null,
+      "reps": 0,
+      "retired_reason": null,
+      "stable_share": null,
+      "status": "not run",
+      "suite_items": 36,
+      "tokens_per_item": null,
+      "usable": null,
+      "wall_median_s": null,
+      "wall_p90_s": null,
+      "wilson_hi": null,
+      "wilson_lo": null
+    }
+  ],
+  "schema_version": 1,
+  "suite": "suite_r",
+  "total_defects": 38
+}

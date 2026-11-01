@@ -1,0 +1,15 @@
+{
+  "name": "sessions",
+  "version": "0.3.0",
+  "description": "The Claude app's session list inside the CLI: every local and cloud session grouped by repository, and a session view with its transcript, a composer and action keys. /sessions, or . alone in an empty prompt; Esc goes back.",
+  "author": { "name": "Claude Usage Optimizer" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "band": {
+      "type": "boolean",
+      "title": "Line above the prompt when a session needs you",
+      "description": "While the Sessions pane is closed, read the session list every 2 minutes and show one line above the prompt when a session holds a message for you or waits for a permission.",
+      "default": false
+    }
+  }
+}

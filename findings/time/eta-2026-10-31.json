@@ -1,0 +1,225 @@
+{
+ "window": "real-work lane runs on one Windows machine, 2026-10-28 16:22 to 2026-10-31 13:10 local time",
+ "rows": [
+  {
+   "lane": "haiku",
+   "place": "local",
+   "class": "research",
+   "eta_tier": "measured",
+   "runs": 1,
+   "median_eta_min": 1.63,
+   "median_actual_min": 7.54,
+   "median_actual_over_eta": 4.624,
+   "within_eta_x2": 0
+  },
+  {
+   "lane": "haiku",
+   "place": "local",
+   "class": "review",
+   "eta_tier": "measured",
+   "runs": 2,
+   "median_eta_min": 1.68,
+   "median_actual_min": 3.59,
+   "median_actual_over_eta": 2.15,
+   "within_eta_x2": 1
+  },
+  {
+   "lane": "haiku",
+   "place": "local",
+   "class": "substantive",
+   "eta_tier": "measured",
+   "runs": 4,
+   "median_eta_min": 8.91,
+   "median_actual_min": 40.26,
+   "median_actual_over_eta": 4.219,
+   "within_eta_x2": 1
+  },
+  {
+   "lane": "haiku",
+   "place": "subagent",
+   "class": "research",
+   "eta_tier": "prior",
+   "runs": 3,
+   "median_eta_min": 11.54,
+   "median_actual_min": 17.56,
+   "median_actual_over_eta": 1.476,
+   "within_eta_x2": 2
+  },
+  {
+   "lane": "haiku",
+   "place": "subagent",
+   "class": "review",
+   "eta_tier": "measured",
+   "runs": 2,
+   "median_eta_min": 2.79,
+   "median_actual_min": 2.84,
+   "median_actual_over_eta": 1.02,
+   "within_eta_x2": 2
+  },
+  {
+   "lane": "haiku",
+   "place": "subagent",
+   "class": "substantive",
+   "eta_tier": "measured",
+   "runs": 4,
+   "median_eta_min": 9.34,
+   "median_actual_min": 5.68,
+   "median_actual_over_eta": 0.543,
+   "within_eta_x2": 1
+  },
+  {
+   "lane": "luna",
+   "place": "local",
+   "class": "hard",
+   "eta_tier": "arm",
+   "runs": 2,
+   "median_eta_min": 30.43,
+   "median_actual_min": 9.81,
+   "median_actual_over_eta": 9.749,
+   "within_eta_x2": 0
+  },
+  {
+   "lane": "luna",
+   "place": "local",
+   "class": "substantive",
+   "eta_tier": "measured",
+   "runs": 1,
+   "median_eta_min": 15.8,
+   "median_actual_min": 6.32,
+   "median_actual_over_eta": 0.4,
+   "within_eta_x2": 0
+  },
+  {
+   "lane": "opus",
+   "place": "local",
+   "class": "hard",
+   "eta_tier": "arm",
+   "runs": 1,
+   "median_eta_min": 26.31,
+   "median_actual_min": 11.63,
+   "median_actual_over_eta": 0.442,
+   "within_eta_x2": 0
+  },
+  {
+   "lane": "opus",
+   "place": "local",
+   "class": "substantive",
+   "eta_tier": "measured",
+   "runs": 2,
+   "median_eta_min": 17.3,
+   "median_actual_min": 6.91,
+   "median_actual_over_eta": 0.4,
+   "within_eta_x2": 0
+  },
+  {
+   "lane": "opus",
+   "place": "subagent",
+   "class": "hard",
+   "eta_tier": "arm",
+   "runs": 1,
+   "median_eta_min": 15.22,
+   "median_actual_min": 5.44,
+   "median_actual_over_eta": 0.357,
+   "within_eta_x2": 0
+  },
+  {
+   "lane": "opus",
+   "place": "subagent",
+   "class": "substantive",
+   "eta_tier": "measured",
+   "runs": 1,
+   "median_eta_min": 7.61,
+   "median_actual_min": 5.13,
+   "median_actual_over_eta": 0.674,
+   "within_eta_x2": 1
+  },
+  {
+   "lane": "sol",
+   "place": "local",
+   "class": "research",
+   "eta_tier": "arm",
+   "runs": 2,
+   "median_eta_min": 11.28,
+   "median_actual_min": 17.23,
+   "median_actual_over_eta": 1.514,
+   "within_eta_x2": 2
+  },
+  {
+   "lane": "sol",
+   "place": "local",
+   "class": "research",
+   "eta_tier": "measured",
+   "runs": 3,
+   "median_eta_min": 14.25,
+   "median_actual_min": 11.65,
+   "median_actual_over_eta": 0.836,
+   "within_eta_x2": 3
+  },
+  {
+   "lane": "sol",
+   "place": "local",
+   "class": "review",
+   "eta_tier": "measured",
+   "runs": 1,
+   "median_eta_min": 10.46,
+   "median_actual_min": 11.99,
+   "median_actual_over_eta": 1.146,
+   "within_eta_x2": 1
+  },
+  {
+   "lane": "sol",
+   "place": "local",
+   "class": "substantive",
+   "eta_tier": "measured",
+   "runs": 31,
+   "median_eta_min": 22.42,
+   "median_actual_min": 13.04,
+   "median_actual_over_eta": 0.629,
+   "within_eta_x2": 19
+  },
+  {
+   "lane": "sonnet",
+   "place": "local",
+   "class": "substantive",
+   "eta_tier": "measured",
+   "runs": 6,
+   "median_eta_min": 7.43,
+   "median_actual_min": 3.14,
+   "median_actual_over_eta": 0.505,
+   "within_eta_x2": 2
+  },
+  {
+   "lane": "sonnet",
+   "place": "subagent",
+   "class": "substantive",
+   "eta_tier": "measured",
+   "runs": 1,
+   "median_eta_min": 8.69,
+   "median_actual_min": 24.54,
+   "median_actual_over_eta": 2.824,
+   "within_eta_x2": 0
+  },
+  {
+   "lane": "terra",
+   "place": "local",
+   "class": "research",
+   "eta_tier": "class",
+   "runs": 1,
+   "median_eta_min": 3.18,
+   "median_actual_min": 2.32,
+   "median_actual_over_eta": 0.73,
+   "within_eta_x2": 1
+  },
+  {
+   "lane": "terra",
+   "place": "local",
+   "class": "substantive",
+   "eta_tier": "measured",
+   "runs": 4,
+   "median_eta_min": 7.98,
+   "median_actual_min": 9.38,
+   "median_actual_over_eta": 1.112,
+   "within_eta_x2": 4
+  }
+ ]
+}

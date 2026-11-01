@@ -1,0 +1,12 @@
+{"ts":"2026-10-19T10:21:13Z","label":"pre-c0","rate_limit_info":{"unifiedWindows":{"five_hour":{"utilization":0,"resetsAt":1792423200},"seven_day":{"utilization":0.07,"resetsAt":1792893600}}}}
+{"ts":"2026-10-19T10:26:44Z","label":"post-c0","rate_limit_info":{"unifiedWindows":{"five_hour":{"utilization":0,"resetsAt":1792423200},"seven_day":{"utilization":0.07,"resetsAt":1792893600}}}}
+{"ts":"2026-10-19T10:26:51Z","label":"pre-c1","rate_limit_info":{"unifiedWindows":{"five_hour":{"utilization":0,"resetsAt":1792423200},"seven_day":{"utilization":0.07,"resetsAt":1792893600}}}}
+{"ts":"2026-10-19T10:46:11Z","label":"post-c1","rate_limit_info":{"unifiedWindows":{"five_hour":{"utilization":0.01,"resetsAt":1792423200},"seven_day":{"utilization":0.07,"resetsAt":1792893600}}}}
+{"ts":"2026-10-19T10:46:20Z","label":"pre-c2","rate_limit_info":{"unifiedWindows":{"five_hour":{"utilization":0.01,"resetsAt":1792423200},"seven_day":{"utilization":0.07,"resetsAt":1792893600}}}}
+{"ts":"2026-10-19T11:37:10Z","label":"post-c2","rate_limit_info":{"unifiedWindows":{"five_hour":{"utilization":0.13,"resetsAt":1792423200},"seven_day":{"utilization":0.09,"resetsAt":1792893600}}}}
+{"ts":"2026-10-19T11:37:20Z","label":"pre-c3","rate_limit_info":{"unifiedWindows":{"five_hour":{"utilization":0.13,"resetsAt":1792423200},"seven_day":{"utilization":0.09,"resetsAt":1792893600}}}}
+{"ts":"2026-10-19T12:23:31Z","label":"post-c3","rate_limit_info":{"unifiedWindows":{"five_hour":{"utilization":0.3,"resetsAt":1792423200},"seven_day":{"utilization":0.11,"resetsAt":1792893600}}}}
+{"ts":"2026-10-19T12:23:40Z","label":"pre-c4","rate_limit_info":{"unifiedWindows":{"five_hour":{"utilization":0.3,"resetsAt":1792423200},"seven_day":{"utilization":0.11,"resetsAt":1792893600}}}}
+{"ts":"2026-10-19T12:31:12Z","label":"post-c4","rate_limit_info":{"unifiedWindows":{"five_hour":{"utilization":0.31,"resetsAt":1792423200},"seven_day":{"utilization":0.11,"resetsAt":1792893600}}}}
+{"ts":"2026-10-19T12:31:20Z","label":"pre-c5","rate_limit_info":{"unifiedWindows":{"five_hour":{"utilization":0.31,"resetsAt":1792423200},"seven_day":{"utilization":0.11,"resetsAt":1792893600}}}}
+{"ts":"2026-10-19T12:51:55Z","label":"post-c5","rate_limit_info":{"unifiedWindows":{"five_hour":{"utilization":0.53,"resetsAt":1792423200},"seven_day":{"utilization":0.14,"resetsAt":1792893600}}}}

@@ -1,0 +1,1018 @@
+{
+   "claude" : {
+      "cache_read_weight" : {
+         "interval" : [
+            0,
+            1
+         ],
+         "point" : 0.36,
+         "resolved" : false,
+         "source" : "LIMITS.md:55; claude/probes_fit/REPORT_C.md:46"
+      },
+      "extra_usage" : {
+         "enabled" : false,
+         "reason" : "org_level_disabled",
+         "source" : "LIMITS.md:49"
+      },
+      "plan" : "Max 20x",
+      "request_charge" : {
+         "calls" : 150,
+         "conservative_upper_usd" : 0.0185,
+         "meter_delta" : 0,
+         "point_calibrated_upper_usd" : 0.017,
+         "source" : "LIMITS.md:56; claude/probes_fit/REPORT_C.md:50",
+         "zero_proven" : false
+      },
+      "source" : "LIMITS.md:43-56",
+      "weights" : {
+         "fable" : {
+            "five_hour" : {
+               "interval" : [
+                  1.82,
+                  2.35
+               ],
+               "point" : 2.06
+            },
+            "source" : "LIMITS.md:54; claude/probes_fit/REPORT_C.md:42",
+            "weekly" : {
+               "interval" : [
+                  0.75,
+                  4.49
+               ],
+               "point" : 1.69
+            },
+            "weekly_conditional_half_cap" : {
+               "interval" : [
+                  1.29,
+                  1.58
+               ],
+               "point" : 1.43,
+               "status" : "inferred conditional on exactly half the shared week and Sonnet point"
+            }
+         },
+         "haiku" : {
+            "five_hour" : {
+               "interval" : [
+                  0,
+                  3.75
+               ],
+               "point" : 1.72
+            },
+            "resolved" : false,
+            "source" : "LIMITS.md:53; claude/probes_fit/REPORT_C.md:39",
+            "weekly" : {
+               "interval" : null,
+               "point" : null
+            }
+         },
+         "opus" : {
+            "five_hour" : {
+               "interval" : [
+                  0.82,
+                  1.09
+               ],
+               "point" : 0.95
+            },
+            "source" : "LIMITS.md:53; claude/probes_fit/REPORT_C.md:41",
+            "weekly" : {
+               "interval" : [
+                  0.22,
+                  2
+               ],
+               "point" : 0.67
+            }
+         },
+         "sonnet" : {
+            "five_hour" : {
+               "interval" : [
+                  1,
+                  1
+               ],
+               "point" : 1
+            },
+            "source" : "claude/probes_fit/REPORT_C.md:40",
+            "weekly" : {
+               "interval" : [
+                  1,
+                  1
+               ],
+               "point" : 1
+            }
+         }
+      },
+      "windows" : {
+         "fable_subcap" : {
+            "interval" : [
+               443,
+               664
+            ],
+            "meter_after" : 5,
+            "meter_before" : 0,
+            "point" : 531,
+            "probe_cost" : 26.57,
+            "source" : "LIMITS.md:54; claude/probes_fit/REPORT_C.md:55-56",
+            "unit" : "list_usd",
+            "weekly_fraction" : 0.5
+         },
+         "five_hour" : {
+            "H1" : {
+               "interval" : [
+                  235,
+                  277
+               ],
+               "per_percent" : 2.54,
+               "per_percent_interval" : [
+                  2.35,
+                  2.77
+               ],
+               "point" : 254
+            },
+            "H2" : {
+               "interval" : [
+                  228,
+                  270
+               ],
+               "point" : 247
+            },
+            "source" : "LIMITS.md:52; claude/probes_fit/REPORT_C.md:26,65",
+            "unit" : "list_usd"
+         },
+         "weekly" : {
+            "H1" : {
+               "interval" : [
+                  1017,
+                  3050
+               ],
+               "per_percent" : 15.25,
+               "per_percent_interval" : [
+                  10.17,
+                  30.5
+               ],
+               "point" : 1525
+            },
+            "H2" : {
+               "interval" : [
+                  989,
+                  2966
+               ],
+               "point" : 1483
+            },
+            "source" : "LIMITS.md:51; claude/probes_fit/REPORT_C.md:26,66",
+            "unit" : "list_usd"
+         }
+      }
+   },
+   "codex" : {
+      "model_card_factors" : {
+         "astra" : {
+            "point" : 1,
+            "status" : "anchor"
+         },
+         "luna" : {
+            "meter_delta" : 0,
+            "point" : null,
+            "probe_credits" : 14.6,
+            "resolved" : false,
+            "upper" : 5.8
+         },
+         "sol" : {
+            "block" : {
+               "interval" : [
+                  0.94,
+                  1.85
+               ],
+               "point" : 1.36
+            },
+            "crossings" : {
+               "interval" : [
+                  1.09,
+                  1.3
+               ],
+               "point" : 1.19
+            }
+         },
+         "source" : "LIMITS.md:17"
+      },
+      "plus" : {
+         "five_hour" : {
+            "size" : null
+         },
+         "source" : "LIMITS.md:19; codex/REPORT.md:8",
+         "weekly" : {
+            "interval" : [
+               1360,
+               1490
+            ],
+            "point" : 1450,
+            "unit" : "card_credits",
+            "usd_interval_rounded" : [
+               54,
+               60
+            ],
+            "usd_point" : 58
+         }
+      },
+      "pooled_P1_P4" : {
+         "assumption" : "sol at card",
+         "interval" : [
+            7400,
+            8400
+         ],
+         "point" : 7870,
+         "source" : "LIMITS.md:18"
+      },
+      "pro_lite" : {
+         "five_hour" : null,
+         "shared_pool" : true,
+         "source" : "LIMITS.md:13",
+         "weekly" : {
+            "interval" : [
+               7800,
+               9200
+            ],
+            "per_percent" : 84,
+            "per_percent_interval" : [
+               78,
+               92
+            ],
+            "point" : 8400,
+            "source" : "LIMITS.md:4,14; USD and per-percent values inferred by conversion",
+            "unit" : "card_credits",
+            "usd_interval" : [
+               312,
+               368
+            ],
+            "usd_point_exact" : 336,
+            "usd_point_rounded" : 340
+         }
+      },
+      "pro_lite_to_plus" : {
+         "point" : 5.8,
+         "source" : "LIMITS.md:27"
+      },
+      "token_card_tolerance" : {
+         "approx_fraction" : 0.25,
+         "source" : "LIMITS.md:16"
+      },
+      "weekly_card_scenarios" : {
+         "astra" : {
+            "output_tokens" : 6700000,
+            "uncached_input_tokens" : 34000000
+         },
+         "luna" : {
+            "output_tokens" : 670000000,
+            "uncached_input_tokens" : 3400000000
+         },
+         "sol" : {
+            "output_tokens" : 34000000,
+            "uncached_input_tokens" : 168000000
+         },
+         "source" : "LIMITS.md:35-41",
+         "status" : "rounded, one token type only, assumes card charging"
+      }
+   },
+   "contrasts" : {
+      "claude" : {
+         "U2" : {
+            "cache_weight" : 1.35,
+            "cache_weight_se" : 0.32,
+            "five_hour_per_percent_interval" : [
+               2.8,
+               4.3
+            ],
+            "source" : "LIMITS.md:68",
+            "status" : "superseded, unidentified",
+            "weekly_per_percent_interval" : [
+               11,
+               46
+            ]
+         },
+         "anthropic" : {
+            "dates" : [
+               "2026-09-02",
+               "2026-09-22"
+            ],
+            "fable_cap_fraction" : 0.5,
+            "source" : "LIMITS.md:48,54,66",
+            "url" : "https://support.claude.com/en/articles/15424964",
+            "window_url" : "https://support.claude.com/en/articles/12429409"
+         },
+         "classmethod" : {
+            "article_url" : "https://dev.classmethod.jp/articles/claude-max-20x-weekly-limit-not-4x/",
+            "cache_weight_interval" : [
+               0,
+               0.12
+            ],
+            "date" : "2026-08-20",
+            "promotion_fraction" : 0.5,
+            "source" : "LIMITS.md:67",
+            "url" : "https://dev.classmethod.jp/articles/claude-max-20x-weekly-limit-not-4x/",
+            "weekly_interval_promotion" : [
+               3400,
+               3900
+            ],
+            "weekly_interval_without_promotion" : [
+               2300,
+               2600
+            ]
+         },
+         "ours" : {
+            "cache_interval" : [
+               0,
+               1
+            ],
+            "date" : "2026-10-19",
+            "five_hour" : 254,
+            "five_hour_interval" : [
+               235,
+               277
+            ],
+            "source" : "LIMITS.md:63",
+            "weekly" : 1525,
+            "weekly_interval" : [
+               1017,
+               3050
+            ]
+         },
+         "semianalysis" : {
+            "article_url" : "https://newsletter.semianalysis.com/p/anthropic-subscriptions-offer-5x",
+            "cache_read_tokens_no_movement" : 500000000,
+            "date" : "2026-10-05",
+            "fable_cap_fraction" : 0.5,
+            "fable_fraction_above_ours" : 0.08,
+            "fable_monthly" : 2485,
+            "fable_weekly" : 574,
+            "monthly" : 11700,
+            "source" : "LIMITS.md:65",
+            "url" : "https://newsletter.semianalysis.com/p/anthropic-subscriptions-offer-5x",
+            "weekly_derived" : 2700
+         },
+         "wokey" : {
+            "cache" : "barely count",
+            "date" : "2026-10-19",
+            "five_hour" : 205,
+            "five_hour_fraction_below_ours" : 0.19,
+            "n" : 17,
+            "source" : "LIMITS.md:64",
+            "url" : "https://wokey.ai/claude-pro-vs-max",
+            "weekly" : 1643,
+            "weekly_interval" : [
+               1547,
+               1751
+            ]
+         }
+      },
+      "codex" : {
+         "finopsllm" : {
+            "claimed_weekly_api_usd" : 175,
+            "date" : null,
+            "plan_monthly_usd" : 100,
+            "source" : "LIMITS.md:26",
+            "status" : "not found again, contradicted",
+            "url" : null
+         },
+         "inventivehq" : {
+            "article_url" : "https://inventivehq.com/blog/codex-subscription-usage-measured",
+            "date" : "2026-10-04",
+            "plus_credits" : 1650,
+            "plus_usd" : 66,
+            "source" : "LIMITS.md:24-25",
+            "url" : "https://inventivehq.com/blog/codex-subscription-usage-measured",
+            "weekly_credits_interval" : [
+               8250,
+               9500
+            ],
+            "weekly_usd_interval" : [
+               330,
+               380
+            ]
+         },
+         "official" : {
+            "checked" : "2026-10-15",
+            "source" : "LIMITS.md:28-31",
+            "sweep_date" : "2026-10-20",
+            "sweep_since" : "2026-09-01",
+            "url" : "https://learn.chatgpt.com/docs/pricing"
+         }
+      }
+   },
+   "date" : "2026-10-20",
+   "limits_data" : {
+      "dir" : "limits/",
+      "files" : [
+         "README.md",
+         "claude/c_blocks.csv",
+         "claude/c_model_tokens.csv",
+         "claude/derived.json",
+         "claude/events_cprobes.csv",
+         "claude/extract_report.json",
+         "claude/fable_window.json",
+         "claude/marks.tsv",
+         "claude/meter_readings.jsonl",
+         "codex/block_summary.csv",
+         "codex/block_summary.json",
+         "codex/events_probes.csv",
+         "codex/fit_a_b.csv",
+         "codex/fit_c.csv",
+         "codex/intervals.csv",
+         "codex/joint_fit.json",
+         "codex/marks.tsv",
+         "codex/meter_readings.csv",
+         "codex/unknown_models.json",
+         "codex/windows.csv"
+      ],
+      "rerun" : "measure/README.md"
+   },
+   "machine" : {
+      "busy_exit" : 70,
+      "codex_tasks_interval" : [
+         80,
+         90
+      ],
+      "crash_date" : "2026-10-19",
+      "recommended_max_codex_lanes" : 6,
+      "source" : "briefs/K3a-lane-usage-and-pids.md:9,76-90; task brief section 3.3 (machine observations; not present in LIMITS.md or subscription reports)",
+      "tokio_worker_threads_honored" : false,
+      "user_cgroup_tasks" : 1024
+   },
+   "provenance" : "Paths refer to the originating lab. Sources on an object apply to every numeric value below it unless overridden. Intervals are quantization endpoints, open for positive rises; null means unbounded or unmeasured as described.",
+   "rate_card" : {
+      "_note" : "credits per 1M tokens: [input, cached_input, output]. OFFICIAL learn.chatgpt.com/docs/pricing read 2026-10-19 (gpt-6.1-terra read 2026-10-26). 1 credit = $0.04 at API prices.",
+      "family" : {
+         "gpt-5.6-luna" : "luna56",
+         "gpt-5.6-sol" : "sol56",
+         "gpt-5.6-terra" : "terra",
+         "gpt-6-astra" : "astra",
+         "gpt-6-luna" : "luna",
+         "gpt-6-sol" : "sol",
+         "gpt-6.1-sol" : "sol",
+         "gpt-6.1-terra" : "terra"
+      },
+      "models" : {
+         "gpt-5.6-luna" : [
+            5,
+            0.5,
+            30
+         ],
+         "gpt-5.6-sol" : [
+            100,
+            10,
+            500
+         ],
+         "gpt-5.6-terra" : [
+            50,
+            5,
+            300
+         ],
+         "gpt-6-astra" : [
+            250,
+            25,
+            1250
+         ],
+         "gpt-6-luna" : [
+            2.5,
+            0.25,
+            12.5
+         ],
+         "gpt-6-sol" : [
+            50,
+            5,
+            250
+         ],
+         "gpt-6.1-sol" : [
+            50,
+            2.5,
+            250
+         ],
+         "gpt-6.1-terra" : [
+            25,
+            1.25,
+            125
+         ]
+      },
+      "source" : "codex/rates.json:2-17; LIMITS.md:4,28-29",
+      "usd_per_credit" : 0.04
+   },
+   "subsidy" : {
+      "_note" : "Subsidy factor = API value of a month's allowance / the plan's monthly price; a month is 4.345 weeks. Intervals are [low, high]; null means unbounded, or n/a when the input is not known. Plan $ per task = API $ per task / factor. Assumes the whole allowance is used every week. Generated by tools/make-aa-cli-rate.py, checked by tools/check-aa-cli-rate.py.",
+      "as_of" : "2026-10-31",
+      "doubling" : {
+         "date" : "2026-10-29T16:56:07Z",
+         "day" : "2026-10-29",
+         "plan" : "prolite",
+         "scale" : 2.0,
+         "source" : "Tibo (@thsottiaux, OpenAI) on X, 2026-10-29 16:56:07 UTC, https://x.com/thsottiaux/status/2115850175868727621: usage limits doubled for the Pro 100/200/500 tiers and Business Premium, effective that day, no end date given; Plus is not named. Meter: 6% -> 3% between 2026-10-29 04:02 and 10-30 00:24 UTC on the window resetting 2026-11-04T06:42Z with no spend between."
+      },
+      "factors" : {
+         "ai_pro" : {
+            "formula" : "weekly $ = the lower-bound weekly $ in subsidy_inputs.gemini, so the factor is at least its point",
+            "inputs" : {
+               "weekly_api_usd" : {
+                  "interval" : [
+                     80,
+                     null
+                  ],
+                  "point" : 80,
+                  "source" : "FINDINGS.md section 3 (window estimate 2026-10-28): at least about 100M gemini-3.8-flash tokens a week, about $80 at list; a lower bound"
+               },
+               "weekly_tokens" : {
+                  "model" : "gemini-3.8-flash",
+                  "point" : 100000000,
+                  "source" : "FINDINGS.md section 3 (window estimate 2026-10-28): at least about 100M gemini-3.8-flash tokens a week, about $80 at list; a lower bound"
+               }
+            },
+            "interval" : [
+               17.389,
+               null
+            ],
+            "lanes" : [
+               "gemini"
+            ],
+            "monthly_api_usd" : {
+               "interval" : [
+                  347.6,
+                  null
+               ],
+               "point" : 347.6
+            },
+            "note" : "a lower bound: other Gemini use during the sizing calls would make the window larger",
+            "plan" : "Google AI Pro",
+            "plan_id" : "ai_pro",
+            "point" : 17.389,
+            "price_usd_month" : 19.99,
+            "source" : "FINDINGS.md section 3 (window estimate 2026-10-28): at least about 100M gemini-3.8-flash tokens a week, about $80 at list; a lower bound; published monthly plan price, read 2026-10-31",
+            "status" : "lower_bound",
+            "weekly_api_usd" : {
+               "interval" : [
+                  80,
+                  null
+               ],
+               "point" : 80
+            }
+         },
+         "max20x_fable" : {
+            "formula" : "weekly $ = 0.5 x Sonnet weekly $ / weight; low and high as for the other models",
+            "inputs" : {
+               "cross_check_fable_subcap_usd" : {
+                  "interval" : [
+                     443,
+                     664
+                  ],
+                  "point" : 531,
+                  "source" : "findings.json claude.windows.fable_subcap (not used in the formula)"
+               },
+               "sonnet_weekly_usd" : {
+                  "interval" : [
+                     1017,
+                     3050
+                  ],
+                  "point" : 1525,
+                  "source" : "findings.json claude.windows.weekly.H1",
+                  "unit" : "list_usd_per_week"
+               },
+               "weekly_share" : {
+                  "point" : 0.5,
+                  "source" : "FINDINGS.md section 1: up to 50% of the shared weekly limit can go to Fable"
+               },
+               "weight" : {
+                  "interval" : [
+                     0.75,
+                     4.49
+                  ],
+                  "point" : 1.69,
+                  "source" : "findings.json claude.weights.fable.weekly",
+                  "window" : "weekly"
+               }
+            },
+            "interval" : [
+               2.46,
+               44.174
+            ],
+            "lanes" : [
+               "fable"
+            ],
+            "monthly_api_usd" : {
+               "interval" : [
+                  492.08,
+                  8834.83
+               ],
+               "point" : 1960.39
+            },
+            "plan" : "Claude Max 20x",
+            "plan_id" : "max20x",
+            "point" : 9.802,
+            "price_usd_month" : 200,
+            "source" : "findings.json claude.windows.weekly.H1; findings.json claude.weights.fable.weekly; FINDINGS.md section 1: up to 50% of the shared weekly limit can go to Fable; published monthly plan price, read 2026-10-31",
+            "status" : "measured",
+            "weekly_api_usd" : {
+               "interval" : [
+                  113.25,
+                  2033.33
+               ],
+               "point" : 451.18
+            }
+         },
+         "max20x_haiku" : {
+            "formula" : "weekly $ = Sonnet weekly $ / weight; low = Sonnet low / weight high; high = Sonnet high / weight low",
+            "inputs" : {
+               "sonnet_weekly_usd" : {
+                  "interval" : [
+                     1017,
+                     3050
+                  ],
+                  "point" : 1525,
+                  "source" : "findings.json claude.windows.weekly.H1",
+                  "unit" : "list_usd_per_week"
+               },
+               "weight" : {
+                  "interval" : [
+                     0,
+                     3.75
+                  ],
+                  "point" : 1.72,
+                  "source" : "findings.json claude.weights.haiku.five_hour",
+                  "window" : "five_hour"
+               }
+            },
+            "interval" : [
+               5.892,
+               null
+            ],
+            "lanes" : [
+               "haiku"
+            ],
+            "monthly_api_usd" : {
+               "interval" : [
+                  1178.36,
+                  null
+               ],
+               "point" : 3852.4
+            },
+            "note" : "claude.weights.haiku.weekly is not measured yet; the 5h weight stands in until a probe fills it in",
+            "plan" : "Claude Max 20x",
+            "plan_id" : "max20x",
+            "point" : 19.262,
+            "price_usd_month" : 200,
+            "source" : "findings.json claude.windows.weekly.H1; findings.json claude.weights.haiku.five_hour; published monthly plan price, read 2026-10-31",
+            "status" : "pending",
+            "weekly_api_usd" : {
+               "interval" : [
+                  271.2,
+                  null
+               ],
+               "point" : 886.63
+            }
+         },
+         "max20x_opus" : {
+            "formula" : "weekly $ = max(Sonnet weekly $ / weight, 2700) for point and low; high = Sonnet high / weight low",
+            "inputs" : {
+               "floor_weekly_usd" : {
+                  "point" : 2700,
+                  "source" : "FINDINGS.md section 18: turn-meter calibrate implies about $2,700 list a week of mostly Opus dollars, a lower bound"
+               },
+               "sonnet_weekly_usd" : {
+                  "interval" : [
+                     1017,
+                     3050
+                  ],
+                  "point" : 1525,
+                  "source" : "findings.json claude.windows.weekly.H1",
+                  "unit" : "list_usd_per_week"
+               },
+               "weight" : {
+                  "interval" : [
+                     0.22,
+                     2
+                  ],
+                  "point" : 0.67,
+                  "source" : "findings.json claude.weights.opus.weekly",
+                  "window" : "weekly"
+               }
+            },
+            "interval" : [
+               58.657,
+               301.188
+            ],
+            "lanes" : [
+               "opus"
+            ],
+            "monthly_api_usd" : {
+               "interval" : [
+                  11731.5,
+                  60237.5
+               ],
+               "point" : 11731.5
+            },
+            "note" : "point and low are held at the $2,700 calibration floor (the weight alone gives 2276)",
+            "plan" : "Claude Max 20x",
+            "plan_id" : "max20x",
+            "point" : 58.657,
+            "price_usd_month" : 200,
+            "source" : "findings.json claude.windows.weekly.H1; findings.json claude.weights.opus.weekly; FINDINGS.md section 18: turn-meter calibrate implies about $2,700 list a week of mostly Opus dollars, a lower bound; published monthly plan price, read 2026-10-31",
+            "status" : "lower_bound",
+            "weekly_api_usd" : {
+               "interval" : [
+                  2700,
+                  13863.64
+               ],
+               "point" : 2700
+            }
+         },
+         "max20x_sonnet" : {
+            "formula" : "weekly $ = Sonnet weekly $ / weight; low = Sonnet low / weight high; high = Sonnet high / weight low",
+            "inputs" : {
+               "sonnet_weekly_usd" : {
+                  "interval" : [
+                     1017,
+                     3050
+                  ],
+                  "point" : 1525,
+                  "source" : "findings.json claude.windows.weekly.H1",
+                  "unit" : "list_usd_per_week"
+               },
+               "weight" : {
+                  "interval" : [
+                     1,
+                     1
+                  ],
+                  "point" : 1,
+                  "source" : "findings.json claude.weights.sonnet.weekly",
+                  "window" : "weekly"
+               }
+            },
+            "interval" : [
+               22.094,
+               66.261
+            ],
+            "lanes" : [
+               "sonnet"
+            ],
+            "monthly_api_usd" : {
+               "interval" : [
+                  4418.86,
+                  13252.25
+               ],
+               "point" : 6626.12
+            },
+            "plan" : "Claude Max 20x",
+            "plan_id" : "max20x",
+            "point" : 33.131,
+            "price_usd_month" : 200,
+            "source" : "findings.json claude.windows.weekly.H1; findings.json claude.weights.sonnet.weekly; published monthly plan price, read 2026-10-31",
+            "status" : "measured",
+            "weekly_api_usd" : {
+               "interval" : [
+                  1017.0,
+                  3050.0
+               ],
+               "point" : 1525.0
+            }
+         },
+         "plus" : {
+            "formula" : "weekly $ = weekly card credits x $ per credit",
+            "inputs" : {
+               "usd_per_credit" : {
+                  "point" : 0.04,
+                  "source" : "findings.json rate_card.usd_per_credit"
+               },
+               "weekly_credits" : {
+                  "interval" : [
+                     1360,
+                     1490
+                  ],
+                  "point" : 1450,
+                  "source" : "findings.json codex.plus.weekly",
+                  "unit" : "card_credits"
+               }
+            },
+            "interval" : [
+               11.818,
+               12.948
+            ],
+            "lanes" : [
+               "astra",
+               "luna",
+               "sol",
+               "terra"
+            ],
+            "monthly_api_usd" : {
+               "interval" : [
+                  236.37,
+                  258.96
+               ],
+               "point" : 252.01
+            },
+            "plan" : "Codex Plus",
+            "plan_id" : "plus",
+            "point" : 12.601,
+            "price_usd_month" : 20,
+            "source" : "findings.json codex.plus.weekly; findings.json rate_card.usd_per_credit; published monthly plan price, read 2026-10-31",
+            "status" : "measured",
+            "weekly_api_usd" : {
+               "interval" : [
+                  54.4,
+                  59.6
+               ],
+               "point" : 58.0
+            }
+         },
+         "prolite" : {
+            "formula" : "weekly $ = weekly card credits x $ per credit",
+            "inputs" : {
+               "doubling" : {
+                  "date" : "2026-10-29T16:56:07Z",
+                  "point" : 2.0,
+                  "source" : "Tibo (@thsottiaux, OpenAI) on X, 2026-10-29 16:56:07 UTC, https://x.com/thsottiaux/status/2115850175868727621: usage limits doubled for the Pro 100/200/500 tiers and Business Premium, effective that day, no end date given; Plus is not named. Meter: 6% -> 3% between 2026-10-29 04:02 and 10-30 00:24 UTC on the window resetting 2026-11-04T06:42Z with no spend between."
+               },
+               "usd_per_credit" : {
+                  "point" : 0.04,
+                  "source" : "findings.json rate_card.usd_per_credit"
+               },
+               "weekly_credits" : {
+                  "interval" : [
+                     15600.0,
+                     18400.0
+                  ],
+                  "point" : 16800.0,
+                  "source" : "2 x findings.json codex.pro_lite.weekly",
+                  "unit" : "card_credits"
+               }
+            },
+            "interval" : [
+               27.113,
+               31.979
+            ],
+            "lanes" : [
+               "astra",
+               "luna",
+               "sol",
+               "terra"
+            ],
+            "monthly_api_usd" : {
+               "interval" : [
+                  2711.28,
+                  3197.92
+               ],
+               "point" : 2919.84
+            },
+            "note" : "now: 2 x the measured week, since the 2026-10-29 doubling; not re-measured yet",
+            "plan" : "Codex Pro Lite",
+            "plan_id" : "prolite",
+            "point" : 29.198,
+            "price_usd_month" : 100,
+            "source" : "2 x findings.json codex.pro_lite.weekly; findings.json rate_card.usd_per_credit; published monthly plan price, read 2026-10-31",
+            "status" : "measured",
+            "weekly_api_usd" : {
+               "interval" : [
+                  624.0,
+                  736.0
+               ],
+               "point" : 672.0
+            }
+         },
+         "prolite_before" : {
+            "formula" : "weekly $ = weekly card credits x $ per credit",
+            "inputs" : {
+               "usd_per_credit" : {
+                  "point" : 0.04,
+                  "source" : "findings.json rate_card.usd_per_credit"
+               },
+               "weekly_credits" : {
+                  "interval" : [
+                     7800,
+                     9200
+                  ],
+                  "point" : 8400,
+                  "source" : "findings.json codex.pro_lite.weekly",
+                  "unit" : "card_credits"
+               }
+            },
+            "interval" : [
+               13.556,
+               15.99
+            ],
+            "lanes" : [
+               "astra",
+               "luna",
+               "sol",
+               "terra"
+            ],
+            "monthly_api_usd" : {
+               "interval" : [
+                  1355.64,
+                  1598.96
+               ],
+               "point" : 1459.92
+            },
+            "note" : "before the 2026-10-29 doubling",
+            "plan" : "Codex Pro Lite",
+            "plan_id" : "prolite_before",
+            "point" : 14.599,
+            "price_usd_month" : 100,
+            "source" : "findings.json codex.pro_lite.weekly; findings.json rate_card.usd_per_credit; published monthly plan price, read 2026-10-31",
+            "status" : "measured",
+            "weekly_api_usd" : {
+               "interval" : [
+                  312.0,
+                  368.0
+               ],
+               "point" : 336.0
+            }
+         }
+      },
+      "generated_by" : "tools/make-aa-cli-rate.py",
+      "weeks_per_month" : 4.345
+   },
+   "subsidy_inputs" : {
+      "_note" : "Inputs read by tools/make-aa-cli-rate.py and tools/check-aa-cli-rate.py for the subsidy block. The Pro Lite window scale, its start time and its source come from arms.json providers.codex.window_epochs.",
+      "fable_weekly_share" : {
+         "point" : 0.5,
+         "source" : "FINDINGS.md section 1: up to 50% of the shared weekly limit can go to Fable"
+      },
+      "gemini" : {
+         "model" : "gemini-3.8-flash",
+         "source" : "FINDINGS.md section 3 (window estimate 2026-10-28): at least about 100M gemini-3.8-flash tokens a week, about $80 at list; a lower bound",
+         "weekly_api_usd" : 80,
+         "weekly_tokens" : 100000000
+      },
+      "opus_floor" : {
+         "source" : "FINDINGS.md section 18: turn-meter calibrate implies about $2,700 list a week of mostly Opus dollars, a lower bound",
+         "weekly_usd" : 2700
+      },
+      "prices" : {
+         "source" : "published monthly plan price, read 2026-10-31",
+         "usd_per_month" : {
+            "ai_pro" : 19.99,
+            "max20x" : 200,
+            "plus" : 20,
+            "prolite" : 100
+         }
+      },
+      "weeks_per_month" : 4.345
+   },
+   "suite" : {
+      "name" : "suite_r",
+      "date" : "2026-10-22",
+      "class" : "review",
+      "items" : 36,
+      "defects" : 38,
+      "controls" : 6,
+      "files" : [
+         "suite-r/stats.md",
+         "suite-r/stats.json",
+         "suite-r/compare.md",
+         "suite-r/compare.json",
+         "suite-r/priors.json",
+         "suite-r/outcomes.jsonl",
+         "suite-r/panels.md",
+         "suite-r/panels.json",
+         "suite-r/replicates.md",
+         "suite-r/replicates.json",
+         "suite-r/by-arm-v2.md",
+         "suite-r/cheapest.md",
+         "suite-r/key-summary.json"
+      ],
+      "evidence_bundle" : "claude-usage-optimizer-evidence.sh",
+      "evidence_files" : [
+         "suite-r/by-arm-v2.json",
+         "suite-r/rescore-per-run.jsonl",
+         "suite-r/outcomes-v2.jsonl"
+      ],
+      "generated_by" : [
+         "lane-bench grade",
+         "lane-bench stats",
+         "lane-bench compare",
+         "lane-bench priors",
+         "lane-bench export",
+         "lane-bench panels",
+         "lane-bench replicates",
+         "lane-bench rescore"
+      ],
+      "summary" : "findings/FINDINGS.md sections 5-8",
+      "partial_arms" : [
+         "opus-max-claude-fable-5-1"
+      ]
+   },
+   "superseded" : {
+      "claude_passive" : {
+         "five_hour_per_percent" : 3.8,
+         "fraction_above_controlled_interval" : [
+            0.37,
+            0.62
+         ],
+         "source" : "LIMITS.md:57",
+         "weekly_per_percent_interval" : [
+            21,
+            25
+         ]
+      },
+      "codex_pro_lite" : {
+         "interval" : [
+            2700,
+            3400
+         ],
+         "reason" : "non-local usage",
+         "source" : "LIMITS.md:22-23; codex/REPORT.md:9"
+      }
+   }
+}

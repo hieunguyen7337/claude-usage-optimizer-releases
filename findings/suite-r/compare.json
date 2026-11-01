@@ -1,0 +1,2009 @@
+{
+  "schema_version": 1,
+  "suite": "suite_r",
+  "public": "findings/public.json",
+  "metrics": {
+    "aa_cai_cost_per_task_usd": {
+      "spearman_recall": {
+        "rho": 0.5709893612548109,
+        "n": 18
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": null,
+        "n": 0
+      },
+      "disagreements": []
+    },
+    "aa_cai_index": {
+      "spearman_recall": {
+        "rho": 0.22158870648506854,
+        "n": 18
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": 0.7729618163054696,
+        "n": 18
+      },
+      "disagreements": [
+        {
+          "metric": "aa_cai_index",
+          "arms": [
+            "haiku-xhigh",
+            "sol-low, sol-low-r2, sol-low-r3"
+          ],
+          "public": [
+            41.0,
+            57.0
+          ],
+          "recall": [
+            1.0,
+            0.8421052631578947
+          ],
+          "recall_wilson": [
+            [
+              0.908190131774416,
+              0.9999999999999999
+            ],
+            [
+              0.7641788779774553,
+              0.8977273881243898
+            ]
+          ]
+        }
+      ]
+    },
+    "aa_cai_tb4_pct": {
+      "spearman_recall": {
+        "rho": 0.34093557142074915,
+        "n": 18
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": 0.3684210526315789,
+        "n": 18
+      },
+      "disagreements": [
+        {
+          "metric": "aa_cai_tb4_pct",
+          "arms": [
+            "haiku-xhigh",
+            "sol-low, sol-low-r2, sol-low-r3"
+          ],
+          "public": [
+            24.0,
+            49.0
+          ],
+          "recall": [
+            1.0,
+            0.8421052631578947
+          ],
+          "recall_wilson": [
+            [
+              0.908190131774416,
+              0.9999999999999999
+            ],
+            [
+              0.7641788779774553,
+              0.8977273881243898
+            ]
+          ]
+        }
+      ]
+    },
+    "aa_cai_tokens_per_task_m": {
+      "spearman_recall": {
+        "rho": 0.6837784782881644,
+        "n": 18
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": null,
+        "n": 0
+      },
+      "disagreements": [
+        {
+          "metric": "aa_cai_tokens_per_task_m",
+          "arms": [
+            "astra-max, astra-max-r2, astra-max-r3",
+            "luna-max, luna-max-r2, luna-max-r3, luna-max-r4"
+          ],
+          "public": [
+            3.3,
+            10.2
+          ],
+          "recall": [
+            0.9824561403508771,
+            0.8157894736842105
+          ],
+          "recall_wilson": [
+            [
+              0.9382819735400814,
+              0.9951755812189311
+            ],
+            [
+              0.7466466374702757,
+              0.8693640231489522
+            ]
+          ]
+        },
+        {
+          "metric": "aa_cai_tokens_per_task_m",
+          "arms": [
+            "haiku-xhigh",
+            "luna-max, luna-max-r2, luna-max-r3, luna-max-r4"
+          ],
+          "public": [
+            7.1,
+            10.2
+          ],
+          "recall": [
+            1.0,
+            0.8157894736842105
+          ],
+          "recall_wilson": [
+            [
+              0.908190131774416,
+              0.9999999999999999
+            ],
+            [
+              0.7466466374702757,
+              0.8693640231489522
+            ]
+          ]
+        },
+        {
+          "metric": "aa_cai_tokens_per_task_m",
+          "arms": [
+            "luna-max, luna-max-r2, luna-max-r3, luna-max-r4",
+            "sol-max, sol-max-r2, sol-max-r3"
+          ],
+          "public": [
+            10.2,
+            4.0
+          ],
+          "recall": [
+            0.8157894736842105,
+            0.9473684210526315
+          ],
+          "recall_wilson": [
+            [
+              0.7466466374702757,
+              0.8693640231489522
+            ],
+            [
+              0.8899118941026302,
+              0.9756578384920905
+            ]
+          ]
+        }
+      ]
+    },
+    "aa_ii_cost_per_task_usd": {
+      "spearman_recall": {
+        "rho": 0.609122645265219,
+        "n": 34
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": null,
+        "n": 0
+      },
+      "disagreements": [
+        {
+          "metric": "aa_ii_cost_per_task_usd",
+          "arms": [
+            "haiku-xhigh",
+            "sol-low, sol-low-r2, sol-low-r3"
+          ],
+          "public": [
+            0.12,
+            0.13
+          ],
+          "recall": [
+            1.0,
+            0.8421052631578947
+          ],
+          "recall_wilson": [
+            [
+              0.908190131774416,
+              0.9999999999999999
+            ],
+            [
+              0.7641788779774553,
+              0.8977273881243898
+            ]
+          ]
+        }
+      ]
+    },
+    "aa_ii_score": {
+      "spearman_recall": {
+        "rho": 0.6179841253945905,
+        "n": 34
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": 0.8288770053475936,
+        "n": 34
+      },
+      "disagreements": [
+        {
+          "metric": "aa_ii_score",
+          "arms": [
+            "haiku-low",
+            "luna-medium, luna-medium-r2, luna-medium-r3, luna-medium-r4"
+          ],
+          "public": [
+            29.0,
+            30.0
+          ],
+          "recall": [
+            0.8947368421052632,
+            0.5723684210526315
+          ],
+          "recall_wilson": [
+            [
+              0.7586947827711269,
+              0.9582974265244647
+            ],
+            [
+              0.4928894235012159,
+              0.6482796862240238
+            ]
+          ]
+        },
+        {
+          "metric": "aa_ii_score",
+          "arms": [
+            "haiku-xhigh",
+            "sol-low, sol-low-r2, sol-low-r3"
+          ],
+          "public": [
+            41.0,
+            42.0
+          ],
+          "recall": [
+            1.0,
+            0.8421052631578947
+          ],
+          "recall_wilson": [
+            [
+              0.908190131774416,
+              0.9999999999999999
+            ],
+            [
+              0.7641788779774553,
+              0.8977273881243898
+            ]
+          ]
+        }
+      ]
+    },
+    "aa_ii_v5_cost_per_task_usd": {
+      "spearman_recall": {
+        "rho": 0.3678260598380847,
+        "n": 8
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": null,
+        "n": 0
+      },
+      "disagreements": []
+    },
+    "aa_ii_v5_score": {
+      "spearman_recall": {
+        "rho": 0.3678260598380847,
+        "n": 8
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": 1.0,
+        "n": 5
+      },
+      "disagreements": []
+    },
+    "aa_ii_v5_tb4_pct": {
+      "spearman_recall": {
+        "rho": 0.3678260598380847,
+        "n": 8
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": 1.0,
+        "n": 5
+      },
+      "disagreements": []
+    },
+    "aa_standalone_tb4_pct": {
+      "spearman_recall": {
+        "rho": 0.5642880936468347,
+        "n": 5
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": null,
+        "n": 0
+      },
+      "disagreements": []
+    },
+    "deepswe_epoch_score_pct": {
+      "spearman_recall": {
+        "rho": 0.4616902584383194,
+        "n": 5
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": null,
+        "n": 0
+      },
+      "disagreements": []
+    },
+    "frontiercode_cost_per_task_usd": {
+      "spearman_recall": {
+        "rho": 0.9,
+        "n": 5
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": null,
+        "n": 0
+      },
+      "disagreements": []
+    },
+    "frontiercode_score_pct": {
+      "spearman_recall": {
+        "rho": -0.2337367475021143,
+        "n": 11
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": null,
+        "n": 0
+      },
+      "disagreements": []
+    },
+    "qodo_cost_per_task_usd": {
+      "spearman_recall": {
+        "rho": 0.8433734939759037,
+        "n": 8
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": null,
+        "n": 0
+      },
+      "disagreements": []
+    },
+    "qodo_f1": {
+      "spearman_recall": {
+        "rho": 0.8308675641104959,
+        "n": 10
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": null,
+        "n": 0
+      },
+      "disagreements": []
+    },
+    "review_precision_pct": {
+      "spearman_recall": {
+        "rho": 1.0,
+        "n": 3
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": null,
+        "n": 0
+      },
+      "disagreements": []
+    },
+    "review_recall_pct": {
+      "spearman_recall": {
+        "rho": 1.0,
+        "n": 3
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": null,
+        "n": 0
+      },
+      "disagreements": []
+    },
+    "vendor_frontiercode_v11_main_pct": {
+      "spearman_recall": {
+        "rho": -0.5,
+        "n": 3
+      },
+      "spearman_recall_per_pct_week": {
+        "rho": null,
+        "n": 0
+      },
+      "disagreements": []
+    }
+  },
+  "cost_agreement": {
+    "aa_cai_cost_per_task_usd": {
+      "spearman_usd_per_item": {
+        "rho": 0.9566563467492261,
+        "n": 18
+      },
+      "median_public_to_ours": 11.016574047014888
+    },
+    "aa_ii_cost_per_task_usd": {
+      "spearman_usd_per_item": {
+        "rho": 0.97638880841552,
+        "n": 34
+      },
+      "median_public_to_ours": 3.8730914955544424
+    },
+    "aa_ii_v5_cost_per_task_usd": {
+      "spearman_usd_per_item": {
+        "rho": 0.9285714285714286,
+        "n": 8
+      },
+      "median_public_to_ours": 5.686718884169306
+    },
+    "frontiercode_cost_per_task_usd": {
+      "spearman_usd_per_item": {
+        "rho": 1.0,
+        "n": 5
+      },
+      "median_public_to_ours": 7.075069359302011
+    },
+    "qodo_cost_per_task_usd": {
+      "spearman_usd_per_item": {
+        "rho": 0.9700772721497398,
+        "n": 8
+      },
+      "median_public_to_ours": 2.7438884825856347
+    }
+  },
+  "table": [
+    {
+      "arm": "astra-high",
+      "partial": false,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "pct_week_per_item": 0.14555231481481481,
+      "usable": 0.9722222222222222,
+      "public_entry": "astra high",
+      "public": {
+        "aa_ii_cost_per_task_usd": 1.73,
+        "aa_ii_score": 51.0,
+        "deepswe_epoch_score_pct": 73.2,
+        "qodo_f1": 46.6,
+        "qodo_cost_per_task_usd": 1.56
+      }
+    },
+    {
+      "arm": "astra-high-r2",
+      "partial": false,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "pct_week_per_item": 0.13962027116402118,
+      "usable": 0.9722222222222222,
+      "public_entry": "astra high",
+      "public": {
+        "aa_ii_cost_per_task_usd": 1.73,
+        "aa_ii_score": 51.0,
+        "deepswe_epoch_score_pct": 73.2,
+        "qodo_f1": 46.6,
+        "qodo_cost_per_task_usd": 1.56
+      }
+    },
+    {
+      "arm": "astra-low",
+      "partial": false,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "pct_week_per_item": 0.10737025462962962,
+      "usable": 0.9722222222222222,
+      "public_entry": "astra low",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.82,
+        "aa_ii_score": 46.0,
+        "deepswe_epoch_score_pct": 67.0
+      }
+    },
+    {
+      "arm": "astra-low-r2",
+      "partial": false,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "pct_week_per_item": 0.10737032076719577,
+      "usable": 0.9722222222222222,
+      "public_entry": "astra low",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.82,
+        "aa_ii_score": 46.0,
+        "deepswe_epoch_score_pct": 67.0
+      }
+    },
+    {
+      "arm": "astra-max",
+      "partial": false,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "pct_week_per_item": 0.20864193121693123,
+      "usable": 1.0,
+      "public_entry": "astra max",
+      "public": {
+        "aa_cai_cost_per_task_usd": 7.47,
+        "aa_cai_index": 62.0,
+        "aa_cai_tb4_pct": 56.00000000000001,
+        "aa_cai_tokens_per_task_m": 3.3,
+        "aa_ii_cost_per_task_usd": 3.26,
+        "aa_ii_score": 53.0,
+        "aa_standalone_tb4_pct": 59.0,
+        "review_cost_per_task_usd": 7.87,
+        "review_f1_like_score": 78.0,
+        "review_precision_pct": 91.7,
+        "review_recall_pct": 67.8,
+        "frontiercode_score_pct": 47.0,
+        "frontiercode_cost_per_task_usd": 4.22,
+        "deepswe_epoch_score_pct": 73.2
+      }
+    },
+    {
+      "arm": "astra-max-r2",
+      "partial": false,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "pct_week_per_item": 0.2105610615079365,
+      "usable": 1.0,
+      "public_entry": "astra max",
+      "public": {
+        "aa_cai_cost_per_task_usd": 7.47,
+        "aa_cai_index": 62.0,
+        "aa_cai_tb4_pct": 56.00000000000001,
+        "aa_cai_tokens_per_task_m": 3.3,
+        "aa_ii_cost_per_task_usd": 3.26,
+        "aa_ii_score": 53.0,
+        "aa_standalone_tb4_pct": 59.0,
+        "review_cost_per_task_usd": 7.87,
+        "review_f1_like_score": 78.0,
+        "review_precision_pct": 91.7,
+        "review_recall_pct": 67.8,
+        "frontiercode_score_pct": 47.0,
+        "frontiercode_cost_per_task_usd": 4.22,
+        "deepswe_epoch_score_pct": 73.2
+      }
+    },
+    {
+      "arm": "astra-max-r3",
+      "partial": false,
+      "recall": 1.0,
+      "recall_wilson": [
+        0.908190131774416,
+        0.9999999999999999
+      ],
+      "pct_week_per_item": 0.2490185185185185,
+      "usable": 1.0,
+      "public_entry": "astra max",
+      "public": {
+        "aa_cai_cost_per_task_usd": 7.47,
+        "aa_cai_index": 62.0,
+        "aa_cai_tb4_pct": 56.00000000000001,
+        "aa_cai_tokens_per_task_m": 3.3,
+        "aa_ii_cost_per_task_usd": 3.26,
+        "aa_ii_score": 53.0,
+        "aa_standalone_tb4_pct": 59.0,
+        "review_cost_per_task_usd": 7.87,
+        "review_f1_like_score": 78.0,
+        "review_precision_pct": 91.7,
+        "review_recall_pct": 67.8,
+        "frontiercode_score_pct": 47.0,
+        "frontiercode_cost_per_task_usd": 4.22,
+        "deepswe_epoch_score_pct": 73.2
+      }
+    },
+    {
+      "arm": "astra-medium",
+      "partial": false,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "pct_week_per_item": 0.10931825396825397,
+      "usable": 0.9722222222222222,
+      "public_entry": "astra medium",
+      "public": {
+        "aa_ii_cost_per_task_usd": 1.54,
+        "aa_ii_score": 50.0,
+        "deepswe_epoch_score_pct": 72.8
+      }
+    },
+    {
+      "arm": "astra-medium-r2",
+      "partial": false,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "pct_week_per_item": 0.11307453703703703,
+      "usable": 0.9722222222222222,
+      "public_entry": "astra medium",
+      "public": {
+        "aa_ii_cost_per_task_usd": 1.54,
+        "aa_ii_score": 50.0,
+        "deepswe_epoch_score_pct": 72.8
+      }
+    },
+    {
+      "arm": "astra-xhigh",
+      "partial": false,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "pct_week_per_item": 0.1853258267195767,
+      "usable": 1.0,
+      "public_entry": "astra xhigh",
+      "public": {
+        "aa_ii_cost_per_task_usd": 2.31,
+        "aa_ii_score": 52.0,
+        "deepswe_datacurve_score_pct": 74.0,
+        "deepswe_datacurve_cost_per_task_usd": 4.43,
+        "deepswe_epoch_score_pct": 74.1,
+        "swe_atlas_qna_score": 59.14,
+        "swe_atlas_refactoring_score": 59.0
+      }
+    },
+    {
+      "arm": "astra-xhigh-r2",
+      "partial": false,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "pct_week_per_item": 0.18478219246031746,
+      "usable": 1.0,
+      "public_entry": "astra xhigh",
+      "public": {
+        "aa_ii_cost_per_task_usd": 2.31,
+        "aa_ii_score": 52.0,
+        "deepswe_datacurve_score_pct": 74.0,
+        "deepswe_datacurve_cost_per_task_usd": 4.43,
+        "deepswe_epoch_score_pct": 74.1,
+        "swe_atlas_qna_score": 59.14,
+        "swe_atlas_refactoring_score": 59.0
+      }
+    },
+    {
+      "arm": "astra-xhigh-r3",
+      "partial": false,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "pct_week_per_item": 0.22655864748677246,
+      "usable": 0.9722222222222222,
+      "public_entry": "astra xhigh",
+      "public": {
+        "aa_ii_cost_per_task_usd": 2.31,
+        "aa_ii_score": 52.0,
+        "deepswe_datacurve_score_pct": 74.0,
+        "deepswe_datacurve_cost_per_task_usd": 4.43,
+        "deepswe_epoch_score_pct": 74.1,
+        "swe_atlas_qna_score": 59.14,
+        "swe_atlas_refactoring_score": 59.0
+      }
+    },
+    {
+      "arm": "haiku-high",
+      "partial": false,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "pct_week_per_item": 0.0010988037887067397,
+      "usable": 0.8888888888888888,
+      "public_entry": "haiku high",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.36,
+        "aa_cai_index": 35.0,
+        "aa_cai_tb4_pct": 13.0,
+        "aa_cai_tokens_per_task_m": 5.1,
+        "aa_ii_cost_per_task_usd": 0.08,
+        "aa_ii_score": 38.0
+      }
+    },
+    {
+      "arm": "haiku-low",
+      "partial": false,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "pct_week_per_item": 0.0005368257559198544,
+      "usable": 0.9444444444444444,
+      "public_entry": "haiku low",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.14,
+        "aa_cai_index": 28.0,
+        "aa_cai_tb4_pct": 6.0,
+        "aa_cai_tokens_per_task_m": 2.4,
+        "aa_ii_cost_per_task_usd": 0.02,
+        "aa_ii_score": 29.0
+      }
+    },
+    {
+      "arm": "haiku-max",
+      "partial": false,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "pct_week_per_item": 0.010577623387978142,
+      "usable": 0.8333333333333334,
+      "public_entry": "haiku max",
+      "public": {
+        "aa_cai_cost_per_task_usd": 2.58,
+        "aa_cai_index": 36.0,
+        "aa_cai_tb4_pct": 30.0,
+        "aa_cai_tokens_per_task_m": 13.8,
+        "aa_ii_cost_per_task_usd": 0.21,
+        "aa_ii_score": 43.0,
+        "aa_standalone_tb4_pct": 33.0,
+        "frontiercode_score_pct": 46.4
+      }
+    },
+    {
+      "arm": "haiku-medium",
+      "partial": false,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "pct_week_per_item": 0.0007372791621129326,
+      "usable": 0.9444444444444444,
+      "public_entry": "haiku medium",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.23,
+        "aa_cai_index": 34.0,
+        "aa_cai_tb4_pct": 12.0,
+        "aa_cai_tokens_per_task_m": 3.5,
+        "aa_ii_cost_per_task_usd": 0.05,
+        "aa_ii_score": 34.0
+      }
+    },
+    {
+      "arm": "haiku-xhigh",
+      "partial": false,
+      "recall": 1.0,
+      "recall_wilson": [
+        0.908190131774416,
+        0.9999999999999999
+      ],
+      "pct_week_per_item": 0.0033189615118397087,
+      "usable": 0.8333333333333334,
+      "public_entry": "haiku xhigh",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.61,
+        "aa_cai_index": 41.0,
+        "aa_cai_tb4_pct": 24.0,
+        "aa_cai_tokens_per_task_m": 7.1,
+        "aa_ii_cost_per_task_usd": 0.12,
+        "aa_ii_score": 41.0,
+        "frontiercode_score_pct": 45.8
+      }
+    },
+    {
+      "arm": "luna-high",
+      "partial": false,
+      "recall": 0.6052631578947368,
+      "recall_wilson": [
+        0.4471786799604255,
+        0.744019242518399
+      ],
+      "pct_week_per_item": 0.0018055509259259262,
+      "usable": 0.7222222222222222,
+      "public_entry": "luna high",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.03,
+        "aa_ii_score": 33.0,
+        "qodo_f1": 42.2,
+        "qodo_cost_per_task_usd": 0.02
+      }
+    },
+    {
+      "arm": "luna-high-r2",
+      "partial": false,
+      "recall": 0.7631578947368421,
+      "recall_wilson": [
+        0.607931876367602,
+        0.8700629298294591
+      ],
+      "pct_week_per_item": 0.0016462858796296295,
+      "usable": 0.8888888888888888,
+      "public_entry": "luna high",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.03,
+        "aa_ii_score": 33.0,
+        "qodo_f1": 42.2,
+        "qodo_cost_per_task_usd": 0.02
+      }
+    },
+    {
+      "arm": "luna-high-r3",
+      "partial": false,
+      "recall": 0.7105263157894737,
+      "recall_wilson": [
+        0.5524286232424794,
+        0.8299672217151693
+      ],
+      "pct_week_per_item": 0.0016035987103174601,
+      "usable": 0.8888888888888888,
+      "public_entry": "luna high",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.03,
+        "aa_ii_score": 33.0,
+        "qodo_f1": 42.2,
+        "qodo_cost_per_task_usd": 0.02
+      }
+    },
+    {
+      "arm": "luna-high-r4",
+      "partial": false,
+      "recall": 0.7894736842105263,
+      "recall_wilson": [
+        0.636542205246726,
+        0.8892520815700411
+      ],
+      "pct_week_per_item": 0.0016646617063492063,
+      "usable": 0.9166666666666666,
+      "public_entry": "luna high",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.03,
+        "aa_ii_score": 33.0,
+        "qodo_f1": 42.2,
+        "qodo_cost_per_task_usd": 0.02
+      }
+    },
+    {
+      "arm": "luna-low",
+      "partial": false,
+      "recall": 0.4473684210526316,
+      "recall_wilson": [
+        0.3014640099805125,
+        0.6029370287800753
+      ],
+      "pct_week_per_item": 0.0015234823082010583,
+      "usable": 0.6388888888888888,
+      "public_entry": "luna low",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.0045,
+        "aa_ii_score": 22.0
+      }
+    },
+    {
+      "arm": "luna-low-r2",
+      "partial": false,
+      "recall": 0.34210526315789475,
+      "recall_wilson": [
+        0.21212415179959412,
+        0.5010789644821693
+      ],
+      "pct_week_per_item": 0.001562787037037037,
+      "usable": 0.4444444444444444,
+      "public_entry": "luna low",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.0045,
+        "aa_ii_score": 22.0
+      }
+    },
+    {
+      "arm": "luna-low-r3",
+      "partial": false,
+      "recall": 0.5,
+      "recall_wilson": [
+        0.34849928364395105,
+        0.6515007163560489
+      ],
+      "pct_week_per_item": 0.0014469598214285713,
+      "usable": 0.5833333333333334,
+      "public_entry": "luna low",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.0045,
+        "aa_ii_score": 22.0
+      }
+    },
+    {
+      "arm": "luna-low-r4",
+      "partial": false,
+      "recall": 0.2631578947368421,
+      "recall_wilson": [
+        0.14971621254798143,
+        0.42008846187466364
+      ],
+      "pct_week_per_item": 0.0015127005621693123,
+      "usable": 0.3888888888888889,
+      "public_entry": "luna low",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.0045,
+        "aa_ii_score": 22.0
+      }
+    },
+    {
+      "arm": "luna-max",
+      "partial": false,
+      "recall": 0.7894736842105263,
+      "recall_wilson": [
+        0.636542205246726,
+        0.8892520815700411
+      ],
+      "pct_week_per_item": 0.0026038963293650796,
+      "usable": 0.8611111111111112,
+      "public_entry": "luna max",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.18,
+        "aa_cai_index": 41.0,
+        "aa_cai_tb4_pct": 15.0,
+        "aa_cai_tokens_per_task_m": 10.2,
+        "aa_ii_cost_per_task_usd": 0.07,
+        "aa_ii_score": 38.0,
+        "aa_standalone_tb4_pct": 13.0,
+        "frontiercode_score_pct": 42.0,
+        "frontiercode_cost_per_task_usd": 0.09
+      }
+    },
+    {
+      "arm": "luna-max-r2",
+      "partial": false,
+      "recall": 0.7894736842105263,
+      "recall_wilson": [
+        0.636542205246726,
+        0.8892520815700411
+      ],
+      "pct_week_per_item": 0.00247998330026455,
+      "usable": 0.8611111111111112,
+      "public_entry": "luna max",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.18,
+        "aa_cai_index": 41.0,
+        "aa_cai_tb4_pct": 15.0,
+        "aa_cai_tokens_per_task_m": 10.2,
+        "aa_ii_cost_per_task_usd": 0.07,
+        "aa_ii_score": 38.0,
+        "aa_standalone_tb4_pct": 13.0,
+        "frontiercode_score_pct": 42.0,
+        "frontiercode_cost_per_task_usd": 0.09
+      }
+    },
+    {
+      "arm": "luna-max-r3",
+      "partial": false,
+      "recall": 0.8157894736842105,
+      "recall_wilson": [
+        0.665811419288686,
+        0.9077823481477872
+      ],
+      "pct_week_per_item": 0.00235178587962963,
+      "usable": 0.8611111111111112,
+      "public_entry": "luna max",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.18,
+        "aa_cai_index": 41.0,
+        "aa_cai_tb4_pct": 15.0,
+        "aa_cai_tokens_per_task_m": 10.2,
+        "aa_ii_cost_per_task_usd": 0.07,
+        "aa_ii_score": 38.0,
+        "aa_standalone_tb4_pct": 13.0,
+        "frontiercode_score_pct": 42.0,
+        "frontiercode_cost_per_task_usd": 0.09
+      }
+    },
+    {
+      "arm": "luna-max-r4",
+      "partial": false,
+      "recall": 0.868421052631579,
+      "recall_wilson": [
+        0.7267314055770869,
+        0.9424613230987987
+      ],
+      "pct_week_per_item": 0.0023934393187830688,
+      "usable": 0.9444444444444444,
+      "public_entry": "luna max",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.18,
+        "aa_cai_index": 41.0,
+        "aa_cai_tb4_pct": 15.0,
+        "aa_cai_tokens_per_task_m": 10.2,
+        "aa_ii_cost_per_task_usd": 0.07,
+        "aa_ii_score": 38.0,
+        "aa_standalone_tb4_pct": 13.0,
+        "frontiercode_score_pct": 42.0,
+        "frontiercode_cost_per_task_usd": 0.09
+      }
+    },
+    {
+      "arm": "luna-medium",
+      "partial": false,
+      "recall": 0.5263157894736842,
+      "recall_wilson": [
+        0.3725897138449667,
+        0.6752097667747392
+      ],
+      "pct_week_per_item": 0.0011791926256613757,
+      "usable": 0.6944444444444444,
+      "public_entry": "luna medium",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.02,
+        "aa_ii_score": 30.0
+      }
+    },
+    {
+      "arm": "luna-medium-r2",
+      "partial": false,
+      "recall": 0.5,
+      "recall_wilson": [
+        0.34849928364395105,
+        0.6515007163560489
+      ],
+      "pct_week_per_item": 0.0011917589285714285,
+      "usable": 0.6388888888888888,
+      "public_entry": "luna medium",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.02,
+        "aa_ii_score": 30.0
+      }
+    },
+    {
+      "arm": "luna-medium-r3",
+      "partial": false,
+      "recall": 0.631578947368421,
+      "recall_wilson": [
+        0.47283959557009003,
+        0.7661578075284404
+      ],
+      "pct_week_per_item": 0.0011502233796296295,
+      "usable": 0.7777777777777778,
+      "public_entry": "luna medium",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.02,
+        "aa_ii_score": 30.0
+      }
+    },
+    {
+      "arm": "luna-medium-r4",
+      "partial": false,
+      "recall": 0.631578947368421,
+      "recall_wilson": [
+        0.47283959557009003,
+        0.7661578075284404
+      ],
+      "pct_week_per_item": 0.0012145300925925926,
+      "usable": 0.8055555555555556,
+      "public_entry": "luna medium",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.02,
+        "aa_ii_score": 30.0
+      }
+    },
+    {
+      "arm": "luna-xhigh",
+      "partial": false,
+      "recall": 0.7631578947368421,
+      "recall_wilson": [
+        0.607931876367602,
+        0.8700629298294591
+      ],
+      "pct_week_per_item": 0.0023478123346560844,
+      "usable": 0.8888888888888888,
+      "public_entry": "luna xhigh",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.04,
+        "aa_ii_score": 35.0,
+        "qodo_f1": 41.7,
+        "qodo_cost_per_task_usd": 0.02
+      }
+    },
+    {
+      "arm": "luna-xhigh-r2",
+      "partial": false,
+      "recall": 0.8421052631578947,
+      "recall_wilson": [
+        0.6958318822077686,
+        0.9255613658484106
+      ],
+      "pct_week_per_item": 0.0022767830687830688,
+      "usable": 0.8888888888888888,
+      "public_entry": "luna xhigh",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.04,
+        "aa_ii_score": 35.0,
+        "qodo_f1": 41.7,
+        "qodo_cost_per_task_usd": 0.02
+      }
+    },
+    {
+      "arm": "luna-xhigh-r3",
+      "partial": false,
+      "recall": 0.7631578947368421,
+      "recall_wilson": [
+        0.607931876367602,
+        0.8700629298294591
+      ],
+      "pct_week_per_item": 0.0023112113095238094,
+      "usable": 0.8333333333333334,
+      "public_entry": "luna xhigh",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.04,
+        "aa_ii_score": 35.0,
+        "qodo_f1": 41.7,
+        "qodo_cost_per_task_usd": 0.02
+      }
+    },
+    {
+      "arm": "luna-xhigh-r4",
+      "partial": false,
+      "recall": 0.7631578947368421,
+      "recall_wilson": [
+        0.607931876367602,
+        0.8700629298294591
+      ],
+      "pct_week_per_item": 0.0022270616732804234,
+      "usable": 0.8611111111111112,
+      "public_entry": "luna xhigh",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.04,
+        "aa_ii_score": 35.0,
+        "qodo_f1": 41.7,
+        "qodo_cost_per_task_usd": 0.02
+      }
+    },
+    {
+      "arm": "opus-high",
+      "partial": false,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "pct_week_per_item": 0.0226954014571949,
+      "usable": 0.9444444444444444,
+      "public_entry": "opus high",
+      "public": {
+        "aa_ii_cost_per_task_usd": 1.82,
+        "aa_ii_score": 54.0,
+        "qodo_f1": 56.8,
+        "qodo_cost_per_task_usd": 1.0,
+        "frontiercode_score_pct": 54.0
+      }
+    },
+    {
+      "arm": "opus-high-claude-fable-5-1",
+      "partial": false,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "pct_week_per_item": 0.07152165801457194,
+      "usable": 0.9444444444444444,
+      "public_entry": "fable high",
+      "public": {
+        "aa_ii_cost_per_task_usd": 3.91,
+        "aa_ii_score": 51.0,
+        "review_precision_pct": 36.4,
+        "review_recall_pct": 57.1,
+        "qodo_f1": 53.5,
+        "qodo_cost_per_task_usd": 2.31
+      }
+    },
+    {
+      "arm": "opus-low",
+      "partial": false,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "pct_week_per_item": 0.015031238615664846,
+      "usable": 0.9444444444444444,
+      "public_entry": "opus low",
+      "public": {
+        "aa_ii_cost_per_task_usd": 0.55,
+        "aa_ii_score": 42.0,
+        "known_bugs_caught_pct_customer_quote": 72.0
+      }
+    },
+    {
+      "arm": "opus-low-claude-fable-5-1",
+      "partial": false,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "pct_week_per_item": 0.04718151548269581,
+      "usable": 1.0,
+      "public_entry": "fable low",
+      "public": {
+        "aa_ii_cost_per_task_usd": 2.37,
+        "aa_ii_score": 47.0,
+        "review_precision_pct": 37.3,
+        "review_recall_pct": 61.0,
+        "qodo_f1": 53.4
+      }
+    },
+    {
+      "arm": "opus-max",
+      "partial": false,
+      "recall": 1.0,
+      "recall_wilson": [
+        0.908190131774416,
+        0.9999999999999999
+      ],
+      "pct_week_per_item": 0.09407310892531877,
+      "usable": 0.8888888888888888,
+      "public_entry": "opus max",
+      "public": {
+        "aa_cai_cost_per_task_usd": 13.04,
+        "aa_cai_index": 66.0,
+        "aa_cai_tb4_pct": 63.0,
+        "aa_cai_tokens_per_task_m": 15.6,
+        "aa_ii_cost_per_task_usd": 5.98,
+        "aa_ii_score": 58.0,
+        "aa_standalone_tb4_pct": 59.6,
+        "vendor_cursorbench_4_pct": 57.8,
+        "frontiercode_score_pct": 52.0,
+        "frontiercode_cost_per_task_usd": 10.15
+      }
+    },
+    {
+      "arm": "opus-max-claude-fable-5-1",
+      "partial": true,
+      "recall": 0.5789473684210527,
+      "recall_wilson": [
+        0.42192345343670545,
+        0.7214749884224129
+      ],
+      "pct_week_per_item": 0.16833115846994534,
+      "usable": 0.5,
+      "public_entry": null,
+      "public": {}
+    },
+    {
+      "arm": "opus-medium",
+      "partial": false,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "pct_week_per_item": 0.01889115227686703,
+      "usable": 0.9722222222222222,
+      "public_entry": "opus medium",
+      "public": {
+        "aa_ii_cost_per_task_usd": 1.34,
+        "aa_ii_score": 51.0,
+        "vendor_cursorbench_4_pct": 52.5,
+        "vendor_frontiercode_v11_main_pct": 54.6,
+        "frontiercode_score_pct": 57.1
+      }
+    },
+    {
+      "arm": "opus-medium-claude-fable-5-1",
+      "partial": false,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "pct_week_per_item": 0.05314961703096539,
+      "usable": 0.9166666666666666,
+      "public_entry": "fable medium",
+      "public": {
+        "aa_ii_cost_per_task_usd": 2.98,
+        "aa_ii_score": 49.0
+      }
+    },
+    {
+      "arm": "opus-xhigh",
+      "partial": false,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "pct_week_per_item": 0.037001864845173045,
+      "usable": 0.9166666666666666,
+      "public_entry": "opus xhigh",
+      "public": {
+        "aa_ii_cost_per_task_usd": 3.46,
+        "aa_ii_score": 56.0,
+        "vendor_terminal_bench_4_pct": 66.4,
+        "qodo_f1": 54.0,
+        "frontiercode_score_pct": 53.5
+      }
+    },
+    {
+      "arm": "opus-xhigh-claude-fable-5-1",
+      "partial": false,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "pct_week_per_item": 0.11177174726775957,
+      "usable": 1.0,
+      "public_entry": "fable xhigh",
+      "public": {
+        "aa_ii_cost_per_task_usd": 5.98,
+        "aa_ii_score": 53.0,
+        "swe_atlas_qna_score": 59.95,
+        "swe_atlas_refactoring_score": 56.7,
+        "hle_scale_score_pct": 46.5
+      }
+    },
+    {
+      "arm": "sol-high",
+      "partial": false,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "pct_week_per_item": 0.029952129629629634,
+      "usable": 0.9722222222222222,
+      "public_entry": "sol high",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.89,
+        "aa_cai_index": 60.0,
+        "aa_cai_tb4_pct": 50.0,
+        "aa_cai_tokens_per_task_m": 2.8,
+        "aa_ii_cost_per_task_usd": 0.32,
+        "aa_ii_score": 50.0,
+        "aa_ii_v5_score": 50.0,
+        "aa_ii_v5_cost_per_task_usd": 0.59,
+        "aa_ii_v5_tb4_pct": 52.0
+      }
+    },
+    {
+      "arm": "sol-high-r2",
+      "partial": false,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "pct_week_per_item": 0.02750527447089947,
+      "usable": 0.9722222222222222,
+      "public_entry": "sol high",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.89,
+        "aa_cai_index": 60.0,
+        "aa_cai_tb4_pct": 50.0,
+        "aa_cai_tokens_per_task_m": 2.8,
+        "aa_ii_cost_per_task_usd": 0.32,
+        "aa_ii_score": 50.0,
+        "aa_ii_v5_score": 50.0,
+        "aa_ii_v5_cost_per_task_usd": 0.59,
+        "aa_ii_v5_tb4_pct": 52.0
+      }
+    },
+    {
+      "arm": "sol-high-r3",
+      "partial": false,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "pct_week_per_item": 0.029035479497354497,
+      "usable": 0.9722222222222222,
+      "public_entry": "sol high",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.89,
+        "aa_cai_index": 60.0,
+        "aa_cai_tb4_pct": 50.0,
+        "aa_cai_tokens_per_task_m": 2.8,
+        "aa_ii_cost_per_task_usd": 0.32,
+        "aa_ii_score": 50.0,
+        "aa_ii_v5_score": 50.0,
+        "aa_ii_v5_cost_per_task_usd": 0.59,
+        "aa_ii_v5_tb4_pct": 52.0
+      }
+    },
+    {
+      "arm": "sol-low",
+      "partial": false,
+      "recall": 0.8157894736842105,
+      "recall_wilson": [
+        0.665811419288686,
+        0.9077823481477872
+      ],
+      "pct_week_per_item": 0.01905526455026455,
+      "usable": 0.9166666666666666,
+      "public_entry": "sol low",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.5,
+        "aa_cai_index": 57.0,
+        "aa_cai_tb4_pct": 49.0,
+        "aa_cai_tokens_per_task_m": 1.7,
+        "aa_ii_cost_per_task_usd": 0.13,
+        "aa_ii_score": 42.0,
+        "aa_ii_v5_score": 35.0,
+        "aa_ii_v5_cost_per_task_usd": 0.16,
+        "aa_ii_v5_tb4_pct": 31.0
+      }
+    },
+    {
+      "arm": "sol-low-r2",
+      "partial": false,
+      "recall": 0.868421052631579,
+      "recall_wilson": [
+        0.7267314055770869,
+        0.9424613230987987
+      ],
+      "pct_week_per_item": 0.01803151455026455,
+      "usable": 0.9444444444444444,
+      "public_entry": "sol low",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.5,
+        "aa_cai_index": 57.0,
+        "aa_cai_tb4_pct": 49.0,
+        "aa_cai_tokens_per_task_m": 1.7,
+        "aa_ii_cost_per_task_usd": 0.13,
+        "aa_ii_score": 42.0,
+        "aa_ii_v5_score": 35.0,
+        "aa_ii_v5_cost_per_task_usd": 0.16,
+        "aa_ii_v5_tb4_pct": 31.0
+      }
+    },
+    {
+      "arm": "sol-low-r3",
+      "partial": false,
+      "recall": 0.8421052631578947,
+      "recall_wilson": [
+        0.6958318822077686,
+        0.9255613658484106
+      ],
+      "pct_week_per_item": 0.020545661375661373,
+      "usable": 0.9444444444444444,
+      "public_entry": "sol low",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.5,
+        "aa_cai_index": 57.0,
+        "aa_cai_tb4_pct": 49.0,
+        "aa_cai_tokens_per_task_m": 1.7,
+        "aa_ii_cost_per_task_usd": 0.13,
+        "aa_ii_score": 42.0,
+        "aa_ii_v5_score": 35.0,
+        "aa_ii_v5_cost_per_task_usd": 0.16,
+        "aa_ii_v5_tb4_pct": 31.0
+      }
+    },
+    {
+      "arm": "sol-max",
+      "partial": false,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "pct_week_per_item": 0.036828687169312174,
+      "usable": 0.9722222222222222,
+      "public_entry": "sol max",
+      "public": {
+        "aa_cai_cost_per_task_usd": 1.55,
+        "aa_cai_index": 60.0,
+        "aa_cai_tb4_pct": 53.0,
+        "aa_cai_tokens_per_task_m": 4.0,
+        "aa_ii_cost_per_task_usd": 0.72,
+        "aa_ii_score": 52.0,
+        "frontiercode_score_pct": 49.0,
+        "frontiercode_cost_per_task_usd": 0.81,
+        "aa_ii_v5_score": 55.0,
+        "aa_ii_v5_cost_per_task_usd": 1.27,
+        "aa_ii_v5_tb4_pct": 56.0,
+        "frontiercode_v2_pct": 41.0
+      }
+    },
+    {
+      "arm": "sol-max-r2",
+      "partial": false,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "pct_week_per_item": 0.036868174603174604,
+      "usable": 1.0,
+      "public_entry": "sol max",
+      "public": {
+        "aa_cai_cost_per_task_usd": 1.55,
+        "aa_cai_index": 60.0,
+        "aa_cai_tb4_pct": 53.0,
+        "aa_cai_tokens_per_task_m": 4.0,
+        "aa_ii_cost_per_task_usd": 0.72,
+        "aa_ii_score": 52.0,
+        "frontiercode_score_pct": 49.0,
+        "frontiercode_cost_per_task_usd": 0.81,
+        "aa_ii_v5_score": 55.0,
+        "aa_ii_v5_cost_per_task_usd": 1.27,
+        "aa_ii_v5_tb4_pct": 56.0,
+        "frontiercode_v2_pct": 41.0
+      }
+    },
+    {
+      "arm": "sol-max-r3",
+      "partial": false,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "pct_week_per_item": 0.039850747354497354,
+      "usable": 1.0,
+      "public_entry": "sol max",
+      "public": {
+        "aa_cai_cost_per_task_usd": 1.55,
+        "aa_cai_index": 60.0,
+        "aa_cai_tb4_pct": 53.0,
+        "aa_cai_tokens_per_task_m": 4.0,
+        "aa_ii_cost_per_task_usd": 0.72,
+        "aa_ii_score": 52.0,
+        "frontiercode_score_pct": 49.0,
+        "frontiercode_cost_per_task_usd": 0.81,
+        "aa_ii_v5_score": 55.0,
+        "aa_ii_v5_cost_per_task_usd": 1.27,
+        "aa_ii_v5_tb4_pct": 56.0,
+        "frontiercode_v2_pct": 41.0
+      }
+    },
+    {
+      "arm": "sol-medium",
+      "partial": false,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "pct_week_per_item": 0.023917328042328042,
+      "usable": 0.9722222222222222,
+      "public_entry": "sol medium",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.7,
+        "aa_cai_index": 61.0,
+        "aa_cai_tb4_pct": 52.0,
+        "aa_cai_tokens_per_task_m": 2.3,
+        "aa_ii_cost_per_task_usd": 0.21,
+        "aa_ii_score": 48.0,
+        "qodo_f1": 48.7,
+        "qodo_cost_per_task_usd": 0.18,
+        "aa_ii_v5_score": 46.0,
+        "aa_ii_v5_cost_per_task_usd": 0.36,
+        "aa_ii_v5_tb4_pct": 48.0
+      }
+    },
+    {
+      "arm": "sol-medium-r2",
+      "partial": false,
+      "recall": 0.868421052631579,
+      "recall_wilson": [
+        0.7267314055770869,
+        0.9424613230987987
+      ],
+      "pct_week_per_item": 0.021917076719576722,
+      "usable": 0.9444444444444444,
+      "public_entry": "sol medium",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.7,
+        "aa_cai_index": 61.0,
+        "aa_cai_tb4_pct": 52.0,
+        "aa_cai_tokens_per_task_m": 2.3,
+        "aa_ii_cost_per_task_usd": 0.21,
+        "aa_ii_score": 48.0,
+        "qodo_f1": 48.7,
+        "qodo_cost_per_task_usd": 0.18,
+        "aa_ii_v5_score": 46.0,
+        "aa_ii_v5_cost_per_task_usd": 0.36,
+        "aa_ii_v5_tb4_pct": 48.0
+      }
+    },
+    {
+      "arm": "sol-medium-r3",
+      "partial": false,
+      "recall": 0.868421052631579,
+      "recall_wilson": [
+        0.7267314055770869,
+        0.9424613230987987
+      ],
+      "pct_week_per_item": 0.023349315476190475,
+      "usable": 0.9444444444444444,
+      "public_entry": "sol medium",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.7,
+        "aa_cai_index": 61.0,
+        "aa_cai_tb4_pct": 52.0,
+        "aa_cai_tokens_per_task_m": 2.3,
+        "aa_ii_cost_per_task_usd": 0.21,
+        "aa_ii_score": 48.0,
+        "qodo_f1": 48.7,
+        "qodo_cost_per_task_usd": 0.18,
+        "aa_ii_v5_score": 46.0,
+        "aa_ii_v5_cost_per_task_usd": 0.36,
+        "aa_ii_v5_tb4_pct": 48.0
+      }
+    },
+    {
+      "arm": "sol-xhigh",
+      "partial": false,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "pct_week_per_item": 0.03413792658730159,
+      "usable": 1.0,
+      "public_entry": "sol xhigh",
+      "public": {
+        "aa_cai_cost_per_task_usd": 1.04,
+        "aa_cai_index": 63.0,
+        "aa_cai_tb4_pct": 55.00000000000001,
+        "aa_cai_tokens_per_task_m": 3.2,
+        "aa_ii_v5_score": 52.0,
+        "aa_ii_v5_cost_per_task_usd": 0.76,
+        "aa_ii_v5_tb4_pct": 54.0,
+        "aa_ii_cost_per_task_usd": 0.39,
+        "aa_ii_score": 51.0,
+        "qodo_f1": 48.4,
+        "qodo_cost_per_task_usd": 0.51
+      }
+    },
+    {
+      "arm": "sol-xhigh-r2",
+      "partial": false,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "pct_week_per_item": 0.03493912698412698,
+      "usable": 1.0,
+      "public_entry": "sol xhigh",
+      "public": {
+        "aa_cai_cost_per_task_usd": 1.04,
+        "aa_cai_index": 63.0,
+        "aa_cai_tb4_pct": 55.00000000000001,
+        "aa_cai_tokens_per_task_m": 3.2,
+        "aa_ii_v5_score": 52.0,
+        "aa_ii_v5_cost_per_task_usd": 0.76,
+        "aa_ii_v5_tb4_pct": 54.0,
+        "aa_ii_cost_per_task_usd": 0.39,
+        "aa_ii_score": 51.0,
+        "qodo_f1": 48.4,
+        "qodo_cost_per_task_usd": 0.51
+      }
+    },
+    {
+      "arm": "sol-xhigh-r3",
+      "partial": false,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "pct_week_per_item": 0.034979715608465606,
+      "usable": 0.9444444444444444,
+      "public_entry": "sol xhigh",
+      "public": {
+        "aa_cai_cost_per_task_usd": 1.04,
+        "aa_cai_index": 63.0,
+        "aa_cai_tb4_pct": 55.00000000000001,
+        "aa_cai_tokens_per_task_m": 3.2,
+        "aa_ii_v5_score": 52.0,
+        "aa_ii_v5_cost_per_task_usd": 0.76,
+        "aa_ii_v5_tb4_pct": 54.0,
+        "aa_ii_cost_per_task_usd": 0.39,
+        "aa_ii_score": 51.0,
+        "qodo_f1": 48.4,
+        "qodo_cost_per_task_usd": 0.51
+      }
+    },
+    {
+      "arm": "sonnet-high",
+      "partial": false,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "pct_week_per_item": 0.00907183460837887,
+      "usable": 0.9444444444444444,
+      "public_entry": "sonnet high",
+      "public": {
+        "aa_cai_cost_per_task_usd": 1.24,
+        "aa_cai_index": 55.0,
+        "aa_cai_tb4_pct": 42.0,
+        "aa_cai_tokens_per_task_m": 2.7,
+        "aa_ii_cost_per_task_usd": 0.88,
+        "aa_ii_score": 47.0,
+        "qodo_f1": 51.7,
+        "qodo_cost_per_task_usd": 0.31
+      }
+    },
+    {
+      "arm": "sonnet-high-r2",
+      "partial": false,
+      "recall": 0.868421052631579,
+      "recall_wilson": [
+        0.7267314055770869,
+        0.9424613230987987
+      ],
+      "pct_week_per_item": 0.009146549726775956,
+      "usable": 0.9444444444444444,
+      "public_entry": "sonnet high",
+      "public": {
+        "aa_cai_cost_per_task_usd": 1.24,
+        "aa_cai_index": 55.0,
+        "aa_cai_tb4_pct": 42.0,
+        "aa_cai_tokens_per_task_m": 2.7,
+        "aa_ii_cost_per_task_usd": 0.88,
+        "aa_ii_score": 47.0,
+        "qodo_f1": 51.7,
+        "qodo_cost_per_task_usd": 0.31
+      }
+    },
+    {
+      "arm": "sonnet-low",
+      "partial": false,
+      "recall": 0.8421052631578947,
+      "recall_wilson": [
+        0.6958318822077686,
+        0.9255613658484106
+      ],
+      "pct_week_per_item": 0.007434881420765028,
+      "usable": 0.9166666666666666,
+      "public_entry": "sonnet low",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.48,
+        "aa_cai_index": 42.0,
+        "aa_cai_tb4_pct": 25.0,
+        "aa_cai_tokens_per_task_m": 0.977,
+        "aa_ii_cost_per_task_usd": 0.35,
+        "aa_ii_score": 36.0
+      }
+    },
+    {
+      "arm": "sonnet-max",
+      "partial": false,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "pct_week_per_item": 0.061866727504553735,
+      "usable": 1.0,
+      "public_entry": "sonnet max",
+      "public": {
+        "aa_cai_cost_per_task_usd": 14.19,
+        "aa_cai_index": 68.0,
+        "aa_cai_tb4_pct": 66.0,
+        "aa_cai_tokens_per_task_m": 27.7,
+        "aa_ii_cost_per_task_usd": 5.46,
+        "aa_ii_score": 56.0,
+        "aa_standalone_tb4_pct": 63.6,
+        "vendor_frontiercode_v11_main_pct": 46.2,
+        "frontiercode_cost_per_task_usd": 8.26,
+        "frontiercode_score_pct": 46.2
+      }
+    },
+    {
+      "arm": "sonnet-max-r2",
+      "partial": false,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "pct_week_per_item": 0.058152070856102,
+      "usable": 1.0,
+      "public_entry": "sonnet max",
+      "public": {
+        "aa_cai_cost_per_task_usd": 14.19,
+        "aa_cai_index": 68.0,
+        "aa_cai_tb4_pct": 66.0,
+        "aa_cai_tokens_per_task_m": 27.7,
+        "aa_ii_cost_per_task_usd": 5.46,
+        "aa_ii_score": 56.0,
+        "aa_standalone_tb4_pct": 63.6,
+        "vendor_frontiercode_v11_main_pct": 46.2,
+        "frontiercode_cost_per_task_usd": 8.26,
+        "frontiercode_score_pct": 46.2
+      }
+    },
+    {
+      "arm": "sonnet-medium",
+      "partial": false,
+      "recall": 0.868421052631579,
+      "recall_wilson": [
+        0.7267314055770869,
+        0.9424613230987987
+      ],
+      "pct_week_per_item": 0.007734306739526412,
+      "usable": 0.9444444444444444,
+      "public_entry": "sonnet medium",
+      "public": {
+        "aa_cai_cost_per_task_usd": 0.62,
+        "aa_cai_index": 46.0,
+        "aa_cai_tb4_pct": 27.0,
+        "aa_cai_tokens_per_task_m": 1.3,
+        "aa_ii_cost_per_task_usd": 0.48,
+        "aa_ii_score": 41.0
+      }
+    },
+    {
+      "arm": "sonnet-xhigh",
+      "partial": false,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "pct_week_per_item": 0.015513459016393442,
+      "usable": 0.9444444444444444,
+      "public_entry": "sonnet xhigh",
+      "public": {
+        "aa_cai_cost_per_task_usd": 3.33,
+        "aa_cai_index": 63.0,
+        "aa_cai_tb4_pct": 57.99999999999999,
+        "aa_cai_tokens_per_task_m": 7.1,
+        "aa_ii_cost_per_task_usd": 2.01,
+        "aa_ii_score": 52.0,
+        "vendor_frontiercode_v11_main_pct": 52.1,
+        "hle_scale_score_pct": 46.1,
+        "frontiercode_score_pct": 52.1
+      }
+    },
+    {
+      "arm": "sonnet-xhigh-r2",
+      "partial": false,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "pct_week_per_item": 0.015160033151183971,
+      "usable": 0.9444444444444444,
+      "public_entry": "sonnet xhigh",
+      "public": {
+        "aa_cai_cost_per_task_usd": 3.33,
+        "aa_cai_index": 63.0,
+        "aa_cai_tb4_pct": 57.99999999999999,
+        "aa_cai_tokens_per_task_m": 7.1,
+        "aa_ii_cost_per_task_usd": 2.01,
+        "aa_ii_score": 52.0,
+        "vendor_frontiercode_v11_main_pct": 52.1,
+        "hle_scale_score_pct": 46.1,
+        "frontiercode_score_pct": 52.1
+      }
+    },
+    {
+      "arm": "terra-high",
+      "partial": false,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "pct_week_per_item": 0.010883983134920635,
+      "usable": 0.9444444444444444,
+      "public_entry": "terra high",
+      "public": {
+        "aa_ii_v5_score": 42.0,
+        "aa_ii_v5_cost_per_task_usd": 0.26,
+        "aa_ii_v5_tb4_pct": 42.0
+      }
+    },
+    {
+      "arm": "terra-low",
+      "partial": false,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "pct_week_per_item": 0.008288688822751323,
+      "usable": 0.9166666666666666,
+      "public_entry": "terra low",
+      "public": {
+        "aa_ii_v5_score": 29.0,
+        "aa_ii_v5_cost_per_task_usd": 0.07,
+        "aa_ii_v5_tb4_pct": 15.0
+      }
+    },
+    {
+      "arm": "terra-medium",
+      "partial": false,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "pct_week_per_item": 0.009577119708994709,
+      "usable": 0.9444444444444444,
+      "public_entry": "terra medium",
+      "public": {
+        "aa_ii_v5_score": 38.0,
+        "aa_ii_v5_cost_per_task_usd": 0.17,
+        "aa_ii_v5_tb4_pct": 32.0
+      }
+    },
+    {
+      "arm": "terra-xhigh",
+      "partial": true,
+      "recall": 0.7368421052631579,
+      "recall_wilson": [
+        0.5799115381253364,
+        0.8502837874520186
+      ],
+      "pct_week_per_item": 0.01575398538961039,
+      "usable": 0.6111111111111112,
+      "public_entry": null,
+      "public": {}
+    }
+  ],
+  "skipped_metrics": [
+    "aa_fusion_cost_per_task_usd",
+    "aa_fusion_index",
+    "anthropic_reported_frontiercode_v11_main_pct",
+    "anthropic_reported_terminal_bench_4_pct",
+    "deepswe_datacurve_cost_per_task_usd",
+    "deepswe_datacurve_score_pct",
+    "endor_secpass_pct",
+    "frontiercode_v2_pct",
+    "hle_scale_score_pct",
+    "known_bugs_caught_pct_customer_quote",
+    "oss_aug80_precision_pct_cfg_max",
+    "oss_aug80_precision_pct_cfg_standard",
+    "oss_aug80_recall_pct_cfg_max",
+    "oss_aug80_recall_pct_cfg_standard",
+    "review_cost_per_task_usd",
+    "review_f1_like_score",
+    "reviewbench_grounded_f1",
+    "signal13_recall_pct_cfg_max",
+    "signal13_recall_pct_cfg_standard",
+    "swe_atlas_qna_score",
+    "swe_atlas_refactoring_score",
+    "vendor_cursorbench_4_pct",
+    "vendor_terminal_bench_4_pct"
+  ],
+  "unmatched_public": [
+    "fable max",
+    "fable max",
+    "fable unspecified",
+    "haiku unspecified",
+    "luna unspecified",
+    "opus unspecified",
+    "sonnet unspecified",
+    "gemini high",
+    "gemini n/a",
+    "astra n/a",
+    "hybrid max + high",
+    "hybrid xhigh + medium",
+    "hybrid xhigh + medium",
+    "gemini medium",
+    "sonnet default",
+    "sonnet include-nits",
+    "opus n/s",
+    "fable max",
+    "terra xhigh",
+    "terra max"
+  ]
+}

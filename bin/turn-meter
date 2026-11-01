@@ -1,0 +1,2065 @@
+#!/usr/bin/env python3
+"""Record Claude Code turns and estimate their share of Claude's weekly window."""
+
+import argparse
+import datetime as dt
+import hashlib
+import json
+import math
+import os
+import re
+import statistics
+import subprocess
+import sys
+import uuid
+
+
+UTC = dt.timezone.utc
+PROVIDERS = ("claude", "codex", "gemini")
+NOTE = "upper bound: other machines and claude.ai also move the meter"
+_MISSING = object()
+# A calibration more than this many times above or below the catalog prior is rejected.
+PLAUSIBLE_FACTOR = 5.0
+
+
+def _number(value):
+    if isinstance(value, bool):
+        return None
+    try:
+        value = float(value)
+        return value if math.isfinite(value) else None
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _time(value):
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        number = float(value)
+        if abs(number) > 100000000000:
+            number /= 1000.0
+        try:
+            return dt.datetime.fromtimestamp(number, UTC)
+        except (OverflowError, OSError, ValueError):
+            return None
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = dt.datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _iso(value=None):
+    value = value or dt.datetime.now(UTC)
+    return value.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _state_dir():
+    return os.path.abspath(os.path.expanduser(
+        os.environ.get("LANES_STATE", "~/.local/state/lanes")))
+
+
+def _usage_dir():
+    return os.path.abspath(os.path.expanduser(
+        os.environ.get("CLAUDE_USAGE_DIR", "~/.claude/usage")))
+
+
+def _private_dir(path):
+    if os.name == "nt":
+        os.makedirs(path, exist_ok=True)
+    else:
+        missing = []
+        parent = path
+        while parent and not os.path.exists(parent):
+            missing.append(parent)
+            next_parent = os.path.dirname(parent)
+            if next_parent == parent:
+                break
+            parent = next_parent
+        os.makedirs(path, mode=0o700, exist_ok=True)
+        for directory in set(missing + [path]):
+            try:
+                os.chmod(directory, 0o700)
+            except OSError:
+                pass
+
+
+def _read_json(path):
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            value = json.load(handle)
+        return value if isinstance(value, dict) else None
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def _atomic_json(path, value):
+    directory = os.path.dirname(path)
+    _private_dir(directory)
+    temporary = os.path.join(directory, ".{}-{}-{}.tmp".format(
+        os.path.basename(path), os.getpid(), uuid.uuid4().hex))
+    try:
+        with open(temporary, "w", encoding="utf-8") as handle:
+            json.dump(value, handle, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+            handle.write("\n")
+        os.replace(temporary, path)
+    finally:
+        try:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+        except OSError:
+            pass
+
+
+def _append_jsonl(path, value):
+    _private_dir(os.path.dirname(path))
+    with open(path, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps(value, separators=(",", ":"), ensure_ascii=False, allow_nan=False) + "\n")
+
+
+SESSION_ID = re.compile(r"[A-Za-z0-9_.-]{1,180}")
+
+
+def _session_id_ok(session_id):
+    # A session id names files under the state and usage folders, so "." and ".." and any separator are refused.
+    return (isinstance(session_id, str) and session_id not in (".", "..") and "/" not in session_id and
+            "\\" not in session_id and SESSION_ID.fullmatch(session_id) is not None)
+
+
+def _session_path(state, session_id):
+    if not _session_id_ok(session_id):
+        raise ValueError("invalid session_id")
+    return os.path.join(state, "turns", "open", session_id + ".json")
+
+
+def _session_cost(session_id):
+    if not _session_id_ok(session_id):
+        return None
+    value = _read_json(os.path.join(_usage_dir(), "sessions", session_id + ".json"))
+    return _number(value.get("total_cost_usd")) if value else None
+
+
+def _window_value(cache, provider, label):
+    if provider == "claude":
+        key = "five_hour" if label == "five" else "seven_day"
+        value = cache.get(key)
+        if not isinstance(value, dict):
+            return None, None
+        return _number(value.get("used_percentage")), value.get("resets_at")
+    windows = cache.get("windows") if isinstance(cache.get("windows"), list) else []
+    wanted = ("5h", "five_hour") if label == "five" else ("weekly", "7d", "seven_day", "1w")
+    for item in windows:
+        if not isinstance(item, dict):
+            continue
+        item_label = str(item.get("label") or item.get("window") or "").lower()
+        minutes = _number(item.get("window_minutes"))
+        if item_label in wanted or (label == "five" and minutes == 300) or (label == "weekly" and minutes == 10080):
+            return _number(item.get("used_percent", item.get("used_percentage"))), item.get("resets_at", item.get("reset_time"))
+    buckets = cache.get("buckets") if isinstance(cache.get("buckets"), list) else []
+    if provider == "gemini":
+        for item in buckets:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("window") or item.get("id") or "").lower()
+            if (label == "weekly" and ("weekly" in name or name == "7d")) or (label == "five" and ("5h" in name or "five_hour" in name)):
+                return _number(item.get("used_percentage", item.get("used_percent"))), item.get("reset_time", item.get("resets_at"))
+    return None, None
+
+
+def _meter(provider, usage_dir):
+    filenames = {
+        "claude": ("claude-latest.json",),
+        "codex": ("codex-latest.json",),
+        "gemini": ("gemini-latest.json", "agy-latest.json", "gemini-cache.json", "agy-cache.json"),
+    }[provider]
+    cache = next((item for item in (_read_json(os.path.join(usage_dir, name)) for name in filenames) if item), None)
+    if not cache:
+        return None
+    five, five_reset = _window_value(cache, provider, "five")
+    weekly, weekly_reset = _window_value(cache, provider, "weekly")
+    observed = cache.get("observed_at") or cache.get("reading_at")
+    plan = cache.get("plan") or cache.get("plan_type")
+    return {"weekly_pct": weekly, "five_hour_pct": five,
+            "resets_at": weekly_reset or five_reset, "observed_at": observed, "plan": plan}
+
+
+def _meters(usage_dir):
+    return {provider: _meter(provider, usage_dir) for provider in PROVIDERS}
+
+
+def _cost_record(state, session_id):
+    if not _session_id_ok(session_id):
+        return None
+    value = _read_json(os.path.join(_usage_dir(), "sessions", session_id + ".json"))
+    if not value or value.get("session_id") != session_id:
+        return None
+    cost = _number(value.get("total_cost_usd"))
+    return cost
+
+
+def _preview(value, size=80):
+    return re.sub(r"\s+", " ", str(value or "")).strip()[:size]
+
+
+def _open_turn(state, session_id):
+    return _read_json(_session_path(state, session_id))
+
+
+def _turn_time_fields(state, opened, now):
+    # Computed once as the turn opens, from one read of the ledger: the statusline runs every 10 s and must
+    # not read the ledger each time.
+    rows = _load_jsonl(os.path.join(state, "turns.jsonl"))
+    fields = {}
+    try:
+        recent = _history_durations(_turns(state, rows), now)[-500:]
+        fields["history_minutes"] = sorted(round(minutes, 1) for _, minutes in recent)
+    except Exception:
+        pass
+    try:
+        fields["session_started_at"] = _session_time(state, opened, 0.0, now, rows)["session_started_at"]
+    except Exception:
+        pass
+    try:
+        fields["time_factor"] = _time_calibration(state, now, rows)["factor"]
+    except Exception:
+        pass
+    return fields
+
+
+def _write_open(state, session_id, event, cost_start, meters_start):
+    path = _session_path(state, session_id)
+    opened = {"turn_id": "t-{}-{}".format(dt.datetime.now(UTC).strftime("%Y%m%d-%H%M%S"), uuid.uuid4().hex[:4]),
+              "session_id": session_id, "started_at": _iso(),
+              "cwd": event.get("cwd") if isinstance(event.get("cwd"), str) else os.getcwd(),
+              "prompt_preview": _preview(event.get("prompt")),
+              "cost_start_usd": cost_start, "meters_start": meters_start}
+    opened.update(_turn_time_fields(state, opened, dt.datetime.now(UTC)))
+    _atomic_json(path, opened)
+    return opened
+
+
+def _normalized_meters_start(value):
+    if not isinstance(value, dict):
+        return {provider: None for provider in PROVIDERS}
+    return {provider: value.get(provider) for provider in PROVIDERS}
+
+
+def _close_turn(state, usage_dir, session_id, event, interrupted=False):
+    path = _session_path(state, session_id)
+    opened = _read_json(path)
+    now = _iso()
+    if opened is None:
+        last_path = os.path.join(state, "turns", "last", session_id + ".json")
+        previous = _read_json(last_path)
+        if previous:
+            started_at = previous.get("ended_at") or now
+            cost_start = _number(previous.get("cost_end_usd"))
+            meters_start = {provider: (previous.get("meters", {}).get(provider) or {}).get("after")
+                            if isinstance(previous.get("meters"), dict) else None for provider in PROVIDERS}
+        else:
+            started_at = now
+            cost_start = _session_cost(session_id)
+            meters_start = _meters(usage_dir)
+        opened = {"turn_id": "t-{}-{}".format(dt.datetime.now(UTC).strftime("%Y%m%d-%H%M%S"), uuid.uuid4().hex[:4]),
+                  "session_id": session_id, "started_at": started_at,
+                  "cwd": event.get("cwd") if isinstance(event.get("cwd"), str) else os.getcwd(),
+                  "prompt_preview": "(continued)", "cost_start_usd": cost_start,
+                  "meters_start": meters_start}
+
+    end_cost = _session_cost(session_id)
+    if end_cost is None:
+        end_cost = _number(opened.get("cost_start_usd"))
+    meters_before = _normalized_meters_start(opened.get("meters_start"))
+    meters_after = _meters(usage_dir)
+    turn = {"type": "turn", "turn_id": opened.get("turn_id"), "session_id": session_id,
+            "started_at": opened.get("started_at") or now, "ended_at": now,
+            "cwd": opened.get("cwd") or event.get("cwd") or os.getcwd(),
+            "prompt_preview": opened.get("prompt_preview") or "",
+            "cost_start_usd": _number(opened.get("cost_start_usd")),
+            "cost_end_usd": end_cost,
+            "meters": {provider: {"before": meters_before.get(provider), "after": meters_after.get(provider)}
+                       for provider in PROVIDERS},
+            "interrupted": bool(interrupted)}
+    _append_jsonl(os.path.join(state, "turns.jsonl"), turn)
+    last_path = os.path.join(state, "turns", "last", session_id + ".json")
+    _atomic_json(last_path, turn)
+    try:
+        os.unlink(path)
+    except OSError:
+        pass
+    return turn
+
+
+def _settle_last(state, session_id, current_cost):
+    if current_cost is None:
+        return
+    last_path = os.path.join(state, "turns", "last", session_id + ".json")
+    last = _read_json(last_path)
+    if not last:
+        return
+    previous_cost = _number(last.get("cost_end_usd"))
+    if previous_cost is None or current_cost <= previous_cost:
+        return
+    settled_at = _iso()
+    _append_jsonl(os.path.join(state, "turns.jsonl"),
+                  {"type": "settle", "turn_id": last.get("turn_id"),
+                   "cost_end_usd": current_cost, "settled_at": settled_at})
+    last["cost_end_usd"] = current_cost
+    last["settled_at"] = settled_at
+    _atomic_json(last_path, last)
+
+
+def _log_hook_error(state, error):
+    try:
+        _private_dir(state)
+        path = os.path.join(state, "turn-meter.err")
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as handle:
+                previous = handle.read().splitlines()
+        except OSError:
+            previous = []
+        previous.append("{} {}: {}".format(_iso(), type(error).__name__, str(error).replace("\n", " ")))
+        with open(path, "w", encoding="utf-8") as handle:
+            handle.write("\n".join(previous[-200:]) + "\n")
+        if os.name != "nt":
+            try:
+                os.chmod(path, 0o600)
+            except OSError:
+                pass
+    except Exception:
+        pass
+
+
+def _compactions_path(state):
+    return os.path.join(state, "compactions.jsonl")
+
+
+def _compaction_event(state, event):
+    session_id = event.get("session_id")
+    trigger = event.get("trigger")
+    summary = event.get("compact_summary")
+    record = {"type": "compaction", "at": _iso(), "session_id": session_id,
+              "trigger": trigger, "summary_chars": len(summary) if isinstance(summary, str) else 0}
+    for row in reversed(_load_jsonl(_compactions_path(state))):
+        if row.get("type") == "gate" and row.get("session_id") == session_id:
+            if row.get("estimate") is not None:
+                record["estimate"] = row["estimate"]
+            break
+    _append_jsonl(_compactions_path(state), record)
+
+
+MODES = ("saving", "default", "utilization")
+# What each mode asks of Claude's own session (POLICY "Modes").
+MODE_RULES = {
+    "utilization": (
+        "Split every task into as many independent units as it has (units that touch one file stay one unit) and "
+        "start them all at once. Put them in a few cloud sessions started through lane --cloud, each fanning out to "
+        "many subagents started together, rather than in many cloud sessions, and say so in each cloud brief. Split "
+        "test suites by module across parallel subagents or background processes in a cloud VM; this PC's memory is "
+        "still guarded. In this session, hand reads, searches and drafts to background subagents in parallel; keep "
+        "planning, review and decisions, and still read every diff before it merges. Capability tests still need the "
+        "user's yes, and the 5h windows and the 85% Claude guard still stop work."),
+    "saving": (
+        "Fewer, larger units, one cloud session or subagent at a time unless work is blocked; subagents only to "
+        "read and search, on haiku; the test suite once, at the end, with only the touched modules before that."),
+    "default": "Follow the policy's rules as written: cost, quality and time in balance.",
+}
+# In a cloud session (CLAUDE_CODE_REMOTE=true) the notice names subagents of this session and no other session.
+MODE_RULES_CLOUD = {
+    "utilization": (
+        "Split every task into as many independent units as it has (units that touch one file stay one unit) and "
+        "start them all at once as parallel subagents of this session (the Agent tool). Start no other session: no "
+        "create_session, claude --cloud or lane --cloud. Split test suites by module across parallel subagents or "
+        "background processes in this VM. Keep planning, review and decisions, and still read every diff before it "
+        "merges. Capability tests still need the user's yes, and the 5h windows and the 85% Claude guard still stop "
+        "work."),
+    "saving": (
+        "Fewer, larger units, one subagent at a time unless work is blocked, and no other session; subagents only to "
+        "read and search, on haiku; the test suite once, at the end, with only the touched modules before that."),
+    "default": MODE_RULES["default"],
+}
+
+
+def _catalog_explore():
+    # LANES_ARMS overrides the catalog here as in lane, lane-stats and calibrate.
+    catalog = _read_json(os.environ.get("LANES_ARMS")
+                         or os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir, "arms.json"))
+    explore = catalog.get("explore") if isinstance(catalog, dict) else None
+    return explore if isinstance(explore, dict) else {}
+
+
+WEEKS_PER_MONTH = 4.345  # the catalog's explore.weeks_per_month, when it has none
+
+
+def _plan_price():
+    # Claude's plan price from the catalog: providers.claude.plan_prices[prior_plan].usd_per_month over
+    # explore.weeks_per_month. ~/.config/lanes/arms.local.json (LANES_ARMS_LOCAL) can set another plan, merged over
+    # the catalog the way lane-stats merges it. None without a price, so callers show nothing extra.
+    claude, explore = {}, {}
+    for path in (os.environ.get("LANES_ARMS")
+                 or os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir, "arms.json"),
+                 os.environ.get("LANES_ARMS_LOCAL") or "~/.config/lanes/arms.local.json"):
+        catalog = _read_json(os.path.expanduser(path)) or {}
+        providers = catalog.get("providers")
+        settings = providers.get("claude") if isinstance(providers, dict) else None
+        claude.update(settings if isinstance(settings, dict) else {})
+        explore.update(catalog["explore"] if isinstance(catalog.get("explore"), dict) else {})
+    plan, prices = claude.get("prior_plan"), claude.get("plan_prices")
+    price = prices.get(plan) if isinstance(plan, str) and isinstance(prices, dict) else None
+    monthly = _number(price.get("usd_per_month")) if isinstance(price, dict) else None
+    if monthly is None or monthly <= 0:
+        return None
+    weeks = _number(explore.get("weeks_per_month"))
+    weeks = weeks if weeks is not None and weeks > 0 else WEEKS_PER_MONTH
+    return {"plan": plan, "usd_per_month": monthly, "weeks_per_month": weeks, "usd_per_week": monthly / weeks}
+
+
+def _plan_usd(weekly_pct, price):
+    # The plan dollars a share of Claude's week stands for: pct / 100 x the plan's price per week.
+    return weekly_pct / 100.0 * price["usd_per_week"] if weekly_pct is not None and price else None
+
+
+def _plan_text(plan_usd, price):
+    amount = "${:.2f}".format(plan_usd) if plan_usd >= 0.01 or plan_usd == 0 else "${:.3f}".format(plan_usd)
+    monthly = price["usd_per_month"]
+    monthly = "{:.0f}".format(monthly) if float(monthly).is_integer() else "{:.2f}".format(monthly)
+    return "≈{} of plan ({}, ${}/mo)".format(amount, price["plan"], monthly)
+
+
+def _mode_setting():
+    # The order lane and lane-stats read it in: env, then ~/.config/lanes/mode, then the catalog's explore.mode.
+    value = os.environ.get("USAGE_OPTIMIZER_MODE", "").strip()
+    if not value:
+        config = os.path.abspath(os.path.expanduser(os.environ.get("LANES_CONFIG", "~/.config/lanes")))
+        try:
+            with open(os.path.join(config, "mode"), "r", encoding="utf-8") as handle:
+                value = (handle.read().split() or [""])[0]
+        except OSError:
+            value = ""
+    if not value:
+        value = str(_catalog_explore().get("mode") or "")
+    value = value.strip().lower()
+    return value if value in MODES + ("auto",) else "default"
+
+
+def _kit_mode(usage_dir, now):
+    setting = _mode_setting()
+    if setting != "auto":
+        return setting, "setting " + setting
+    # auto: Claude's week, projected to its reset at the pace so far (the picker's provider_pace does the same).
+    meter = _meter("claude", usage_dir) or {}
+    if os.environ.get("CLAUDE_CODE_REMOTE") == "true":
+        observed = _time(meter.get("observed_at"))
+        if observed is None or now - observed >= dt.timedelta(hours=6):
+            meter = {}
+    used, reset = _number(meter.get("weekly_pct")), _time(meter.get("resets_at"))
+    if used is None or reset is None:
+        if os.environ.get("CLAUDE_CODE_REMOTE") == "true":
+            picks = _read_json(os.path.expanduser(os.environ.get("USAGE_OPTIMIZER_PICKS", "/tmp/picks.json"))) or {}
+            mode = picks.get("modes", {}).get("claude") if isinstance(picks.get("modes"), dict) else None
+            until = (_time(picks.get("modes_until", {}).get("claude"))
+                     if isinstance(picks.get("modes_until"), dict) else None)
+            if mode in MODES and until is not None and now < until <= now + dt.timedelta(days=8):
+                return mode, "auto, cloud: the local session's mode (pick table of {})".format(picks.get("at"))
+            return "saving", "auto, cloud session with no meter reading and no current pick table"
+        return "default", "auto, no meter reading"
+    elapsed = min(1.0, max(0.05, 1.0 - (reset - now).total_seconds() / (7 * 86400.0)))
+    projected = used / elapsed
+    limits = _catalog_explore().get("modes")
+    limits = limits if isinstance(limits, dict) else {}
+    saving = _number(limits.get("saving_pct"))
+    utilization = _number(limits.get("utilization_pct"))
+    mode = ("saving" if projected >= (110 if saving is None else saving) else
+            "utilization" if projected <= (90 if utilization is None else utilization) else "default")
+    prefix = "auto, cloud probe reading" if os.environ.get("CLAUDE_CODE_REMOTE") == "true" else "auto"
+    return mode, "{}: Claude week {:.0f}%, projected {:.0f}% at reset".format(prefix, used, projected)
+
+
+def _start_cloud_probe(usage_dir, now=None):
+    if os.environ.get("CLAUDE_CODE_REMOTE") != "true":
+        return False
+    value = os.environ.get("USAGE_OPTIMIZER_CLOUD_PROBE_MIN", "15").strip().lower()
+    if value in ("0", "off"):
+        return False
+    try:
+        max_age = max(0.0, float(value))
+    except ValueError:
+        max_age = 15.0
+    now = now or dt.datetime.now(UTC)
+    reading = _read_json(os.path.join(usage_dir, "claude-latest.json")) or {}
+    observed = _time(reading.get("observed_at"))
+    if observed is not None and now - observed < dt.timedelta(minutes=max_age):
+        return False
+    _private_dir(usage_dir)
+    stamp = os.path.join(usage_dir, ".claude-probe-started")
+    try:
+        if now.timestamp() - os.path.getmtime(stamp) < 300:
+            return False
+    except OSError:
+        pass
+    with open(stamp, "w", encoding="utf-8") as handle:
+        handle.write(_iso(now) + "\n")
+    command = [os.path.join(os.path.dirname(os.path.realpath(__file__)), "usage-status"),
+               "--probe-claude", "--quiet"]
+    subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                     start_new_session=True, close_fds=True)
+    return True
+
+
+def _switched_off(name):
+    return os.environ.get(name, "").strip().lower() == "off"
+
+
+def _mode_notice(state, session_id):
+    # The mode, the first time this session hears it and again when it changes: (texts, commit). The commit marks the
+    # mode as told, and it runs only after the texts are printed, so a failed print is told again at the next prompt.
+    if _switched_off("USAGE_OPTIMIZER_MODE_NOTICE") or not _session_id_ok(session_id):  # the user's off switch
+        return [], None
+    mode, why = _kit_mode(_usage_dir(), dt.datetime.now(UTC))
+    path = os.path.join(state, "turns", "mode", session_id)
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            if handle.read().strip() == mode:
+                return [], None
+    except OSError:
+        pass
+
+    def commit():
+        _private_dir(os.path.dirname(path))
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(mode + "\n")
+
+    remote = os.environ.get("CLAUDE_CODE_REMOTE") == "true"
+    rules = MODE_RULES_CLOUD if remote else MODE_RULES
+    text = "Usage Optimizer mode: {} ({}; POLICY \"Modes\"). {}".format(mode, why, rules[mode])
+    if not remote:
+        mains = _read_json(os.path.join(state, "mains.json")) or {}
+        if isinstance(mains.get("mains"), dict) and mains["mains"]:
+            text += (" Cloud mirrors keep the mode they were handed: run lane main --picks <repo> for each live "
+                     "mirror (lane main --list).")
+    return [text], commit
+
+
+# Kit notices: other kit tools (a plan-window change, a newer kit release) write <state>/notices/<id>.json as
+# {"id", "kind", "created_at", "text", "expires_at"}; the prompt hook tells each session each one once.
+NOTICE_ID = re.compile(r"[A-Za-z0-9_.-]+")
+NOTICE_LIMIT = 5  # notices printed in one prompt's context: the newest; the rest are counted
+NOTICE_TEXT_LIMIT = 1500  # characters of one notice's text
+NOTICE_FILES = 50  # notice files read at one prompt: the most recently written, and no older than the last scan
+NOTICE_FILE_BYTES = 64 * 1024  # a larger file is not a notice
+NOTICE_TOLD = 200  # content ids kept per session: the most recently told
+
+
+def _read_notice(path, name, now):
+    # One notice file, or None when it is unreadable, malformed, expired, or its id is not its file name.
+    notice = _read_json(path)
+    if not notice:
+        return None
+    notice_id, kind, created, text = (notice.get(key) for key in ("id", "kind", "created_at", "text"))
+    if (not isinstance(notice_id, str) or not NOTICE_ID.fullmatch(notice_id) or notice_id + ".json" != name or
+            not isinstance(kind, str) or not kind or not isinstance(created, str) or not isinstance(text, str)):
+        return None
+    created_at = _time(created)
+    if created_at is None:
+        return None
+    expires = notice.get("expires_at")
+    if expires is not None:
+        expires_at = _time(expires) if isinstance(expires, str) else None
+        if expires_at is None or expires_at <= now:
+            return None
+    text = re.sub(r"[\x00-\x08\x0b-\x1f\x7f]", "", text).strip()
+    if not text:
+        return None
+    if len(text) > NOTICE_TEXT_LIMIT:
+        text = text[:NOTICE_TEXT_LIMIT - 1].rstrip() + "…"
+    return {"id": notice_id, "kind": kind, "created_at": created, "at": created_at, "text": text}
+
+
+def _notice_id(notice):
+    # A notice is told by its content, so the same notice in a recreated file is not told again.
+    value = json.dumps([notice["id"], notice["kind"], notice["created_at"], notice["text"]],
+                       ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()[:32]
+
+
+def _notice_files(state):
+    # The notice files in <state>/notices that are small enough to be notices, newest first: (mtime, name, path).
+    files = []
+    try:
+        with os.scandir(os.path.join(state, "notices")) as listing:
+            for entry in listing:
+                if not entry.name.endswith(".json"):
+                    continue
+                try:
+                    info = entry.stat()
+                    if entry.is_file() and info.st_size <= NOTICE_FILE_BYTES:
+                        files.append((info.st_mtime, entry.name, entry.path))
+                except OSError:
+                    continue
+    except OSError:  # no notices directory: nothing to tell
+        return []
+    return sorted(files, reverse=True)
+
+
+def _kit_notices(state, session_id, now):
+    # The texts of the kit notices this session has not been told yet, oldest first, and the commit that records them
+    # as told (see _announce). Only files at least as new as this session's last scan are read, at most NOTICE_FILES
+    # of them. Notices beyond NOTICE_LIMIT are counted, not printed, and `turn-meter notices` lists them. What each
+    # session was told, and when it last scanned, is kept in <state>/turns/notices/<session_id>.
+    if _switched_off("USAGE_OPTIMIZER_NOTICES") or not _session_id_ok(session_id):
+        return [], None
+    record_path = os.path.join(state, "turns", "notices", session_id)
+    record = _read_json(record_path) or {}
+    told = record.get("told") if isinstance(record.get("told"), list) else []
+    told = [value for value in told if isinstance(value, str)]
+    scanned = _number(record.get("scanned"))
+    files = _notice_files(state)
+    if scanned is not None:
+        files = [item for item in files if item[0] >= scanned]
+    read = files[:NOTICE_FILES]
+    if read:
+        scanned = read[0][0]  # the newest file read: the next scan starts there
+    update_check_off = _switched_off("USAGE_OPTIMIZER_UPDATE_CHECK")
+    found = []
+    for _, name, path in read:
+        notice = _read_notice(path, name, now)
+        if notice and not (update_check_off and notice["kind"] == "kit_update"):
+            found.append(notice)
+    waiting = [(_notice_id(notice), notice) for notice in sorted(found, key=lambda item: (item["at"], item["id"]))]
+    waiting = [(content_id, notice) for content_id, notice in waiting if content_id not in told]
+    shown = waiting[-NOTICE_LIMIT:]
+    rest = len(waiting) - len(shown)
+    texts = [notice["text"] if notice["text"].startswith("Usage Optimizer") else
+             "Usage Optimizer notice: " + notice["text"] for _, notice in shown]
+    if rest:
+        texts.append("Usage Optimizer: {} more notice{} not shown here; run `turn-meter notices` to list {}.".format(
+            rest, "" if rest == 1 else "s", "it" if rest == 1 else "them"))
+    updated = {"told": (told + [content_id for content_id, _ in waiting])[-NOTICE_TOLD:]}
+    if scanned is not None:
+        updated["scanned"] = scanned
+
+    def commit():
+        if updated != record and (record or read):  # no notice files and no record: nothing to keep
+            _private_dir(os.path.dirname(record_path))
+            _atomic_json(record_path, updated)
+
+    return texts, commit
+
+
+def _notices_list(state, now):
+    # Every kit notice out now, newest first: the same notices the prompt hook draws from, shown or not.
+    rows = []
+    for _, name, path in _notice_files(state)[:NOTICE_FILES]:
+        notice = _read_notice(path, name, now)
+        if notice:
+            rows.append(notice)
+    rows.sort(key=lambda item: (item["at"], item["id"]), reverse=True)
+    return [{"id": item["id"], "kind": item["kind"], "created_at": item["created_at"], "text": item["text"]}
+            for item in rows]
+
+
+def _notices_text(rows):
+    if not rows:
+        return "no Usage Optimizer notices"
+    return "\n\n".join("{} {} ({})\n{}".format(row["created_at"], row["id"], row["kind"], row["text"]) for row in rows)
+
+
+def _announce(state, raw):
+    # A running session never reloads POLICY, but this hook runs at every prompt: tell each session the mode once,
+    # and again when it changes, and each kit notice once. Both go out in one JSON object, and nothing is printed
+    # when there is nothing new, since this output reaches Claude's context. A notice is marked told only after the
+    # print, so a failed print tells it again. Nothing here may fail the prompt.
+    try:
+        data = json.loads(raw)
+        if not isinstance(data, dict) or data.get("hook_event_name") != "UserPromptSubmit":
+            return
+        session_id = data.get("session_id")
+        if not _session_id_ok(session_id):
+            return
+    except Exception:
+        return  # the turn hook logs input it cannot read
+    sources = []
+    for source in (lambda: _mode_notice(state, session_id),
+                   lambda: _kit_notices(state, session_id, dt.datetime.now(UTC))):
+        try:
+            sources.append(source())
+        except Exception as error:
+            _log_hook_error(state, error)
+    texts = [text for part, _ in sources for text in part if text]
+    if texts:
+        try:
+            print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
+                                                     "additionalContext": "\n\n".join(texts)}},
+                             ensure_ascii=False, separators=(",", ":")))
+        except Exception as error:
+            _log_hook_error(state, error)
+            return  # not printed, so not told
+    for _, commit in sources:
+        if commit is None:
+            continue
+        try:
+            commit()
+        except Exception as error:
+            _log_hook_error(state, error)
+
+
+def _hook():
+    state = _state_dir()
+    try:
+        raw = sys.stdin.read()
+        _announce(state, raw)
+        turns_off = os.environ.get("USAGE_OPTIMIZER_TURNS", "on").strip().lower() == "off"
+        if turns_off:
+            try:
+                data = json.loads(raw)
+            except (ValueError, TypeError):
+                return
+            if not isinstance(data, dict) or data.get("hook_event_name") != "PostCompact":
+                return
+            _compaction_event(state, data)
+            return
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            raise ValueError("hook input must be a JSON object")
+        if data.get("hook_event_name") == "PostCompact":
+            _compaction_event(state, data)
+            return
+        event_name = data.get("hook_event_name")
+        session_id = data.get("session_id")
+        if event_name not in ("UserPromptSubmit", "Stop"):
+            return
+        _session_path(state, session_id)
+        usage_dir = _usage_dir()
+        try:
+            _start_cloud_probe(usage_dir)
+        except Exception as error:  # a failed probe start must not cost the turn its record
+            _log_hook_error(state, error)
+        if event_name == "UserPromptSubmit":
+            if _open_turn(state, session_id):
+                _close_turn(state, usage_dir, session_id, data, interrupted=True)
+            _settle_last(state, session_id, _session_cost(session_id))
+            _write_open(state, session_id, data, _session_cost(session_id), _meters(usage_dir))
+        else:
+            _close_turn(state, usage_dir, session_id, data, interrupted=False)
+            _calibrate(state, usage_dir, force=False)
+    except BaseException as error:
+        _log_hook_error(state, error)
+
+
+TRANSCRIPT_TAIL_BYTES = 16 * 1024 * 1024
+
+
+def _transcript_tail(path):
+    with open(path, "rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        size = handle.tell()
+        start = max(0, size - TRANSCRIPT_TAIL_BYTES)
+        handle.seek(start)
+        if start:
+            handle.seek(start - 1)
+            previous = handle.read(1)
+            handle.seek(start)
+            if previous != b"\n":
+                handle.readline()
+        data = handle.read()
+    entries = []
+    for line in data.decode("utf-8", errors="replace").splitlines():
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(entry, dict):
+            entries.append(entry)
+    return entries
+
+
+def _entry_content(entry):
+    message = entry.get("message")
+    if isinstance(message, dict) and "content" in message:
+        return message.get("content")
+    return entry.get("content", _MISSING)
+
+
+def _real_prompt(entry):
+    if (entry.get("type") != "user" or entry.get("isMeta") or
+            entry.get("isCompactSummary")):
+        return False
+    content = _entry_content(entry)
+    if isinstance(content, str):
+        return bool(content)
+    if not isinstance(content, list):
+        return False
+    return (any(isinstance(block, dict) and block.get("type") == "text" for block in content) and
+            not any(isinstance(block, dict) and block.get("type") == "tool_result" for block in content))
+
+
+def _transcript_estimate(entries):
+    assistant_indexes = [index for index, entry in enumerate(entries) if entry.get("type") == "assistant"]
+    last_assistant = assistant_indexes[-1] if assistant_indexes else None
+    usage = {}
+    if last_assistant is not None:
+        message = entries[last_assistant].get("message")
+        if isinstance(message, dict) and isinstance(message.get("usage"), dict):
+            usage = message["usage"]
+        elif isinstance(entries[last_assistant].get("usage"), dict):
+            usage = entries[last_assistant]["usage"]
+    estimate = sum(_number(usage.get(key)) or 0.0 for key in (
+        "input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens", "output_tokens"))
+    start = last_assistant + 1 if last_assistant is not None else 0
+    for entry in entries[start:]:
+        content = _entry_content(entry)
+        if content is not _MISSING:
+            estimate += len(json.dumps(content)) / 4.0
+    prompt_indexes = [index for index, entry in enumerate(entries) if _real_prompt(entry)]
+    if not prompt_indexes:
+        return estimate, True
+    latest_prompt = prompt_indexes[-1]
+    return estimate, any(index > latest_prompt for index in assistant_indexes)
+
+
+def _token_k(value):
+    result = "{:.1f}".format(value / 1000.0)
+    return result[:-2] if result.endswith(".0") else result
+
+
+def _compact_gate():
+    state = _state_dir()
+    try:
+        data = json.loads(sys.stdin.read())
+        if not isinstance(data, dict):
+            raise ValueError("hook input must be a JSON object")
+        trigger = data.get("trigger")
+        session_id = data.get("session_id")
+        remote = os.environ.get("CLAUDE_CODE_REMOTE") == "true"
+        gate_setting = os.environ.get("USAGE_OPTIMIZER_COMPACT_GATE")
+        enabled = (trigger == "auto" and (gate_setting or "on").strip().lower() != "off" and
+                   not (remote and gate_setting is None))
+        estimate = None
+        mid_turn = None
+        decision = "allow"
+        ceiling = None
+        if enabled:
+            ceiling = _number(os.environ.get("USAGE_OPTIMIZER_COMPACT_HARD", "350000"))
+            if ceiling is None or ceiling < 0:
+                raise ValueError("invalid USAGE_OPTIMIZER_COMPACT_HARD")
+            transcript = data.get("transcript_path")
+            if not isinstance(transcript, str) or not transcript:
+                raise ValueError("missing transcript_path")
+            estimate, mid_turn = _transcript_estimate(_transcript_tail(transcript))
+            if mid_turn and estimate < ceiling:
+                decision = "block"
+        _append_jsonl(_compactions_path(state), {
+            "type": "gate", "at": _iso(), "session_id": session_id, "trigger": trigger,
+            "mid_turn": mid_turn, "estimate": estimate, "decision": decision, "cloud": remote})
+        if decision == "block":
+            reason = ("kit: compaction waits for the end of this turn (context ~{}k of the {}k ceiling)".format(
+                _token_k(estimate), _token_k(ceiling)))
+            print(json.dumps({"decision": "block", "reason": reason}, ensure_ascii=False,
+                             separators=(",", ":")))
+    except BaseException as error:
+        _log_hook_error(state, error)
+
+
+def _catalog_prior():
+    path = os.environ.get("LANES_ARMS") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "arms.json")
+    catalog = _read_json(path)
+    value = None
+    if catalog:
+        provider = catalog.get("providers", {}).get("claude", {}) if isinstance(catalog.get("providers"), dict) else {}
+        value = _number(provider.get("prior_pct_per_usd")) if isinstance(provider, dict) else None
+    return value if value is not None and value >= 0 else 0.037
+
+
+def _calibration(state):
+    value = _read_json(os.path.join(state, "claude-calibration.json"))
+    pct = _number(value.get("pct_per_usd")) if value else None
+    if value and pct is not None and pct >= 0:
+        return {"pct_per_usd": pct, "source": "calibrated", "windows": value.get("windows", 0),
+                "spend_usd": _number(value.get("spend_usd")), "rise_pct": _number(value.get("rise_pct")),
+                "updated_at": value.get("updated_at")}
+    return {"pct_per_usd": _catalog_prior(), "source": "prior", "windows": 0,
+            "spend_usd": None, "rise_pct": None, "updated_at": None}
+
+
+def _load_jsonl(path):
+    rows = []
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                try:
+                    value = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(value, dict):
+                    rows.append(value)
+    except OSError:
+        pass
+    return rows
+
+
+def _turns(state, rows=None):
+    if rows is None:
+        rows = _load_jsonl(os.path.join(state, "turns.jsonl"))
+    turns = []
+    settlements = {}
+    for entry in rows:
+        if entry.get("type") == "turn" and entry.get("turn_id"):
+            copy = dict(entry)
+            turns.append(copy)
+        elif entry.get("type") == "settle" and entry.get("turn_id"):
+            value = _number(entry.get("cost_end_usd"))
+            if value is not None:
+                settlements[entry["turn_id"]] = value
+    for turn in turns:
+        if turn.get("turn_id") in settlements:
+            turn["cost_end_usd"] = settlements[turn["turn_id"]]
+    return turns
+
+
+SPLIT_TURN_RATIO = 0.25
+
+
+def _time_calibration(state, now, rows=None):
+    if rows is None:
+        rows = _load_jsonl(os.path.join(state, "turns.jsonl"))
+    cutoff = now - dt.timedelta(days=90)
+    closed = {}
+    for turn in _turns(state, rows):
+        ended = _time(turn.get("ended_at"))
+        if (turn.get("turn_id") and turn.get("interrupted") is not True and ended and
+                cutoff <= ended <= now):
+            closed[turn["turn_id"]] = ended
+    ratios = []
+    weighted_logs = []
+    for record in rows:
+        if record.get("type") != "eta" or record.get("turn_id") not in closed:
+            continue
+        at = _time(record.get("at"))
+        remaining = _number(record.get("remaining_minutes"))
+        if at is None or at < cutoff or at > now or remaining is None or remaining < 0:
+            continue
+        actual = (closed[record["turn_id"]] - at).total_seconds() / 60.0
+        ratio = max(actual, 0.1) / max(remaining, 0.5)
+        if not math.isfinite(ratio) or ratio <= 0:
+            continue
+        # A turn that ended before a quarter of its estimate almost always handed back mid-task (waiting on a
+        # worker or a question) and the work went on in later turns, so it says nothing about the estimate.
+        if ratio < SPLIT_TURN_RATIO:
+            continue
+        age_days = max(0.0, (now - at).total_seconds() / 86400.0)
+        weight = 0.5 ** (age_days / 30.0)
+        ratios.append(ratio)
+        weighted_logs.append((math.log(ratio), weight))
+    if len(ratios) >= 3:
+        ordered = sorted(weighted_logs)
+        half_weight = sum(weight for _, weight in ordered) / 2.0
+        running = 0.0
+        median_log = ordered[-1][0]
+        for value, weight in ordered:
+            running += weight
+            if running >= half_weight:
+                median_log = value
+                break
+        factor = min(4.0, max(0.25, math.exp(median_log)))
+        source = "calibrated"
+    else:
+        factor = 1.0
+        source = "none"
+    return {"factor": factor, "n": len(ratios),
+            "median_ratio": statistics.median(ratios) if ratios else None, "source": source}
+
+
+def _history_durations(turns, now):
+    # (ended, minutes) for the finished turns that were not interrupted and ended in the last 60 days, oldest first.
+    cutoff = now - dt.timedelta(days=60)
+    durations = []
+    for turn in turns:
+        if turn.get("interrupted") is True:
+            continue
+        start = _time(turn.get("started_at"))
+        end = _time(turn.get("ended_at"))
+        if start is None or end is None or end < cutoff or end > now:
+            continue
+        durations.append((end, max(0.0, (end - start).total_seconds() / 60.0)))
+    return sorted(durations)
+
+
+def _history_remaining(turns, elapsed_minutes, now):
+    durations = [minutes for _, minutes in _history_durations(turns, now)]
+    longer = [duration for duration in durations if duration > elapsed_minutes]
+    if len(longer) >= 8:
+        return {"remaining_minutes": max(0.0, statistics.median(longer) - elapsed_minutes),
+                "source": "history", "n": len(longer)}
+    return {"remaining_minutes": max(elapsed_minutes, 1.0), "source": "rule", "n": len(longer)}
+
+
+def _runs(state):
+    result = []
+    root = os.path.join(state, "runs")
+    try:
+        names = sorted(os.listdir(root))
+    except OSError:
+        return result
+    for name in names:
+        path = os.path.join(root, name, "meta.json")
+        record = _read_json(path)
+        if record:
+            record["_run_dir"] = os.path.dirname(path)
+            result.append(record)
+    return result
+
+
+def _run_list_usd(run):
+    usage = run.get("usage") if isinstance(run.get("usage"), dict) else {}
+    return _number(usage.get("list_usd"))
+
+
+def _weekly_usage(run, side):
+    usage = run.get("usage") if isinstance(run.get("usage"), dict) else {}
+    reading = usage.get(side)
+    if not isinstance(reading, dict):
+        return None
+    windows = reading.get("windows") if isinstance(reading.get("windows"), list) else []
+    for item in windows:
+        if isinstance(item, dict) and str(item.get("label", "")).lower() in ("weekly", "7d", "seven_day"):
+            return _number(item.get("used_percent", item.get("used_percentage")))
+    return None
+
+
+def _weekly_delta(runs):
+    before = [value for run in runs if (value := _weekly_usage(run, "before")) is not None]
+    after = [value for run in runs if (value := _weekly_usage(run, "after")) is not None]
+    return max(after) - min(before) if before and after else None
+
+
+def _lane_summary(runs):
+    summary = {}
+    by_provider = {}
+    for run in runs:
+        provider = str(run.get("provider") or "unknown")
+        by_provider.setdefault(provider, []).append(run)
+    for provider, items in sorted(by_provider.items()):
+        costs = [_run_list_usd(run) for run in items]
+        costs = [value for value in costs if value is not None]
+        summary[provider] = {"count": len(items),
+                             "list_usd": sum(costs) if costs else (0.0 if provider == "claude" else None),
+                             "weekly_delta_pct": _weekly_delta(items)}
+    return summary
+
+
+def _cost_delta(turn):
+    start = _number(turn.get("cost_start_usd"))
+    end = _number(turn.get("cost_end_usd"))
+    return max(0.0, end - (start if start is not None else 0.0)) if end is not None else None
+
+
+def _turn_runs(turn, runs, now=False):
+    start = _time(turn.get("started_at"))
+    end = dt.datetime.now(UTC) if now else _time(turn.get("ended_at"))
+    if start is None or end is None:
+        return []
+    return [run for run in runs
+            if run.get("place") != "subagent"
+            and (when := _time(run.get("started_at"))) is not None and start <= when <= end]
+
+
+def _turn_subagents(turn, runs, now=False):
+    """This session's finished subagent worker runs that overlapped the turn: their count and the share of their
+    list $ spent inside it. A background run can span turns, so its spend is spread evenly over its run time."""
+    start = _time(turn.get("started_at"))
+    end = dt.datetime.now(UTC) if now else _time(turn.get("ended_at"))
+    if start is None or end is None:
+        return None
+    count = 0
+    spend = 0.0
+    for run in runs:
+        subagent = run.get("subagent") if isinstance(run.get("subagent"), dict) else {}
+        if run.get("place") != "subagent" or subagent.get("parent_session_id") != turn.get("session_id"):
+            continue
+        run_start = _time(run.get("launched_at") or run.get("started_at"))
+        run_end = _time(run.get("ended_at"))
+        if run_start is None or run_end is None:
+            continue
+        # Turns are stamped to the second: a run that ended just before the Stop hook, in the same second, must count.
+        run_start, run_end = run_start.replace(microsecond=0), run_end.replace(microsecond=0)
+        if run_end <= run_start:
+            share = 1.0 if start <= run_end <= end else 0.0
+        else:
+            overlap = (min(end, run_end) - max(start, run_start)).total_seconds()
+            share = max(0.0, overlap) / (run_end - run_start).total_seconds()
+        if share <= 0:
+            continue
+        count += 1
+        spend += share * (_run_list_usd(run) or 0.0)
+    return {"count": count, "list_usd": round(spend, 6)} if count else None
+
+
+def _elapsed(turn, now=False):
+    start = _time(turn.get("started_at"))
+    end = dt.datetime.now(UTC) if now else _time(turn.get("ended_at"))
+    return max(0.0, (end - start).total_seconds() / 60.0) if start and end else None
+
+
+def _local(value):
+    parsed = _time(value)
+    return parsed.astimezone().strftime("%Y-%m-%d %H:%M") if parsed else "?"
+
+
+def _choose_open(state, session_id):
+    directory = os.path.join(state, "turns", "open")
+    try:
+        names = sorted(name for name in os.listdir(directory) if name.endswith(".json"))
+    except OSError:
+        return None
+    opened = []
+    for name in names:
+        value = _read_json(os.path.join(directory, name))
+        if value:
+            opened.append(value)
+    if session_id:
+        return next((item for item in opened if item.get("session_id") == session_id), None)
+    cwd = os.path.realpath(os.getcwd())
+    matching = [item for item in opened if isinstance(item.get("cwd"), str) and os.path.realpath(item["cwd"]) == cwd]
+    candidates = matching or opened
+    return max(candidates, key=lambda item: _time(item.get("started_at")) or dt.datetime.min.replace(tzinfo=UTC)) if candidates else None
+
+
+def _duration_text(minutes):
+    if minutes is None:
+        return "unknown"
+    return "{:.1f} min".format(minutes) if minutes < 60 else "{:.1f} h".format(minutes / 60.0)
+
+
+def _approx_duration(minutes):
+    return "{} min".format(int(math.floor(minutes + 0.5))) if minutes < 60 else "{:.1f} h".format(minutes / 60.0)
+
+
+def _estimate_label(minutes):
+    return str(int(math.floor(minutes + 0.5))) if minutes < 60 else "{:.1f} h".format(minutes / 60.0)
+
+
+def _latest_eta(state, turn_id):
+    latest = None
+    latest_at = None
+    for record in _load_jsonl(os.path.join(state, "turns.jsonl")):
+        at = _time(record.get("at"))
+        if (record.get("type") == "eta" and record.get("turn_id") == turn_id and at is not None and
+                (latest_at is None or at >= latest_at)):
+            latest = record
+            latest_at = at
+    return latest
+
+
+def _session_time(state, opened, elapsed_minutes, now, rows=None):
+    session_id = opened.get("session_id")
+    closed = [turn for turn in _turns(state, rows) if turn.get("session_id") == session_id]
+    starts = [_time(turn.get("started_at")) for turn in closed]
+    starts.append(_time(opened.get("started_at")))
+    starts = [start for start in starts if start is not None]
+    active = 0.0
+    for turn in closed:
+        start = _time(turn.get("started_at"))
+        end = _time(turn.get("ended_at"))
+        if start and end:
+            active += max(0.0, (end - start).total_seconds() / 60.0)
+    active += elapsed_minutes or 0.0
+    return {"session_minutes": active, "session_turns": len(closed) + 1,
+            "session_started_at": _iso(min(starts)) if starts else None}
+
+
+def _lanes_in_flight(all_runs, session_started_at, now):
+    session_start = _time(session_started_at)
+    cutoff = now - dt.timedelta(hours=12)
+    flights = []
+    for run in all_runs:
+        started = _time(run.get("started_at"))
+        if (run.get("ended_at") is not None or started is None or started > now or
+                started < cutoff or (session_start and started < session_start)):
+            continue
+        elapsed = max(0.0, (now - started).total_seconds() / 60.0)
+        eta_seconds = _number(run.get("eta_s"))
+        eta_minutes = eta_seconds / 60.0 if eta_seconds is not None and eta_seconds >= 0 else None
+        flights.append({"lane": run.get("lane"), "effort": run.get("effort"),
+                        "class": run.get("class"), "elapsed_minutes": elapsed,
+                        "eta_minutes": eta_minutes,
+                        "remaining_minutes": max(0.0, eta_minutes - elapsed) if eta_minutes is not None else None})
+    return flights
+
+
+def _current(state, session_id):
+    opened = _choose_open(state, session_id)
+    if not opened:
+        return None
+    turn = dict(opened)
+    now = dt.datetime.now(UTC)
+    start = _time(turn.get("started_at"))
+    elapsed = max(0.0, (now - start).total_seconds() / 60.0) if start else None
+    current_cost = _session_cost(turn.get("session_id"))
+    start_cost = _number(turn.get("cost_start_usd"))
+    cost = max(0.0, current_cost - (start_cost if start_cost is not None else 0.0)) if current_cost is not None else None
+    calibration = _calibration(state)
+    all_runs = _runs(state)
+    runs = _turn_runs(turn, all_runs, now=True)
+    lane_summary = _lane_summary(runs)
+    subagents = _turn_subagents(turn, all_runs, now=True)
+    if subagents and cost is not None:
+        cost = max(0.0, cost - subagents["list_usd"])
+    turns = _turns(state)
+    time_calibration = _time_calibration(state, now)
+    history = _history_remaining(turns, elapsed or 0.0, now)
+    remaining = history["remaining_minutes"]
+    remaining_source = history["source"]
+    estimate = None
+    eta = _latest_eta(state, turn.get("turn_id"))
+    if eta:
+        eta_at = _time(eta.get("at"))
+        eta_remaining = _number(eta.get("remaining_minutes"))
+        if eta_at is not None and eta_remaining is not None and eta_remaining >= 0:
+            since = max(0.0, (now - eta_at).total_seconds() / 60.0)
+            calibrated = eta_remaining * time_calibration["factor"]
+            estimate = {"at": eta.get("at"), "remaining_minutes": eta_remaining,
+                        "calibrated_minutes": calibrated, "note": eta.get("note"),
+                        "over_minutes": None}
+            claude_remaining = calibrated - since
+            if claude_remaining > 0:
+                remaining = claude_remaining
+                remaining_source = "estimate"
+            else:
+                estimate["over_minutes"] = max(0.0, since - calibrated)
+    session = _session_time(state, turn, elapsed, now)
+    flights = _lanes_in_flight(all_runs, session["session_started_at"], now)
+    lane_remaining = [flight["remaining_minutes"] for flight in flights
+                      if flight["remaining_minutes"] is not None]
+    if lane_remaining:
+        remaining = max([remaining] + lane_remaining)
+    time_data = {"turn_minutes": elapsed, **session, "remaining_minutes": remaining,
+                 "remaining_source": remaining_source, "estimate": estimate,
+                 "calibration": time_calibration, "lanes_in_flight": flights}
+    weekly_pct = cost * calibration["pct_per_usd"] if cost is not None else None
+    price = _plan_price()
+    plan_usd = _plan_usd(weekly_pct, price)
+    return {"turn_id": turn.get("turn_id"), "session_id": turn.get("session_id"),
+            "started_at": turn.get("started_at"), "started_local": _local(turn.get("started_at")),
+            "elapsed_minutes": elapsed, "cost_start_usd": start_cost,
+            "cost_so_far_usd": cost,
+            "estimated_claude_weekly_pct": weekly_pct,
+            **({"estimated_plan_usd": plan_usd, "plan_price": price} if plan_usd is not None else {}),
+            "pct_per_usd": calibration["pct_per_usd"], "calibration_source": calibration["source"],
+            "prompt_preview": turn.get("prompt_preview", ""), "lane_runs": lane_summary,
+            **({"subagents": subagents} if subagents else {}),
+            "time": time_data, "_history_n": history["n"]}
+
+
+def _current_text(value):
+    if value is None:
+        return "No open turn."
+    cost = "unknown" if value["cost_so_far_usd"] is None else "${:.2f}".format(value["cost_so_far_usd"])
+    weekly = "unknown" if value["estimated_claude_weekly_pct"] is None else "≈{:.2f}%".format(value["estimated_claude_weekly_pct"])
+    parts = ["{} {} min | list {} | est Claude wk {}".format(
+        value["started_local"], round(value["elapsed_minutes"], 1), cost, weekly)]
+    if value.get("estimated_plan_usd") is not None:  # appended, so readers of the line's start still work
+        parts[0] += " | " + _plan_text(value["estimated_plan_usd"], value["plan_price"])
+    time_data = value["time"]
+    source = time_data["remaining_source"]
+    estimate = time_data["estimate"]
+    if source == "estimate" and estimate:
+        source_text = "estimate {} ×{:.2f}".format(_estimate_label(estimate["remaining_minutes"]),
+                                                    time_data["calibration"]["factor"])
+    elif source == "history":
+        source_text = "history, n={}".format(_history_count(value))
+    else:
+        source_text = "rule: as long again"
+    if estimate and estimate["over_minutes"] is not None:
+        if source == "history":
+            source_text = "history, n={}; {:.1f} min past the estimate".format(
+                _history_count(value), estimate["over_minutes"])
+        else:
+            source_text = "rule: as long again; {:.1f} min past the estimate".format(
+                estimate["over_minutes"])
+    parts.append("time: turn {} | session {}, {} turns | ~{} to go ({})".format(
+        _duration_text(time_data["turn_minutes"]), _duration_text(time_data["session_minutes"]),
+        time_data["session_turns"], _approx_duration(time_data["remaining_minutes"]), source_text))
+    if time_data["lanes_in_flight"]:
+        lane_flights = []
+        for flight in time_data["lanes_in_flight"]:
+            label = "{} {}".format(flight.get("lane") or "?", flight.get("effort") or "?")
+            elapsed_text = "{:.1f} min".format(flight["elapsed_minutes"])
+            if flight["eta_minutes"] is None:
+                label += " {} (no eta)".format(elapsed_text)
+            else:
+                label += " {:.1f}/~{}".format(flight["elapsed_minutes"], _approx_duration(flight["eta_minutes"]))
+            lane_flights.append(label)
+        parts.append("lanes in flight: " + ", ".join(lane_flights))
+    lane_parts = []
+    for provider, summary in value["lane_runs"].items():
+        item = "{} {}".format(provider, summary["count"])
+        if provider == "claude" and summary.get("list_usd") is not None:
+            item += " (${:.2f})".format(summary["list_usd"])
+        if summary.get("weekly_delta_pct") is not None:
+            item += " wk Δ {:+.0f}%".format(summary["weekly_delta_pct"])
+        lane_parts.append(item)
+    if value.get("subagents"):
+        lane_parts.append("claude subagents {} runs ${:.2f}".format(
+            value["subagents"]["count"], value["subagents"]["list_usd"]))
+    if lane_parts:
+        parts.append("lane runs: " + ", ".join(lane_parts))
+    parts.append("prompt: " + _preview(value.get("prompt_preview"), 80))
+    return "\n".join(parts)
+
+
+def _history_count(value):
+    # The default source's sample count is carried alongside the time result for text output.
+    return value.get("_history_n", 0)
+
+
+def _eta_estimates(state):
+    estimates = {}
+    for record in _load_jsonl(os.path.join(state, "turns.jsonl")):
+        if record.get("type") != "eta" or not record.get("turn_id") or record["turn_id"] in estimates:
+            continue
+        elapsed = _number(record.get("elapsed_minutes"))
+        remaining = _number(record.get("remaining_minutes"))
+        estimates[record["turn_id"]] = (elapsed + remaining
+                                        if elapsed is not None and remaining is not None else None)
+    return estimates
+
+
+def _turn_row(turn, runs, pct_per_usd, estimate_minutes=None):
+    start = _time(turn.get("started_at"))
+    end = _time(turn.get("ended_at"))
+    cost = _cost_delta(turn)
+    subagents = _turn_subagents(turn, runs)
+    if subagents and cost is not None:
+        cost = max(0.0, cost - subagents["list_usd"])
+    related = _turn_runs(turn, runs)
+    claude_runs = [run for run in related if run.get("provider") == "claude"]
+    claude_delta = _weekly_delta(claude_runs)
+    return {"turn_id": turn.get("turn_id"), "session_id": turn.get("session_id"),
+            "started_at": turn.get("started_at"), "started_local": _local(turn.get("started_at")),
+            "minutes": max(0.0, (end - start).total_seconds() / 60.0) if start and end else None,
+            "estimate_minutes": estimate_minutes,
+            "list_usd": cost, "estimated_claude_weekly_pct": cost * pct_per_usd if cost is not None else None,
+            "claude_weekly_delta_pct": claude_delta, "lane_runs": _lane_summary(related),
+            **({"subagents": subagents} if subagents else {}),
+            "prompt_preview": _preview(turn.get("prompt_preview"), 40)}
+
+
+def _session_row(session_id, rows, turns, pct_per_usd):
+    by_id = {turn.get("turn_id"): turn for turn in turns if turn.get("turn_id")}
+    starts = [_time(by_id.get(row["turn_id"], {}).get("started_at")) for row in rows]
+    ends = [_time(by_id.get(row["turn_id"], {}).get("ended_at")) for row in rows]
+    starts = [value for value in starts if value is not None]
+    ends = [value for value in ends if value is not None]
+    first = min(starts) if starts else None
+    last = max(ends) if ends else None
+    costs = [row["list_usd"] for row in rows if row["list_usd"] is not None]
+    list_usd = sum(costs) if costs else None
+    return {"session_id": session_id, "started_local": _local(_iso(first) if first else None),
+            "turns": len(rows), "active_minutes": sum(row["minutes"] for row in rows
+                                                     if row["minutes"] is not None),
+            "span_hours": max(0.0, (last - first).total_seconds() / 3600.0) if first and last else None,
+            "list_usd": list_usd,
+            "estimated_claude_weekly_pct": list_usd * pct_per_usd if list_usd is not None else None,
+            "estimates": sum(row["estimate_minutes"] is not None for row in rows)}
+
+
+def _report(state, since, last, session_id, by="turn"):
+    turns = _turns(state)
+    runs = _runs(state)
+    calibration = _calibration(state)
+    estimates = _eta_estimates(state)
+    rows = [_turn_row(turn, runs, calibration["pct_per_usd"], estimates.get(turn.get("turn_id")))
+            for turn in turns
+            if not session_id or turn.get("session_id") == session_id]
+    if since:
+        try:
+            cutoff = dt.date.fromisoformat(since)
+        except ValueError:
+            raise ValueError("--since must be YYYY-MM-DD")
+        rows = [row for row in rows if (_time(row.get("started_at")) and
+                                        _time(row["started_at"]).astimezone().date() >= cutoff)]
+    rows.sort(key=lambda row: _time(row.get("started_at")) or dt.datetime.min.replace(tzinfo=UTC))
+    if last is not None:
+        if last < 0:
+            raise ValueError("--last must be a non-negative integer")
+    now = dt.datetime.now(UTC)
+    time_calibration = _time_calibration(state, now)
+    if by == "session":
+        grouped = {}
+        for row in rows:
+            grouped.setdefault(row.get("session_id"), []).append(row)
+        result_rows = [_session_row(key, group, turns, calibration["pct_per_usd"])
+                       for key, group in grouped.items()]
+        result_rows.sort(key=lambda row: _time(row.get("started_local")) or
+                         dt.datetime.min.replace(tzinfo=UTC))
+        if last is not None:
+            result_rows = result_rows[-last:] if last else []
+        total_costs = [row["list_usd"] for row in result_rows if row["list_usd"] is not None]
+        total_cost = sum(total_costs)
+        total = {"sessions": len(result_rows), "turns": sum(row["turns"] for row in result_rows),
+                 "active_minutes": sum(row["active_minutes"] for row in result_rows),
+                 "list_usd": total_cost,
+                 "estimated_claude_weekly_pct": total_cost * calibration["pct_per_usd"],
+                 "estimates": {"n": time_calibration["n"], "factor": time_calibration["factor"]}}
+        _add_plan_usd(total)
+        return {"sessions": result_rows, "totals": total, "calibration": calibration}
+    if last is not None:
+        rows = rows[-last:] if last else []
+    total_costs = [row["list_usd"] for row in rows if row["list_usd"] is not None]
+    total_minutes = [row["minutes"] for row in rows if row["minutes"] is not None]
+    total_cost = sum(total_costs)
+    total = {"turns": len(rows), "minutes": sum(total_minutes), "list_usd": total_cost,
+             "estimated_claude_weekly_pct": total_cost * calibration["pct_per_usd"],
+             "estimates": {"n": time_calibration["n"], "factor": time_calibration["factor"]}}
+    _add_plan_usd(total)
+    return {"turns": rows, "totals": total, "calibration": calibration}
+
+
+def _add_plan_usd(totals):
+    # The totals' plan dollars, only when the catalog has a price for the plan.
+    price = _plan_price()
+    plan_usd = _plan_usd(totals["estimated_claude_weekly_pct"], price)
+    if plan_usd is not None:
+        totals.update({"estimated_plan_usd": plan_usd, "plan_price": price})
+
+
+def _report_text(value):
+    if "sessions" in value:
+        lines = ["session             start local       turns  active min  span h   list $  est wk%  estimates"]
+        for row in value["sessions"]:
+            cost = "—" if row["list_usd"] is None else "${:.2f}".format(row["list_usd"])
+            estimated = "—" if row["estimated_claude_weekly_pct"] is None else "{:.2f}%".format(row["estimated_claude_weekly_pct"])
+            span = "—" if row["span_hours"] is None else "{:.1f}".format(row["span_hours"])
+            lines.append("{:<19}  {}  {:>5}  {:>10.1f}  {:>6}  {:>7}  {:>7}  {:>9}".format(
+                row["session_id"] or "?", row["started_local"], row["turns"], row["active_minutes"],
+                span, cost, estimated, row["estimates"]))
+    else:
+        lines = ["start local       min    est    list $  est wk%  Claude Δ  lane runs  prompt"]
+        for row in value["turns"]:
+            cost = "—" if row["list_usd"] is None else "${:.2f}".format(row["list_usd"])
+            estimated = "—" if row["estimated_claude_weekly_pct"] is None else "{:.2f}%".format(row["estimated_claude_weekly_pct"])
+            delta = "—" if row["claude_weekly_delta_pct"] is None else "{:+.0f}%".format(row["claude_weekly_delta_pct"])
+            lanes = ", ".join("{} {}".format(provider, data["count"]) for provider, data in row["lane_runs"].items()) or "—"
+            if row.get("subagents"):
+                lanes = ", ".join(([] if lanes == "—" else [lanes]) + ["claude subagents {} runs ${:.2f}".format(
+                    row["subagents"]["count"], row["subagents"]["list_usd"])])
+            minutes = "—" if row["minutes"] is None else "{:.1f}".format(row["minutes"])
+            estimate_minutes = "—" if row["estimate_minutes"] is None else "{:.1f}".format(row["estimate_minutes"])
+            lines.append("{}  {:>5}  {:>5}  {:>7}  {:>7}  {:>8}  {:<10} {}".format(
+                row["started_local"], minutes, estimate_minutes, cost, estimated, delta, lanes, row["prompt_preview"]))
+    totals = value["totals"]
+    cal = value["calibration"]
+    if cal["source"] == "calibrated":
+        source = "calibrated: {} windows, ${:.2f} spend, {:.0f}% rise".format(
+            cal["windows"], cal["spend_usd"] or 0.0, cal["rise_pct"] or 0.0)
+    else:
+        source = "prior"
+    if "sessions" in value:
+        lines.append("Totals: {} sessions | {} turns | {:.1f} active min | ${:.2f} list | ≈{:.2f}% Claude wk | pct_per_usd {:.3f} ({})".format(
+            totals["sessions"], totals["turns"], totals["active_minutes"], totals["list_usd"],
+            totals["estimated_claude_weekly_pct"], cal["pct_per_usd"], source))
+    else:
+        lines.append("Totals: {} turns | {:.1f} min | ${:.2f} list | ≈{:.2f}% Claude wk | pct_per_usd {:.3f} ({})".format(
+            totals["turns"], totals["minutes"], totals["list_usd"],
+            totals["estimated_claude_weekly_pct"], cal["pct_per_usd"], source))
+    estimates = totals["estimates"]
+    if estimates["n"]:
+        lines[-1] += " | estimates: n={}, actual/est ×{:.2f}".format(estimates["n"], estimates["factor"])
+    if totals.get("estimated_plan_usd") is not None:
+        lines[-1] += " | " + _plan_text(totals["estimated_plan_usd"], totals["plan_price"])
+    return "\n".join(lines)
+
+
+def _activity(state, now):
+    """Spans in which this machine recorded Claude spend: turns and Claude lane runs, an open one up to now."""
+    spans = []
+    for record in _turns(state) + [run for run in _runs(state) if run.get("provider") == "claude"]:
+        start = _time(record.get("started_at"))
+        if start:
+            spans.append((start, _time(record.get("ended_at")) or now))
+    return spans
+
+
+def _calibration_windows(usage_dir, now, activity):
+    # The meter is account-wide, so only a rise this machine's recorded spend could have caused counts. 2026-10-22:
+    # the week read 0% on 10-18, then 42% on 10-22 with no turn recorded between, and the cutoff was the first turn
+    # ever (the week before), so all of it was charged to that day's $45: 1.18% per $ against a measured 0.066.
+    # So each week starts at its own first recorded activity, and a rise between two readings counts only when a
+    # recorded turn or Claude lane run overlaps that span.
+    cutoff = now - dt.timedelta(days=28)
+    grouped = {}
+    for row in _load_jsonl(os.path.join(usage_dir, "claude-rate.jsonl")):
+        observed = _time(row.get("observed_at"))
+        weekly = row.get("seven_day") if isinstance(row.get("seven_day"), dict) else {}
+        reset = weekly.get("resets_at")
+        percent = _number(weekly.get("used_percentage"))
+        if observed and observed >= cutoff and reset and percent is not None:
+            grouped.setdefault(str(reset), (_time(reset), []))[1].append((observed, percent))
+    windows = []
+    for reset, (ends, values) in grouped.items():
+        if ends is None:
+            continue
+        starts = [start for start, _ in activity if ends - dt.timedelta(days=7) <= start < ends]
+        values = sorted(value for value in values if starts and value[0] >= min(starts))
+        if len(values) < 2 or values[-1][0] <= values[0][0]:
+            continue
+        rise = 0.0
+        for (left, low), (right, high) in zip(values, values[1:]):
+            if any(start < right and stop > left for start, stop in activity):
+                rise += high - low
+        windows.append({"resets_at": reset, "first_at": values[0][0], "last_at": values[-1][0], "rise_pct": rise})
+    return windows
+
+
+def _calibration_spend(state, windows):
+    turns = _turns(state)
+    runs = _runs(state)
+    for window in windows:
+        spend = 0.0
+        for turn in turns:
+            ended = _time(turn.get("ended_at"))
+            cost = _cost_delta(turn)
+            if ended and window["first_at"] < ended <= window["last_at"] and cost is not None:
+                spend += cost
+        for run in runs:
+            ended = _time(run.get("ended_at"))
+            cost = _run_list_usd(run)
+            if (run.get("provider") == "claude" and ended and
+                    window["first_at"] < ended <= window["last_at"] and cost is not None):
+                spend += cost
+        window["spend_usd"] = spend
+    return windows
+
+
+def _calibrate(state, usage_dir, force=True):
+    path = os.path.join(state, "claude-calibration.json")
+    previous = _read_json(path)
+    if not force and previous:
+        updated = _time(previous.get("updated_at"))
+        if updated and (dt.datetime.now(UTC) - updated).total_seconds() < 600:
+            return
+    now = dt.datetime.now(UTC)
+    windows = _calibration_spend(state, _calibration_windows(usage_dir, now, _activity(state, now)))
+    qualifying = [window for window in windows if window["spend_usd"] >= 5.0]
+    spend = sum(window["spend_usd"] for window in qualifying)
+    rise = sum(window["rise_pct"] for window in qualifying)
+    prior = _catalog_prior()
+    result = {"pct_per_usd": prior, "windows": len(qualifying), "spend_usd": spend,
+              "rise_pct": rise, "updated_at": None, "note": NOTE}
+    if spend >= 5.0 and rise >= 3.0:
+        rate = rise / spend
+        # The prior is the measured Max 20x window; a rate this far from it is an attribution error, not a plan.
+        if not prior or prior / PLAUSIBLE_FACTOR <= rate <= prior * PLAUSIBLE_FACTOR:
+            record = dict(result, pct_per_usd=rate, updated_at=_iso(now))
+            _atomic_json(path, record)
+            return record
+        result["rejected_pct_per_usd"] = rate
+    # A file left from an earlier calibration would keep steering the statusline and lane-stats.
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+    return result
+
+
+def _calibrate_command(state, usage_dir):
+    result = _calibrate(state, usage_dir, force=True)
+    if result and result.get("updated_at"):
+        result = dict(result, source="calibrated", measured=True)
+    else:
+        result = dict(result or {}, source="prior", measured=False)
+    result["time"] = _time_calibration(state, dt.datetime.now(UTC))
+    return result
+
+
+def _eta_argument(value):
+    minutes = _number(value)
+    if minutes is None or minutes < 0:
+        raise argparse.ArgumentTypeError("MINUTES must be a number greater than or equal to 0")
+    return minutes
+
+
+def _eta_command(state, minutes, note, session_id, json_output):
+    opened = _choose_open(state, session_id)
+    if not opened:
+        print("turn-meter: no open turn", file=sys.stderr)
+        return 2
+    now = dt.datetime.now(UTC)
+    start = _time(opened.get("started_at"))
+    elapsed = round(max(0.0, (now - start).total_seconds() / 60.0) if start else 0.0, 2)
+    calibration = _time_calibration(state, now)
+    at = _iso(now)
+    record = {"type": "eta", "turn_id": opened.get("turn_id"),
+              "session_id": opened.get("session_id"), "at": at,
+              "elapsed_minutes": elapsed, "remaining_minutes": minutes,
+              "note": _preview(note, 120)}
+    _append_jsonl(os.path.join(state, "turns.jsonl"), record)
+    path = _session_path(state, opened.get("session_id"))
+    current_open = _read_json(path) or dict(opened)
+    current_open["eta"] = {"at": at, "elapsed_minutes": elapsed,
+                           "remaining_minutes": minutes, "factor": calibration["factor"]}
+    _atomic_json(path, current_open)
+    calibrated = minutes * calibration["factor"]
+    if json_output:
+        print(json.dumps(dict(record, calibrated_minutes=calibrated), ensure_ascii=False,
+                         separators=(",", ":")))
+    elif calibration["source"] == "none":
+        print("eta recorded: ~{} left (no calibration yet: fewer than 3 finished estimates)".format(
+            _approx_duration(minutes)))
+    else:
+        print("eta recorded: ~{} left; past estimates ran ×{:.2f} (n={}) → ~{}".format(
+            _approx_duration(minutes), calibration["factor"], calibration["n"],
+            _approx_duration(calibrated)))
+    return 0
+
+
+IDLE_SECONDS = 300  # a gap longer than this between two events is idle, not active time
+
+
+def _active_intervals(times, start):
+    times = sorted(t for t in times if t >= start)
+    return [(a, b) for a, b in zip(times, times[1:]) if (b - a).total_seconds() <= IDLE_SECONDS]
+
+
+def _active_seconds(times, start):
+    """Sum of gaps of at most IDLE_SECONDS between consecutive event times on or after start."""
+    return sum((b - a).total_seconds() for a, b in _active_intervals(times, start))
+
+
+def _union_seconds(intervals):
+    total, end = 0.0, None
+    for a, b in sorted(intervals):
+        if end is None or a > end:
+            total += (b - a).total_seconds()
+            end = b
+        elif b > end:
+            total += (b - end).total_seconds()
+            end = b
+    return total
+
+
+def _census_start(since, usage_dir, now):
+    """Return (start, note). 'week' is Claude's next weekly reset minus 7 days."""
+    if since and since != "week":
+        start = _time(since)
+        if start is None:
+            raise ValueError("--since must be an ISO date or datetime, or 'week'")
+        return start, None
+    cache = _read_json(os.path.join(usage_dir, "claude-latest.json"))
+    reset = _time(_window_value(cache, "claude", "weekly")[1]) if isinstance(cache, dict) else None
+    if reset is None:
+        return now - dt.timedelta(days=7), "no readable Claude weekly reset; used 7 days ago"
+    while reset <= now:
+        reset += dt.timedelta(days=7)
+    return reset - dt.timedelta(days=7), None
+
+
+def _census_files(root, prefix, start):
+    cutoff = start.timestamp()
+    found = []
+    for folder, _, names in os.walk(root):
+        for name in names:
+            if name.endswith(".jsonl") and name.startswith(prefix):
+                path = os.path.join(folder, name)
+                try:
+                    if os.path.getmtime(path) >= cutoff:
+                        found.append(path)
+                except OSError:
+                    pass
+    return sorted(found)
+
+
+def _census_lines(path):
+    """Yield parsed dict lines one at a time; bad lines are skipped, an unreadable file raises OSError."""
+    with open(path, encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(entry, dict):
+                yield entry
+
+
+def _census_stamp(entry):
+    return _time(entry.get("timestamp")) if isinstance(entry.get("timestamp"), str) else None
+
+
+def _census_add(item, models, seconds):
+    item["sessions"] += 1
+    item["active_seconds"] += seconds
+    for model, count in models.items():
+        item["models"][model] = item["models"].get(model, 0) + count
+
+
+def _census_claude(start, config_dir):
+    root = os.path.join(config_dir, "projects")
+    kinds, folders, spans, skipped = {}, {}, [], 0
+    for path in _census_files(root, "", start):
+        parts = os.path.relpath(path, root).split(os.sep)
+        nested = len(parts) > 2
+        times, entrypoint, models, out = [], None, {}, 0
+        try:
+            for entry in _census_lines(path):
+                moment = _census_stamp(entry)
+                if moment:
+                    times.append(moment)
+                if entrypoint is None and isinstance(entry.get("entrypoint"), str):
+                    entrypoint = entry["entrypoint"]
+                message = entry.get("message") if isinstance(entry.get("message"), dict) else {}
+                if entry.get("type") == "assistant":
+                    if isinstance(message.get("model"), str) and message["model"]:
+                        models[message["model"]] = models.get(message["model"], 0) + 1
+                    usage = message.get("usage") if isinstance(message.get("usage"), dict) else {}
+                    tokens = _number(usage.get("output_tokens"))
+                    out += int(tokens) if tokens else 0
+        except OSError:
+            skipped += 1
+            continue
+        if not any(t >= start for t in times):
+            continue
+        intervals = _active_intervals(times, start)
+        seconds = sum((b - a).total_seconds() for a, b in intervals)
+        kind = "subagent" if nested else (entrypoint or "unknown")
+        item = kinds.setdefault(kind, {"sessions": 0, "active_seconds": 0.0, "output_tokens": 0, "models": {}})
+        _census_add(item, models, seconds)
+        item["output_tokens"] += out
+        if kind == "cli":
+            spans.extend(intervals)
+            folder = folders.setdefault(parts[0], {"sessions": 0, "active_seconds": 0.0})
+            folder["sessions"] += 1
+            folder["active_seconds"] += seconds
+    return kinds, folders, _union_seconds(spans) / 3600.0, skipped
+
+
+def _census_codex(start, codex_home):
+    root = os.path.join(codex_home, "sessions")
+    origins, skipped = {}, 0
+    for path in _census_files(root, "rollout-", start):
+        times, origin, models, turns = [], None, {}, 0
+        try:
+            for entry in _census_lines(path):
+                moment = _census_stamp(entry)
+                if moment:
+                    times.append(moment)
+                payload = entry.get("payload") if isinstance(entry.get("payload"), dict) else {}
+                if entry.get("type") == "session_meta" and isinstance(payload.get("originator"), str):
+                    origin = payload["originator"] or origin
+                if entry.get("type") == "turn_context" and isinstance(payload.get("model"), str) and payload["model"]:
+                    models[payload["model"]] = models.get(payload["model"], 0) + 1
+                    turns += 1
+        except OSError:
+            skipped += 1
+            continue
+        if not any(t >= start for t in times):
+            continue
+        item = origins.setdefault(origin or "unknown", {"sessions": 0, "active_seconds": 0.0, "turns": 0, "models": {}})
+        _census_add(item, models, _active_seconds(times, start))
+        item["turns"] += turns
+    return origins, skipped
+
+
+def _census(since, usage_dir):
+    start, note = _census_start(since, usage_dir, dt.datetime.now(UTC))
+    config = os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude")
+    codex_home = os.path.expanduser(os.environ.get("CODEX_HOME") or "~/.codex")
+    kinds, folders, wall, claude_skipped = _census_claude(start, config)
+    origins, codex_skipped = _census_codex(start, codex_home)
+    value = {"since": _iso(start), "claude": kinds, "codex": origins, "claude_wall_hours": wall,
+             "skipped_files": claude_skipped + codex_skipped}
+    if note:
+        value["since_note"] = note
+    return value, folders
+
+
+def _census_text(value, folders):
+    def top(models):
+        return ", ".join("{} {}".format(m, n) for m, n in sorted(models.items(), key=lambda kv: -kv[1])[:4]) or "-"
+
+    lines = ["since {} (active = event gaps of {} min or less)".format(value["since"], IDLE_SECONDS // 60)]
+    if value.get("since_note"):
+        lines.append("note: " + value["since_note"])
+    lines.append("CLAUDE CODE")
+    for kind, c in sorted(value["claude"].items(), key=lambda kv: -kv[1]["active_seconds"]):
+        lines.append("  {:<10} {:>4} sessions {:>7.1f} h active {:>8.2f}M out tokens  models(msgs): {}".format(
+            kind, c["sessions"], c["active_seconds"] / 3600, c["output_tokens"] / 1e6, top(c["models"])))
+    lines.append("  hours with an interactive (cli) session active: {:.1f} h".format(value["claude_wall_hours"]))
+    lines.append("CODEX")
+    for origin, c in sorted(value["codex"].items(), key=lambda kv: -kv[1]["active_seconds"]):
+        lines.append("  {:<14} {:>4} sessions {:>7.1f} h active  models(turns): {}".format(
+            origin, c["sessions"], c["active_seconds"] / 3600, top(c["models"])))
+    if folders:
+        lines.append("INTERACTIVE CLAUDE BY PROJECT FOLDER")
+        for name, f in sorted(folders.items(), key=lambda kv: -kv[1]["active_seconds"])[:10]:
+            lines.append("  {:<40} {:>4} sessions {:>7.1f} h".format(name[-40:], f["sessions"], f["active_seconds"] / 3600))
+    if value["skipped_files"]:
+        lines.append("skipped unreadable files: {}".format(value["skipped_files"]))
+    return "\n".join(lines)
+
+
+def _reviewed_run_ids(state, runs):
+    outcomes = {"accepted", "fixed", "rework", "rejected"}
+    paths, names = set(), set()
+
+    def add(run_dir, review):
+        if not isinstance(review, dict) or review.get("outcome") not in outcomes:
+            return
+        if isinstance(run_dir, str) and run_dir:
+            paths.add(os.path.normcase(os.path.realpath(run_dir)))
+            names.add(os.path.basename(os.path.normpath(run_dir)))
+
+    for row in _load_jsonl(os.path.join(state, "reviews.jsonl")):
+        add(row.get("run_dir"), row)
+    for run in runs:
+        review = _read_json(os.path.join(run.get("_run_dir", ""), "review.json"))
+        if review:
+            add(run.get("_run_dir"), review)
+    reviewed = set()
+    for run in runs:
+        run_dir = run.get("_run_dir", "")
+        if (os.path.normcase(os.path.realpath(run_dir)) in paths or
+                os.path.basename(os.path.normpath(run_dir)) in names):
+            reviewed.add(run_dir)
+    return reviewed
+
+
+def _resume_context(state, session_id=None):
+    now = dt.datetime.now(UTC)
+    local_now = now.astimezone().strftime("%Y-%m-%d %H:%M")
+    lines = ["Kit state after compaction (turn-meter, {}). Exact facts the summary may have lost:".format(local_now)]
+    runs = _runs(state)
+    reviewed = _reviewed_run_ids(state, runs)
+    in_flight, awaiting = [], []
+    for run in runs:
+        launched = _time(run.get("launched_at")) or _time(run.get("started_at"))
+        if (not run.get("ended_at") and launched is not None and
+                now - dt.timedelta(hours=24) <= launched <= now):
+            eta_seconds = _number(run.get("eta_s"))
+            eta = "~{} min".format(int(math.floor(eta_seconds / 60.0 + 0.5))) if eta_seconds is not None else "unknown"
+            run_id = run.get("run_id") or os.path.basename(run.get("_run_dir", ""))
+            in_flight.append((launched, "- {} {} {} {} {} started {} eta {} dir {}".format(
+                run_id, run.get("lane") or "?", run.get("effort") or "?", run.get("class") or "?",
+                run.get("place") or "local", launched.astimezone().strftime("%H:%M"), eta,
+                run.get("_run_dir", "?"))))
+        ended = _time(run.get("ended_at"))
+        # A verify run is not a unit and is never reviewed; its spend still counts in the cost totals.
+        if (ended is not None and now - dt.timedelta(hours=48) <= ended <= now and
+                run.get("_run_dir") not in reviewed and run.get("verify") is not True):
+            run_id = run.get("run_id") or os.path.basename(run.get("_run_dir", ""))
+            awaiting.append((ended, "- {} {} {} {} ended {} dir {}".format(
+                run_id, run.get("lane") or "?", run.get("effort") or "?", run.get("verdict") or "?",
+                ended.astimezone().strftime("%H:%M"), run.get("_run_dir", "?"))))
+    if in_flight:
+        lines.append("Lanes in flight:")
+        lines.extend(line for _, line in sorted(in_flight, key=lambda item: item[0]))
+    if awaiting:
+        lines.append("Finished, not reviewed (48 h):")
+        lines.extend(line for _, line in sorted(awaiting, key=lambda item: item[0], reverse=True))
+
+    opened = _choose_open(state, session_id)
+    if opened:
+        eta = _latest_eta(state, opened.get("turn_id"))
+        if eta:
+            started = _time(opened.get("started_at"))
+            elapsed = max(0.0, (now - started).total_seconds() / 60.0) if started else 0.0
+            eta_elapsed = _number(eta.get("elapsed_minutes")) or 0.0
+            remaining = _number(eta.get("remaining_minutes")) or 0.0
+            estimate = eta_elapsed + remaining
+            lines.append("This turn: {} min of ~{} min; note: {}".format(
+                int(math.floor(elapsed + 0.5)), int(math.floor(estimate + 0.5)), eta.get("note") or "(no note)"))
+    if len(lines) == 1:
+        lines.append("No lane runs in flight or awaiting review.")
+        return "\n".join(lines)
+    return "\n".join(lines[:49] + ["Check these runs and the task list before acting on the summary."])
+
+
+def _compactions_report(state, since):
+    now = dt.datetime.now(UTC)
+    if since:
+        try:
+            parsed = dt.datetime.strptime(since, "%Y-%m-%d").replace(tzinfo=UTC)
+        except ValueError:
+            raise ValueError("--since must be YYYY-MM-DD")
+    else:
+        parsed = now - dt.timedelta(days=7)
+    gate_rows, compaction_rows = [], []
+    for row in _load_jsonl(_compactions_path(state)):
+        at = _time(row.get("at"))
+        if at is None or at < parsed or at > now:
+            continue
+        if row.get("type") == "gate":
+            gate_rows.append(row)
+        elif row.get("type") == "compaction":
+            compaction_rows.append(row)
+    by_trigger = {}
+    for row in compaction_rows:
+        trigger = row.get("trigger") or "unknown"
+        by_trigger[trigger] = by_trigger.get(trigger, 0) + 1
+    allowed_at_start = sum(row.get("trigger") == "auto" and row.get("decision") == "allow" and
+                           row.get("mid_turn") is False for row in gate_rows)
+    allowed_mid_turn = sum(row.get("trigger") == "auto" and row.get("decision") == "allow" and
+                           row.get("mid_turn") is True for row in gate_rows)
+    blocks = sum(row.get("decision") == "block" for row in gate_rows)
+    estimates = [_number(row.get("estimate")) for row in compaction_rows]
+    summaries = [_number(row.get("summary_chars")) for row in compaction_rows]
+    return {"since": parsed.isoformat().replace("+00:00", "Z"),
+            "compactions": len(compaction_rows), "by_trigger": dict(sorted(by_trigger.items())),
+            "allowed_at_turn_start": allowed_at_start,
+            "allowed_mid_turn_past_ceiling": allowed_mid_turn, "blocks": blocks,
+            "median_estimate_tokens": statistics.median([value for value in estimates if value is not None])
+            if any(value is not None for value in estimates) else None,
+            "median_summary_chars": statistics.median([value for value in summaries if value is not None])
+            if any(value is not None for value in summaries) else None}
+
+
+def _compactions_text(value):
+    triggers = ", ".join("{} {}".format(key, count) for key, count in value["by_trigger"].items()) or "none"
+    estimate = value["median_estimate_tokens"]
+    summary = value["median_summary_chars"]
+    estimate_text = "none" if estimate is None else str(int(math.floor(estimate + 0.5)))
+    summary_text = "none" if summary is None else str(int(math.floor(summary + 0.5)))
+    return "\n".join((
+        "Compactions since {}: {} (by trigger: {})".format(value["since"][:10], value["compactions"], triggers),
+        "Allowed at turn start: {}".format(value["allowed_at_turn_start"]),
+        "Allowed mid-turn past ceiling: {}".format(value["allowed_mid_turn_past_ceiling"]),
+        "Blocks: {}".format(value["blocks"]),
+        "Median estimate before compaction: {} tokens".format(estimate_text),
+        "Median summary size: {} chars".format(summary_text)))
+
+
+def _use_utf8_streams():
+    if os.name == "nt":
+        for stream in (sys.stdout, sys.stderr):
+            if hasattr(stream, "reconfigure"):
+                try:
+                    stream.reconfigure(encoding="utf-8", errors="replace")
+                except Exception:
+                    pass
+
+
+def _main(argv=None):
+    parser = argparse.ArgumentParser(prog="turn-meter")
+    commands = parser.add_subparsers(dest="command", required=True)
+    commands.add_parser("hook")
+    commands.add_parser("compact-gate")
+    commands.add_parser("resume-context")
+    compactions = commands.add_parser("compactions")
+    compactions.add_argument("--since")
+    compactions.add_argument("--json", action="store_true")
+    current = commands.add_parser("current")
+    current.add_argument("--session")
+    current.add_argument("--json", action="store_true")
+    eta = commands.add_parser("eta")
+    eta.add_argument("minutes", type=_eta_argument, metavar="MINUTES")
+    eta.add_argument("--note")
+    eta.add_argument("--session")
+    eta.add_argument("--json", action="store_true")
+    report = commands.add_parser("report")
+    report.add_argument("--since")
+    report.add_argument("--last", type=int)
+    report.add_argument("--session")
+    report.add_argument("--by", choices=("session", "turn"), default="turn")
+    report.add_argument("--json", action="store_true")
+    calibrate = commands.add_parser("calibrate")
+    calibrate.add_argument("--json", action="store_true")
+    census = commands.add_parser("census")
+    census.add_argument("--since", default="week")
+    census.add_argument("--json", action="store_true")
+    notices = commands.add_parser("notices")
+    notices.add_argument("--json", action="store_true")
+    args = parser.parse_args(argv)
+    if args.command == "hook":
+        _hook()
+        return 0
+    if args.command == "compact-gate":
+        _compact_gate()
+        return 0
+    state = _state_dir()
+    usage_dir = _usage_dir()
+    if args.command == "resume-context":
+        try:
+            raw = sys.stdin.read()
+            data = json.loads(raw) if raw.strip() else {}
+            if not isinstance(data, dict):
+                raise ValueError("hook input must be a JSON object")
+            print(_resume_context(state, data.get("session_id")))
+        except BaseException as error:
+            _log_hook_error(state, error)
+        return 0
+    elif args.command == "compactions":
+        value = _compactions_report(state, args.since)
+        if args.json:
+            print(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
+        else:
+            print(_compactions_text(value))
+    elif args.command == "current":
+        value = _current(state, args.session)
+        if args.json:
+            public_turn = dict(value) if value is not None else None
+            if public_turn is not None:
+                public_turn.pop("_history_n", None)
+            print(json.dumps({"turn": public_turn}, ensure_ascii=False, separators=(",", ":")))
+        else:
+            print(_current_text(value))
+    elif args.command == "eta":
+        return _eta_command(state, args.minutes, args.note, args.session, args.json)
+    elif args.command == "report":
+        value = _report(state, args.since, args.last, args.session, args.by)
+        if args.json:
+            print(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
+        else:
+            print(_report_text(value))
+    elif args.command == "census":
+        try:
+            value, folders = _census(args.since, usage_dir)
+        except ValueError as exc:
+            parser.error(str(exc))
+        if args.json:
+            print(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
+        else:
+            print(_census_text(value, folders))
+    elif args.command == "notices":
+        value = _notices_list(state, dt.datetime.now(UTC))
+        if args.json:
+            print(json.dumps({"notices": value}, ensure_ascii=False, separators=(",", ":")))
+        else:
+            print(_notices_text(value))
+    elif args.command == "calibrate":
+        value = _calibrate_command(state, usage_dir)
+        if args.json:
+            print(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
+        else:
+            if value.get("measured"):
+                print("calibrated: {:.6f}% per $1 from {} windows, ${:.2f} spend, {:.1f}% rise".format(
+                    value["pct_per_usd"], value["windows"], value["spend_usd"], value["rise_pct"]))
+            elif value.get("rejected_pct_per_usd") is not None:
+                print("prior: {:.6f}% per $1 (rejected {:.6f}% per $1 from {} windows, ${:.2f} spend, {:.1f}% rise: more "
+                      "than {:g}x from the prior)".format(value["pct_per_usd"], value["rejected_pct_per_usd"],
+                                                          value["windows"], value["spend_usd"], value["rise_pct"],
+                                                          PLAUSIBLE_FACTOR))
+            else:
+                print("prior: {:.6f}% per $1 (no qualifying calibration)".format(value["pct_per_usd"]))
+            time = value["time"]
+            if time["source"] == "calibrated":
+                print("time: Claude's estimates ran ×{:.2f} from {} (median actual/estimate {:.2f}); current applies the factor".format(
+                    time["factor"], time["n"], time["median_ratio"]))
+            else:
+                print("time: fewer than 3 finished estimates")
+    return 0
+
+
+if __name__ == "__main__":
+    _use_utf8_streams()
+    # The hook is intentionally forgiving: malformed input or filesystem errors are logged,
+    # while a Stop hook must never hold up Claude Code.
+    if len(sys.argv) > 1 and sys.argv[1] == "hook":
+        _hook()
+        raise SystemExit(0)
+    try:
+        raise SystemExit(_main())
+    except (ValueError, OSError) as error:
+        print("turn-meter: {}".format(error), file=sys.stderr)
+        raise SystemExit(2)

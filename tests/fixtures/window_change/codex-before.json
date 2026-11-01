@@ -1,0 +1,4 @@
+{"observed_at": "2026-10-30T08:00:00Z", "source": "live", "status": "ok", "reading_at": "2026-10-30T08:00:00Z",
+ "plan_type": "prolite", "reached": null, "ordinary_usage_allowed": true, "reset_credits": 2, "error_code": null,
+ "reading": null,
+ "windows": [{"label": "weekly", "window_minutes": 10080, "used_percent": 6, "resets_at": "2026-11-04T06:42:00Z"}]}

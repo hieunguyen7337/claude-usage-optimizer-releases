@@ -1,0 +1,6 @@
+{
+  "name": "compact-at-rest",
+  "version": "0.1.0",
+  "description": "Compacts the conversation right after Claude finishes an answer when the context is near the compaction window, instead of mid-turn.",
+  "author": { "name": "Claude Usage Optimizer" }
+}

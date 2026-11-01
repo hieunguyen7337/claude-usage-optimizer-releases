@@ -1,0 +1,1564 @@
+#!/usr/bin/env python3
+"""Show current plan headroom from Claude, Codex and Gemini."""
+
+import argparse
+import datetime as dt
+import json
+import math
+import os
+import queue
+import re
+import shutil
+import statistics
+import subprocess
+import sys
+import threading
+import tempfile
+import time
+
+
+UTC = dt.timezone.utc
+CLAUDE_PROBE_ARGV = ("-p", "--model", "claude-haiku-5-5", "--setting-sources", "project,local",
+                     "--strict-mcp-config", "--output-format", "stream-json", "--verbose", "--max-turns", "1",
+                     "Reply with the single word OK.")
+
+
+def number(value):
+    try:
+        result = float(value)
+        return result if math.isfinite(result) else None
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def parse_time(value):
+    if isinstance(value, dt.datetime):
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+    if isinstance(value, (int, float)):
+        value = float(value)
+        if abs(value) > 100000000000:
+            value /= 1000.0
+        try:
+            return dt.datetime.fromtimestamp(value, UTC)
+        except (OverflowError, OSError, ValueError):
+            return None
+    if isinstance(value, str):
+        try:
+            parsed = dt.datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=UTC)
+            return parsed.astimezone(UTC)
+        except (TypeError, ValueError, OverflowError):
+            return None
+    return None
+
+
+def iso_time(value):
+    parsed = parse_time(value)
+    return parsed.isoformat().replace("+00:00", "Z") if parsed else None
+
+
+def age_text(value, now=None):
+    parsed = parse_time(value)
+    if not parsed:
+        return "age unknown"
+    seconds = max(0, int(((now or dt.datetime.now(UTC)) - parsed).total_seconds()))
+    if seconds < 60:
+        return "{}s ago".format(seconds)
+    if seconds < 3600:
+        return "{}m ago".format(seconds // 60)
+    if seconds < 86400:
+        return "{}h {}m ago".format(seconds // 3600, (seconds % 3600) // 60)
+    return "{}d {}h ago".format(seconds // 86400, (seconds % 86400) // 3600)
+
+
+def local_reset(value, weekly=False):
+    parsed = parse_time(value)
+    if not parsed:
+        return None
+    return parsed.astimezone(display_zone()).strftime("%a %H:%M" if weekly else "%H:%M")
+
+
+def display_zone():
+    # USAGE_OPTIMIZER_TZ (an IANA name such as Australia/Brisbane) overrides the machine's own zone,
+    # for a server kept on UTC. Unknown names and Pythons without zoneinfo fall back to local time.
+    name = os.environ.get("USAGE_OPTIMIZER_TZ", "").strip()
+    if not name:
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(name)
+    except Exception:
+        return None
+
+
+def pct_text(value):
+    value = number(value)
+    return "{}%".format(int(round(value))) if value is not None else None
+
+
+def env_path(name, default):
+    return os.path.abspath(os.path.expanduser(os.environ.get(name, default)))
+
+
+def read_json(path):
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def _probe_age_minutes(value, default=15):
+    text = str(value).strip().lower()
+    if text in ("0", "off"):
+        return None
+    try:
+        return max(0.0, float(text))
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _claude_fresh(directory, minutes):
+    reading = read_json(os.path.join(directory, "claude-latest.json"))
+    observed = parse_time(reading.get("observed_at")) if isinstance(reading, dict) else None
+    return observed is not None and dt.datetime.now(UTC) - observed < dt.timedelta(minutes=minutes)
+
+
+def probe_claude(directory, max_age=15, quiet=False):
+    """Refresh Claude's meter without replacing a usable reading on failure."""
+    if max_age is not None and _claude_fresh(directory, max_age):
+        if not quiet:
+            print("Claude probe: fresh reading")
+        return True
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    lock = os.path.join(directory, ".claude-probe.lock")
+    try:
+        if os.path.exists(lock) and time.time() - os.path.getmtime(lock) > 180:
+            os.unlink(lock)
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        os.close(fd)
+    except OSError:
+        if not quiet:
+            print("Claude probe: already running")
+        return False
+    try:
+        argv = [os.environ.get("USAGE_OPTIMIZER_CLAUDE_BIN", "claude")] + list(CLAUDE_PROBE_ARGV)
+        with tempfile.TemporaryDirectory(prefix="usage-status-claude-") as empty:
+            result = subprocess.run(argv, cwd=empty, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                    stderr=subprocess.DEVNULL, text=True, encoding="utf-8", timeout=90,
+                                    check=False)
+        last = None
+        for line in result.stdout.splitlines():
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(event, dict) and event.get("type") == "rate_limit_event":
+                last = event
+        windows = (((last or {}).get("rate_limit_info") or {}).get("unifiedWindows")) or {}
+        reading = {"observed_at": iso_time(dt.datetime.now(UTC)), "source": "probe"}
+        for key in ("five_hour", "seven_day"):
+            window = windows.get(key) or {}
+            utilization, reset = number(window.get("utilization")), iso_time(window.get("resetsAt"))
+            if utilization is None or reset is None:
+                raise ValueError("missing rate window")
+            reading[key] = {"used_percentage": utilization * 100, "resets_at": reset}
+        previous = read_json(os.path.join(directory, "claude-latest.json"))
+        changed = not isinstance(previous, dict) or any(
+            previous.get(key) != reading.get(key) for key in ("five_hour", "seven_day", "scoped"))
+        if not changed:
+            before = parse_time(previous.get("observed_at"))
+            after = parse_time(reading.get("observed_at"))
+            changed = before is None or after is None or (after - before).total_seconds() >= 600
+        fd, temporary = tempfile.mkstemp(prefix=".claude-latest-", suffix=".tmp", dir=directory)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                json.dump(reading, handle, separators=(",", ":"), ensure_ascii=False)
+                handle.write("\n")
+            os.replace(temporary, os.path.join(directory, "claude-latest.json"))
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+        if changed:
+            with open(os.path.join(directory, "claude-rate.jsonl"), "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(reading, separators=(",", ":"), ensure_ascii=False) + "\n")
+        if not quiet:
+            print("Claude probe: reading updated")
+        return True
+    except (OSError, ValueError, subprocess.SubprocessError):
+        if not quiet:
+            print("Claude probe: unavailable")
+        return False
+    finally:
+        try:
+            os.unlink(lock)
+        except OSError:
+            pass
+
+
+def claude_section(directory, now):
+    data = read_json(os.path.join(directory, "claude-latest.json"))
+    if not isinstance(data, dict):
+        return {"reading": None, "age_seconds": None, "stale": False}, (
+            "Claude: no reading yet: statusline not installed, or no session since"
+        )
+    observed = parse_time(data.get("observed_at"))
+    age_seconds = max(0, int((now - observed).total_seconds())) if observed else None
+    stale = age_seconds is not None and age_seconds > 6 * 3600
+    windows = {}
+    for key, label in (("five_hour", "5h"), ("seven_day", "weekly")):
+        item = data.get(key)
+        if not isinstance(item, dict):
+            continue
+        percent = number(item.get("used_percentage"))
+        reset = iso_time(item.get("resets_at"))
+        windows[key] = {"used_percentage": percent, "resets_at": reset}
+    result = {"reading": data, "age_seconds": age_seconds, "stale": stale, "windows": windows}
+    parts = []
+    for key, label, weekly in (("five_hour", "5h", False), ("seven_day", "weekly", True)):
+        item = windows.get(key)
+        if item and item.get("used_percentage") is not None:
+            piece = "{} {}".format(label, pct_text(item["used_percentage"]))
+            reset = local_reset(item.get("resets_at"), weekly)
+            if reset:
+                piece += ", resets " + reset
+            parts.append(piece)
+    if parts:
+        status = "; ".join(parts)
+    else:
+        status = "no rate-limit values"
+    if age_seconds is not None:
+        status += "; read " + age_text(data.get("observed_at"), now)
+    if stale:
+        status += "; stale: any Claude session refreshes it"
+    return result, "Claude: " + status
+
+
+def _date_dir(path):
+    parts = os.path.normpath(path).split(os.sep)
+    for index, part in enumerate(parts):
+        try:
+            if len(part) == 10 and part[4] == "-" and part[7] == "-":
+                return dt.date.fromisoformat(part)
+        except ValueError:
+            pass
+        if index + 2 < len(parts) and len(part) == 4 and parts[index + 1].isdigit() and parts[index + 2].isdigit():
+            try:
+                return dt.date(int(part), int(parts[index + 1]), int(parts[index + 2]))
+            except ValueError:
+                pass
+    return None
+
+
+def recent_rollouts(sessions, today):
+    """Rollout files, newest first, preferring those dated within the last two days."""
+    candidates = []
+    if not os.path.isdir(sessions):
+        return []
+    for root, _, files in os.walk(sessions):
+        for filename in files:
+            if filename.startswith("rollout-") and filename.endswith(".jsonl"):
+                path = os.path.join(root, filename)
+                try:
+                    mtime = os.path.getmtime(path)
+                except OSError:
+                    continue
+                candidates.append((path, mtime, _date_dir(root)))
+    if not candidates:
+        return []
+    cutoff = today - dt.timedelta(days=2)
+    recent = [entry for entry in candidates if entry[2] is not None and cutoff <= entry[2] <= today]
+    return sorted(recent or candidates, key=lambda entry: entry[1], reverse=True)
+
+
+SLOT_FALLBACK_MINUTES = {"primary": 300, "secondary": 10080}
+SLOT_FALLBACK_LABEL = {"primary": "5h", "secondary": "weekly"}
+
+
+def _has_window(limits):
+    return isinstance(limits, dict) and any(
+        isinstance(limits.get(key), dict) and limits[key].get("used_percent") is not None
+        for key in ("primary", "secondary"))
+
+
+def window_minutes_value(item):
+    raw = number(item.get("window_minutes")) if isinstance(item, dict) else None
+    return int(raw) if raw is not None else None
+
+
+def window_label(minutes, slot):
+    if minutes is None:
+        return SLOT_FALLBACK_LABEL.get(slot, slot)
+    if minutes == 300:
+        return "5h"
+    if minutes == 10080:
+        return "weekly"
+    if minutes < 1440:
+        hours = minutes / 60.0
+        return "{}h".format(int(hours) if hours == int(hours) else hours)
+    days = minutes / 1440.0
+    return "{}d".format(int(days) if days == int(days) else days)
+
+
+def codex_label(minutes, slot=None):
+    if minutes == 10080:
+        return "weekly"
+    return window_label(minutes, slot or "")
+
+
+def window_is_weekly(label, minutes, slot):
+    if label == "weekly":
+        return True
+    if minutes is not None:
+        return minutes >= 1440
+    return slot == "secondary"
+
+
+def plan_type_text(limits, payload):
+    for source in (limits, payload):
+        if isinstance(source, dict) and isinstance(source.get("plan_type"), str):
+            value = source["plan_type"].strip()
+            if value:
+                return value
+    return None
+
+
+def _last_window_reading(path):
+    try:
+        with open(path, "rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            end = handle.tell()
+            handle.seek(max(0, end - 512 * 1024))
+            lines = handle.read().splitlines()
+    except OSError:
+        return None
+    for line in reversed(lines):
+        try:
+            row = json.loads(line.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError):
+            continue
+        payload = row.get("payload") if isinstance(row, dict) else None
+        # A run refused at the quota, or one on another bucket ("premium"), logs rate_limits with
+        # no window at all; skip those and keep looking back for the plan's 5h/weekly reading.
+        if (isinstance(row, dict) and row.get("type") == "event_msg" and
+                isinstance(payload, dict) and payload.get("type") == "token_count" and
+                _has_window(payload.get("rate_limits"))):
+            return row, payload, payload.get("rate_limits")
+    return None
+
+
+def codex_rollout_reading(home, now):
+    selected = None
+    for path, mtime, _ in recent_rollouts(os.path.join(home, "sessions"), now.date())[:40]:
+        selected = _last_window_reading(path)
+        if selected:
+            break
+    if not selected:
+        return None
+    row, payload, limits = selected
+    windows = []
+    for key in ("primary", "secondary"):
+        item = limits.get(key) if isinstance(limits, dict) else None
+        if not isinstance(item, dict):
+            continue
+        percent = number(item.get("used_percent"))
+        reset = parse_time(item.get("resets_at"))
+        reset_iso = reset.isoformat().replace("+00:00", "Z") if reset else None
+        if reset and reset <= now:
+            percent = 0.0
+        minutes = window_minutes_value(item)
+        label = codex_label(minutes, key)
+        sort_minutes = minutes if minutes is not None else SLOT_FALLBACK_MINUTES.get(key, 10 ** 9)
+        parsed = {"used_percent": percent, "resets_at": reset_iso, "window_minutes": minutes,
+                  "label": label}
+        windows.append((sort_minutes, key, label, window_is_weekly(label, minutes, key), parsed))
+    windows.sort(key=lambda entry: entry[0])
+    timestamp = parse_time(row.get("timestamp") or row.get("ts") or payload.get("timestamp") or payload.get("ts"))
+    if not timestamp:
+        timestamp = dt.datetime.fromtimestamp(mtime, UTC)
+    plan = plan_type_text(limits, payload)
+    return {"reading_at": timestamp.isoformat().replace("+00:00", "Z"),
+            "plan_type": plan,
+            "windows": [{"label": parsed["label"], "window_minutes": parsed["window_minutes"],
+                         "used_percent": parsed["used_percent"], "resets_at": parsed["resets_at"]}
+                        for _, _, _, _, parsed in windows],
+            "reading": {"timestamp": timestamp.isoformat().replace("+00:00", "Z"), "file": path}}
+
+
+def codex_ttl():
+    try:
+        return max(60, float(os.environ.get("USAGE_OPTIMIZER_CODEX_TTL", "300")))
+    except (TypeError, ValueError, OverflowError):
+        return 300.0
+
+
+def codex_timeout(value=None, default=15):
+    if value is not None:
+        try:
+            return max(0.1, float(value))
+        except (TypeError, ValueError, OverflowError):
+            pass
+    try:
+        return max(0.1, float(os.environ.get("USAGE_OPTIMIZER_CODEX_TIMEOUT", default)))
+    except (TypeError, ValueError, OverflowError):
+        return float(default)
+
+
+def kit_version():
+    policy = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "POLICY.md")
+    try:
+        with open(policy, "r", encoding="utf-8") as handle:
+            for line in handle:
+                match = re.match(r"^Claude Usage Optimizer version:\s*(\S+)", line)
+                if match:
+                    return match.group(1).rstrip(".")
+    except OSError:
+        pass
+    return None
+
+
+def _codex_error_status(error):
+    message = str(error.get("message", "")) if isinstance(error, dict) else ""
+    lowered = message.lower()
+    code = error.get("code") if isinstance(error, dict) else None
+    if re.search(r"api\s*key|apikey", lowered):
+        status = "api_key"
+    elif re.search(r"auth|login|logged|unauthori|401|token", lowered):
+        status = "logged_out"
+    elif code == -32601 or re.search(r"method not found|unknown method|unknown variant", lowered):
+        status = "unsupported"
+    else:
+        status = "error"
+    return {"status": status, "error_code": code}
+
+
+def _codex_windows(snapshot):
+    windows = []
+    for key in ("primary", "secondary"):
+        item = snapshot.get(key) if isinstance(snapshot, dict) else None
+        if not isinstance(item, dict):
+            continue
+        minutes = number(item.get("windowDurationMins"))
+        minutes = int(minutes) if minutes is not None else None
+        percent = number(item.get("usedPercent"))
+        resets = iso_time(item.get("resetsAt"))
+        if minutes is None or percent is None:
+            continue
+        windows.append({"label": codex_label(minutes, key), "window_minutes": minutes,
+                        "used_percent": percent, "resets_at": resets})
+    windows.sort(key=lambda item: item.get("window_minutes", 10 ** 9))
+    return windows
+
+
+def codex_executable():
+    override = os.environ.get("USAGE_OPTIMIZER_CODEX_BIN")
+    if override:
+        return shutil.which(override)
+    lane_bin = os.path.join(os.path.abspath(os.path.expanduser(os.environ.get("LANES_CONFIG", "~/.config/lanes"))), "bin")
+    found = shutil.which("codex", path=lane_bin)
+    if found:
+        return found
+    return shutil.which("codex")
+
+
+def codex_live_read(timeout=None):
+    """Read Codex's account meter through the app-server without invoking a model."""
+    executable = codex_executable()
+    if not executable:
+        return {"status": "no_cli", "error_code": None}
+
+    limit = codex_timeout(timeout)
+    deadline = time.monotonic() + limit
+    creationflags = 0x08000000 if os.name == "nt" else 0
+    options = {"stdin": subprocess.PIPE, "stdout": subprocess.PIPE,
+               "stderr": subprocess.DEVNULL, "bufsize": 1, "close_fds": True,
+               "text": True, "encoding": "utf-8", "errors": "replace"}
+    if os.name == "nt":
+        options["creationflags"] = creationflags
+    else:
+        options["start_new_session"] = True
+    try:
+        process = subprocess.Popen([executable, "app-server"], **options)
+    except Exception:
+        return {"status": "error", "error_code": None}
+
+    lines = queue.Queue()
+
+    def read_stdout():
+        try:
+            for line in iter(process.stdout.readline, ""):
+                lines.put(line)
+        except Exception:
+            pass
+        finally:
+            lines.put(None)
+
+    reader = threading.Thread(target=read_stdout, daemon=True)
+    reader.start()
+    response = None
+    failure = None
+    initialize_received = False
+    try:
+        version = kit_version()
+        initialize = {"id": 1, "method": "initialize", "params": {
+            "clientInfo": {"name": "claude-usage-optimizer", "version": version or ""}}}
+        process.stdin.write(json.dumps(initialize, separators=(",", ":")) + "\n")
+        process.stdin.flush()
+        while time.monotonic() < deadline:
+            try:
+                line = lines.get(timeout=max(0.001, deadline - time.monotonic()))
+            except queue.Empty:
+                break
+            if line is None:
+                failure = {"status": "exited", "error_code": None}
+                break
+            try:
+                message = json.loads(line)
+            except (ValueError, TypeError):
+                continue
+            if isinstance(message, dict) and message.get("id") == 1:
+                if isinstance(message.get("error"), dict):
+                    failure = _codex_error_status(message["error"])
+                    break
+                initialize_received = True
+                break
+        if failure is None and initialize_received and time.monotonic() < deadline:
+            process.stdin.write(json.dumps({"method": "initialized"}, separators=(",", ":")) + "\n")
+            process.stdin.flush()
+            # This read is intentionally limited to the three safe methods. In particular,
+            # never request account/read, reset-credit consumption, or supportsLunaReserve.
+            request = {"id": 2, "method": "account/rateLimits/read", "params": {
+                "excludeResetCreditDetails": True}}
+            process.stdin.write(json.dumps(request, separators=(",", ":")) + "\n")
+            process.stdin.flush()
+            while time.monotonic() < deadline:
+                try:
+                    line = lines.get(timeout=max(0.001, deadline - time.monotonic()))
+                except queue.Empty:
+                    break
+                if line is None:
+                    failure = {"status": "exited", "error_code": None}
+                    break
+                try:
+                    message = json.loads(line)
+                except (ValueError, TypeError):
+                    continue
+                if not isinstance(message, dict) or message.get("id") != 2:
+                    continue
+                if isinstance(message.get("error"), dict):
+                    failure = _codex_error_status(message["error"])
+                else:
+                    response = message.get("result")
+                break
+        if failure:
+            return failure
+        if not initialize_received:
+            return {"status": "timeout", "error_code": None}
+        if response is None:
+            return {"status": "timeout", "error_code": None}
+        snapshot_map = response.get("rateLimitsByLimitId") if isinstance(response, dict) else None
+        snapshot = snapshot_map.get("codex") if isinstance(snapshot_map, dict) else None
+        if not isinstance(snapshot, dict):
+            snapshot = response.get("rateLimits") if isinstance(response, dict) else None
+        if not isinstance(snapshot, dict):
+            return {"status": "error", "error_code": None}
+        credits = response.get("rateLimitResetCredits") if isinstance(response, dict) else None
+        available = credits.get("availableCount") if isinstance(credits, dict) else None
+        try:
+            available = int(available) if available is not None else None
+        except (TypeError, ValueError, OverflowError):
+            available = None
+        return {"status": "ok", "error_code": None,
+                "plan_type": snapshot.get("planType"),
+                "windows": _codex_windows(snapshot),
+                "reached": snapshot.get("rateLimitReachedType"),
+                "ordinary_usage_allowed": response.get("ordinaryUsageAllowed"),
+                "reset_credits": available}
+    except BrokenPipeError:
+        return {"status": "exited", "error_code": None}
+    except Exception:
+        return {"status": "error", "error_code": None}
+    finally:
+        try:
+            if process.stdin:
+                process.stdin.close()
+        except Exception:
+            pass
+        try:
+            process.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            try:
+                process.kill()
+            except OSError:
+                pass
+            try:
+                process.wait(timeout=3)
+            except Exception:
+                pass
+        except Exception:
+            pass
+        try:
+            if process.stdout:
+                process.stdout.close()
+        except Exception:
+            pass
+
+
+def _empty_codex_cache(status="live_off"):
+    return {"observed_at": dt.datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "source": "none", "status": status, "reading_at": None,
+            "plan_type": None, "windows": [], "reached": None,
+            "ordinary_usage_allowed": None, "reset_credits": None,
+            "error_code": None, "kit_version": kit_version(), "reading": None}
+
+
+def _write_codex_cache(directory, cache):
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    try:
+        os.chmod(directory, 0o700)
+    except OSError:
+        pass
+    path = os.path.join(directory, "codex-latest.json")
+    fd, temporary = tempfile.mkstemp(prefix=".codex-latest-", suffix=".tmp", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(cache, handle, separators=(",", ":"), ensure_ascii=False)
+            handle.write("\n")
+        os.replace(temporary, path)
+    finally:
+        try:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+        except OSError:
+            pass
+
+
+def codex_refresh(home=None, directory=None, timeout=None, live_enabled=None):
+    directory = directory or env_path("CLAUDE_USAGE_DIR", "~/.claude/usage")
+    home = home or env_path("CODEX_HOME", "~/.codex")
+    cache_path = os.path.join(directory, "codex-latest.json")
+    lock_path = os.path.join(directory, "codex-refresh.lock")
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    try:
+        os.chmod(directory, 0o700)
+    except OSError:
+        pass
+    owns_lock = False
+    try:
+        try:
+            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            os.close(fd)
+            owns_lock = True
+        except FileExistsError:
+            try:
+                age = time.time() - os.path.getmtime(lock_path)
+            except OSError:
+                age = 0
+            if age < 60:
+                current = read_json(cache_path)
+                return current if isinstance(current, dict) else _empty_codex_cache("error")
+            try:
+                os.unlink(lock_path)
+            except OSError:
+                current = read_json(cache_path)
+                return current if isinstance(current, dict) else _empty_codex_cache("error")
+            try:
+                fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+                os.close(fd)
+                owns_lock = True
+            except OSError:
+                current = read_json(cache_path)
+                return current if isinstance(current, dict) else _empty_codex_cache("error")
+
+        live_enabled = (os.environ.get("USAGE_OPTIMIZER_CODEX_LIVE", "1") != "0"
+                        if live_enabled is None else live_enabled)
+        live = codex_live_read(timeout) if live_enabled else {"status": "live_off", "error_code": None}
+        observed = dt.datetime.now(UTC).isoformat().replace("+00:00", "Z")
+        cache = {"observed_at": observed, "source": "none", "status": live.get("status", "error"),
+                 "reading_at": None, "plan_type": None, "windows": [], "reached": live.get("reached"),
+                 "ordinary_usage_allowed": live.get("ordinary_usage_allowed"),
+                 "reset_credits": live.get("reset_credits"), "error_code": live.get("error_code"),
+                 "kit_version": kit_version(), "reading": None}
+        if live.get("status") == "ok":
+            cache.update({"source": "live", "reading_at": observed,
+                          "plan_type": live.get("plan_type"), "windows": live.get("windows", [])})
+        else:
+            rollout = codex_rollout_reading(home, dt.datetime.now(UTC))
+            if rollout:
+                cache.update({"source": "rollout", "reading_at": rollout.get("reading_at"),
+                              "plan_type": rollout.get("plan_type"), "windows": rollout.get("windows", []),
+                              "reading": rollout.get("reading")})
+        _write_codex_cache(directory, cache)
+        return cache
+    finally:
+        if owns_lock:
+            try:
+                os.unlink(lock_path)
+            except OSError:
+                pass
+
+
+def _codex_legacy(cache, now):
+    windows = cache.get("windows", []) if isinstance(cache, dict) else []
+    def legacy_window(item):
+        if not isinstance(item, dict):
+            return None
+        value = dict(item)
+        reset = parse_time(value.get("resets_at"))
+        if reset and reset <= now:
+            value["used_percent"] = 0.0
+        return value
+
+    five = legacy_window(next((item for item in windows if isinstance(item, dict) and
+                               item.get("label") == "5h"), None))
+    weekly = legacy_window(next((item for item in windows if isinstance(item, dict) and
+                                 item.get("label") == "weekly"), None))
+    age = None
+    reading_at = parse_time(cache.get("reading_at")) if isinstance(cache, dict) else None
+    if reading_at:
+        age = max(0, int((now - reading_at).total_seconds()))
+    reading = cache.get("reading") if isinstance(cache, dict) else None
+    return {"reading": reading, "five_hour": five, "seven_day": weekly,
+            "age_seconds": age, "plan_type": cache.get("plan_type"),
+            "source": cache.get("source"), "status": cache.get("status"),
+            "windows": windows, "reached": cache.get("reached"),
+            "ordinary_usage_allowed": cache.get("ordinary_usage_allowed"),
+            "reset_credits": cache.get("reset_credits")}
+
+
+def codex_section(home, now, directory, no_live=False):
+    path = os.path.join(directory, "codex-latest.json")
+    cache = read_json(path)
+    live_off = no_live or os.environ.get("USAGE_OPTIMIZER_CODEX_LIVE", "1") == "0"
+    observed = parse_time(cache.get("observed_at")) if isinstance(cache, dict) else None
+    age = (now - observed).total_seconds() if observed else None
+    if live_off or not isinstance(cache, dict) or age is None or age >= codex_ttl():
+        cache = codex_refresh(home, directory, live_enabled=not live_off)
+    if not isinstance(cache, dict):
+        cache = _empty_codex_cache("error")
+    result = _codex_legacy(cache, now)
+    windows = cache.get("windows") if isinstance(cache.get("windows"), list) else []
+    pieces = []
+    for item in windows:
+        if not isinstance(item, dict) or item.get("used_percent") is None:
+            continue
+        label = item.get("label") or codex_label(item.get("window_minutes"))
+        percent = number(item.get("used_percent"))
+        reset_at = parse_time(item.get("resets_at"))
+        if reset_at and reset_at <= now:
+            percent = 0.0
+        piece = "{} {}".format(label, pct_text(percent) or "unknown")
+        reset = local_reset(item.get("resets_at"), label == "weekly")
+        if reset:
+            piece += ", resets " + reset
+        pieces.append(piece)
+    status = cache.get("status") or "error"
+    source = cache.get("source") or "none"
+    if not pieces:
+        if status == "logged_out":
+            text = "not logged in (run codex login)"
+        elif status == "api_key":
+            text = "API-key login, no plan meter"
+        elif status == "no_cli":
+            text = "codex CLI not found on PATH"
+        else:
+            text = "rate limits unavailable"
+    else:
+        text = "; ".join(pieces)
+        if source == "rollout" and status in ("logged_out", "api_key", "no_cli"):
+            lead = {"logged_out": "not logged in (run codex login)",
+                    "api_key": "API-key login, no plan meter",
+                    "no_cli": "codex CLI not found on PATH"}[status]
+            text = lead + "; " + text
+    out = cache.get("reached") is not None or cache.get("ordinary_usage_allowed") is False
+    if out:
+        reason = cache.get("reached") or "ordinary usage not allowed"
+        text = "OUT ({}) {}; ".format(reason, text).rstrip("; ")
+    reading_at = cache.get("reading_at")
+    if source == "live":
+        text += "; live, read {}".format(age_text(reading_at, now))
+    elif source == "rollout":
+        text += "; from the newest rollout, read {}".format(age_text(reading_at, now))
+        if status not in ("live_off", "ok"):
+            text += "; live read failed ({})".format(status)
+        text += " (shared with other devices on this ChatGPT account)"
+    elif status == "timeout":
+        text += "; live read failed (timeout)"
+    elif source != "rollout" and status not in ("ok", "live_off", "logged_out", "api_key", "no_cli"):
+        text += "; live read failed ({})".format(status)
+    details = []
+    if cache.get("plan_type"):
+        details.append("plan {}".format(cache["plan_type"]))
+    credits = cache.get("reset_credits")
+    if credits is not None and status == "ok" and credits > 0:
+        details.append("{} reset credit{} available".format(credits, "s" if credits != 1 else ""))
+    if details:
+        text += " ({})".format("; ".join(details))
+    return result, "Codex/luna: " + text
+
+
+def agy_section():
+    executable = shutil.which("agy")
+    if not executable:
+        return None, None
+    result = {"buckets": [], "warning": False, "error": None}
+    try:
+        completed = subprocess.run(
+            [executable, "--output-format", "json", "--print=/usage"],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True,
+            encoding="utf-8", errors="replace", timeout=30, check=False)
+        data = json.loads(completed.stdout)
+        command = data.get("command", {}) if isinstance(data, dict) else {}
+        command_data = command.get("data", {}) if isinstance(command, dict) else {}
+        groups = command_data.get("groups", []) if isinstance(command_data, dict) else []
+        buckets = []
+        for group in groups if isinstance(groups, list) else []:
+            for bucket in group.get("buckets", []) if isinstance(group, dict) else []:
+                if not isinstance(bucket, dict):
+                    continue
+                remaining = number(bucket.get("remaining_fraction"))
+                used = (1.0 - remaining) * 100.0 if remaining is not None else None
+                buckets.append({"id": bucket.get("id"), "window": bucket.get("window"),
+                                "used_percentage": used, "reset_time": iso_time(bucket.get("reset_time"))})
+        usage = data.get("usage") if isinstance(data, dict) else None
+        if not isinstance(usage, dict) and isinstance(command_data, dict):
+            usage = command_data.get("usage")
+        if not isinstance(usage, dict) and isinstance(command, dict):
+            usage = command.get("usage")
+        warning = isinstance(usage, dict) and any(number(usage.get(key)) not in (None, 0.0)
+                                                   for key in ("total_tokens", "num_turns"))
+        result.update({"buckets": buckets, "warning": warning,
+                       "exit_code": completed.returncode})
+        parts = []
+        for bucket in buckets:
+            label = bucket.get("id") or bucket.get("window") or "bucket"
+            if bucket.get("window") and bucket["window"] not in label:
+                label = "{} {}".format(label, bucket["window"])
+            piece = "{} {}".format(label, pct_text(bucket.get("used_percentage")) or "unknown")
+            reset = local_reset(bucket.get("reset_time"), True)
+            if reset:
+                piece += ", resets " + reset
+            parts.append(piece)
+        line = "Gemini/agy: " + ("; ".join(parts) if parts else "usage data unavailable")
+        if warning:
+            line += "; WARNING: /usage was billed"
+        if completed.returncode != 0 and not warning:
+            line += "; command exited {}".format(completed.returncode)
+        return result, line
+    except subprocess.TimeoutExpired:
+        result["error"] = "timeout"
+        return result, "Gemini/agy: /usage timed out"
+    except Exception as error:
+        result["error"] = str(error)
+        return result, "Gemini/agy: usage data unavailable"
+
+
+# Local memory capacity: how many more workers of each provider fit in RAM. The catalog's explore.memory block
+# holds the priors; a lane's measured peak_mem_mb (bin/lane) replaces its prior once it has min_runs of them.
+MEMORY_DEFAULTS = {
+    "lane_mb": {"luna": 400, "terra": 400, "sol": 400, "astra": 400, "haiku": 700, "sonnet": 700, "opus": 700,
+                "gemini": 500, "glm": 500},
+    "default_mb": 700, "reserve_mb": 1536, "reserve_fraction": 0.1, "recent_runs": 20, "min_runs": 3,
+    "young_run_seconds": 120,
+}
+PROVIDER_LANES = {"codex": ("luna", "terra", "sol", "astra"), "claude": ("haiku", "sonnet", "opus"),
+                  "gemini": ("gemini",)}
+MEGABYTE = 1024 * 1024
+YOUNG_SCAN_SECONDS = 600
+
+
+def arms_catalog_path():
+    override = os.environ.get("LANES_ARMS")
+    if override:
+        return os.path.abspath(os.path.expanduser(override))
+    return os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir, "arms.json"))
+
+
+def json_number(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        return None
+    return value
+
+
+def valid_memory_setting(key, value):
+    if key == "lane_mb":
+        return isinstance(value, dict) and all(valid_memory_setting("default_mb", item) for item in value.values())
+    if key in ("recent_runs", "min_runs"):
+        return type(value) is int and value >= 1
+    if json_number(value) is None or value < 0:
+        return False
+    if key == "reserve_fraction":
+        return value <= 1
+    if key == "default_mb":
+        return value > 0
+    return True
+
+
+def memory_config():
+    # A missing catalog, or an invalid key in it, takes the built-in default for that key only.
+    catalog = read_json(arms_catalog_path())
+    explore = catalog.get("explore") if isinstance(catalog, dict) else None
+    block = explore.get("memory") if isinstance(explore, dict) else None
+    config = dict(MEMORY_DEFAULTS)
+    for key in MEMORY_DEFAULTS:
+        value = block.get(key) if isinstance(block, dict) else None
+        if valid_memory_setting(key, value):
+            config[key] = value
+    return config
+
+
+def memory_env(name, minimum):
+    try:
+        value = int(os.environ.get(name, ""))
+    except ValueError:
+        return None
+    return value if value >= minimum else None
+
+
+def windows_memory():
+    import ctypes
+
+    class MemoryStatus(ctypes.Structure):
+        _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                    ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+
+    status = MemoryStatus()
+    status.dwLength = ctypes.sizeof(MemoryStatus)
+    if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status)):
+        return None
+    return {"available_mb": status.ullAvailPhys // MEGABYTE, "total_mb": status.ullTotalPhys // MEGABYTE,
+            "source": "windows"}
+
+
+def cgroup_memory_limits():
+    """Smallest (headroom, cap) in MB over this process's cgroup v2 path up to the root; None without a limit."""
+    proc_path = os.environ.get("LANES_PROC_CGROUP", "/proc/self/cgroup")
+    cgroup_root = os.path.realpath(os.environ.get("LANES_CGROUP_ROOT", "/sys/fs/cgroup"))
+    with open(proc_path, "r", encoding="utf-8") as stream:
+        cgroup_path = next((line.rstrip("\n").split(":", 2)[2] for line in stream
+                            if line.startswith("0::")), None)
+    if cgroup_path is None:
+        return None
+    # cgroup paths always use '/', whatever os.sep is.
+    directory = os.path.realpath(os.path.join(cgroup_root, cgroup_path.lstrip("/")))
+    if directory != cgroup_root and not directory.startswith(cgroup_root + os.sep):
+        return None
+    headrooms, caps = [], []
+    while True:
+        # A level with no memory.max (the root has none) sets no limit.
+        limit_path = os.path.join(directory, "memory.max")
+        if os.path.isfile(limit_path):
+            with open(limit_path, "r", encoding="ascii") as stream:
+                maximum = stream.read().strip()
+            if maximum != "max":
+                limit = int(maximum)
+                with open(os.path.join(directory, "memory.current"), "r", encoding="ascii") as stream:
+                    current = int(stream.read().strip())
+                if limit < 0 or current < 0:
+                    return None
+                headrooms.append((limit - current) // MEGABYTE)
+                caps.append(limit // MEGABYTE)
+        if directory == cgroup_root:
+            break
+        parent = os.path.dirname(directory)
+        if parent == directory or not parent.startswith(cgroup_root):
+            return None
+        directory = parent
+    return (min(headrooms), min(caps)) if caps else None
+
+
+def linux_memory():
+    values = {}
+    with open(os.environ.get("LANES_MEMINFO", "/proc/meminfo"), "r", encoding="utf-8") as stream:
+        for line in stream:
+            match = re.match(r"(MemAvailable|MemTotal):\s+(\d+)\s+kB", line)
+            if match:
+                values[match.group(1)] = int(match.group(2)) // 1024
+    if "MemAvailable" not in values or "MemTotal" not in values:
+        return None
+    available, total, source = values["MemAvailable"], values["MemTotal"], "meminfo"
+    limits = cgroup_memory_limits()
+    if limits is not None:
+        headroom, cap = limits
+        if headroom < available:
+            available, source = headroom, "cgroup"
+        total = min(total, cap)
+    return {"available_mb": max(0, available), "total_mb": total, "source": source}
+
+
+def memory_snapshot():
+    """Available and total RAM in MB; None on another OS or after an error. LANES_MEM_FAKE="avail:total" overrides."""
+    fake = os.environ.get("LANES_MEM_FAKE")
+    try:
+        if fake:
+            available, total = (int(part) for part in fake.split(":", 1))
+            return {"available_mb": available, "total_mb": total, "source": "fake"}
+        if os.name == "nt":
+            return windows_memory()
+        if sys.platform.startswith("linux"):
+            return linux_memory()
+    except (OSError, ValueError, TypeError, AttributeError, UnicodeError):
+        return None
+    return None
+
+
+def memory_records(state):
+    """This machine's ledger rows, oldest first; lines that are not JSON objects are skipped."""
+    rows = []
+    try:
+        with open(os.path.join(state, "ledger.jsonl"), "r", encoding="utf-8") as stream:
+            for line in stream:
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(row, dict):
+                    rows.append(row)
+    except (OSError, UnicodeError):
+        pass
+    return rows
+
+
+def memory_need(lane, records, config):
+    """(need_mb, basis, n): the median peak of the lane's last recent_runs measured runs, else its prior."""
+    override = memory_env("LANES_MEM_NEED_MB", 1)
+    if override is not None:
+        return override, "env", 0
+    peaks = [float(row["peak_mem_mb"]) for row in records
+             if row.get("lane") == lane and (json_number(row.get("peak_mem_mb")) or 0) > 0]
+    recent = peaks[-config["recent_runs"]:]
+    if len(recent) >= config["min_runs"]:
+        return int(round(statistics.median(recent))), "measured", len(recent)
+    if lane in config["lane_mb"]:
+        return config["lane_mb"][lane], "prior", len(recent)
+    return config["default_mb"], "default", len(recent)
+
+
+def run_stamp(name):
+    try:
+        return dt.datetime.strptime(name[:15], "%Y%m%d-%H%M%S").replace(tzinfo=UTC)
+    except ValueError:
+        return None
+
+
+def young_memory(state, now, config, records, exclude=None):
+    """Need of the runs that started within young_run_seconds and have not ended: they have not grown yet."""
+    skip = os.path.normcase(os.path.abspath(exclude)) if exclude else None
+    try:
+        entries = list(os.scandir(os.path.join(state, "runs")))
+    except OSError:
+        return 0
+    total = 0
+    for entry in entries:
+        # Only run dirs stamped in the last ten minutes are read, so the scan stays cheap.
+        stamp = run_stamp(entry.name)
+        if stamp is None or not 0 <= (now - stamp).total_seconds() <= YOUNG_SCAN_SECONDS:
+            continue
+        if skip == os.path.normcase(os.path.abspath(entry.path)) or not entry.is_dir():
+            continue
+        meta = read_json(os.path.join(entry.path, "meta.json"))
+        if not isinstance(meta, dict) or meta.get("ended_at"):
+            continue
+        # Count from the worker's launch, as bin/lane does: a run still waiting for memory holds none. Runs from a
+        # lane before launched_at count from started_at.
+        launched = parse_time(meta["launched_at"] if "launched_at" in meta else meta.get("started_at"))
+        if launched is None or not 0 <= (now - launched).total_seconds() <= config["young_run_seconds"]:
+            continue
+        lane = meta.get("lane") if isinstance(meta.get("lane"), str) else ""
+        total += memory_need(lane, records, config)[0]
+    return total
+
+
+def memory_reserve(total_mb, config):
+    override = memory_env("LANES_MEM_RESERVE_MB", 0)
+    if override is not None:
+        return override
+    return max(config["reserve_mb"], round(config["reserve_fraction"] * total_mb))
+
+
+def local_capacity(now):
+    snapshot = memory_snapshot()
+    if snapshot is None:
+        return None
+    config = memory_config()
+    state = env_path("LANES_STATE", "~/.local/state/lanes")
+    records = memory_records(state)
+    available, total = snapshot["available_mb"], snapshot["total_mb"]
+    reserve = memory_reserve(total, config)
+    young = young_memory(state, now, config, records)
+    entries = {}
+
+    def lane_entry(lane):
+        if lane not in entries:
+            need, basis, n = memory_need(lane, records, config)
+            fits = max(0, math.floor((available - reserve - young) / need))
+            entries[lane] = {"need_mb": need, "basis": basis, "n": n, "fits": fits}
+        return entries[lane]
+
+    ledger_lanes = [row["lane"] for row in records if isinstance(row.get("lane"), str)]
+    lanes = {lane: lane_entry(lane) for lane in dict.fromkeys(list(config["lane_mb"]) + ledger_lanes)}
+    fits = {provider: min(lane_entry(lane)["fits"] for lane in members)
+            for provider, members in PROVIDER_LANES.items()}
+    return {"available_mb": available, "total_mb": total, "reserve_mb": reserve, "young_mb": young,
+            "source": snapshot["source"], "lanes": lanes, "fits": fits}
+
+
+def gb_text(mb):
+    return "{:.1f}".format(mb / 1024.0)
+
+
+def local_line(local):
+    if local is None:
+        return "Local: RAM unknown on this OS"
+    ram = "RAM {} of {} GB available, reserve {} GB".format(
+        gb_text(local["available_mb"]), gb_text(local["total_mb"]), gb_text(local["reserve_mb"]))
+    if local["young_mb"] > 0:
+        ram += ", starting runs {} GB".format(gb_text(local["young_mb"]))
+    fits = local["fits"]
+    fit_text = "fits Codex ~{}, Claude ~{}, gemini ~{}".format(fits["codex"], fits["claude"], fits["gemini"])
+    lanes = local["lanes"]
+    measured = [(lane, entry["n"]) for lane, entry in lanes.items() if entry["basis"] == "measured"]
+    if any(entry["basis"] == "env" for entry in lanes.values()):
+        needs = "needs from LANES_MEM_NEED_MB"
+    elif measured:
+        needs = "needs measured for " + ", ".join("{} (n={})".format(lane, n) for lane, n in measured)
+        if len(measured) < len(lanes):
+            needs += ", prior for the rest"
+    else:
+        needs = "needs from priors"
+    return "Local: " + " | ".join([ram, fit_text, needs])
+
+
+# Plan-window watch. Each weekly reading is compared with the last one stored for its provider and window, in
+# <LANES_STATE>/window-readings.json. A fall with the same reset means the window grew (a plan change). A rise is
+# not checked: interactive sessions, other machines and other readers of the meter raise it too. A smaller window
+# shows up instead as a higher measured cost per lane run. Each event is appended to window-changes.jsonl, and a
+# kit notice tells each Claude session (bin/turn-meter reads it).
+WINDOW_FELL_POINTS = 1.5  # a smaller fall is rounding
+WINDOW_RESET_SLACK_S = 120  # resets_at within two minutes is the same window
+WINDOW_SHOW_DAYS = 7  # events shown, and notices kept, this long
+CLAUDE_FALL_CHECK_MINUTES = 30
+WINDOW_FUTURE_SLACK = dt.timedelta(minutes=5)  # a reading stamped later than this is a broken clock: skipped
+PROVIDER_NAMES = {"claude": "Claude", "codex": "Codex", "gemini": "Gemini"}
+
+
+def lanes_state():
+    return env_path("LANES_STATE", "~/.local/state/lanes")
+
+
+def utc_text(moment):
+    return moment.astimezone(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def private_dir(path):
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    try:
+        os.chmod(path, 0o700)
+    except OSError:
+        pass
+
+
+def write_json_atomic(path, value):
+    directory = os.path.dirname(path)
+    fd, temporary = tempfile.mkstemp(prefix="." + os.path.basename(path) + "-", suffix=".tmp", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(value, handle, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
+            handle.write("\n")
+        os.replace(temporary, path)
+    finally:
+        try:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+        except OSError:
+            pass
+
+
+def weekly_readings(claude_data, codex_cache, agy, now):
+    """Weekly readings as {provider, window, pct, resets_at, at, ...}. A reading from a window that already
+    reset is left out: the rollout path reports such a window as 0%."""
+    readings = []
+
+    def add(provider, window, pct, resets_at, at, **extra):
+        # number() gives None for NaN and infinite values; a reading stamped in the future has a broken clock.
+        pct, reset, at = number(pct), parse_time(resets_at), parse_time(at)
+        if (pct is None or not math.isfinite(pct) or reset is None or at is None or reset <= now or reset <= at or
+                at > now + WINDOW_FUTURE_SLACK):
+            return
+        reading = {"provider": provider, "window": window, "pct": pct, "resets_at": utc_text(reset),
+                   "at": utc_text(min(at, now))}
+        reading.update((key, value) for key, value in extra.items() if value is not None)
+        readings.append(reading)
+
+    if isinstance(claude_data, dict) and isinstance(claude_data.get("seven_day"), dict):
+        item = claude_data["seven_day"]
+        add("claude", "weekly", item.get("used_percentage"), item.get("resets_at"), claude_data.get("observed_at"))
+    if isinstance(codex_cache, dict):
+        plan = codex_cache.get("plan_type") if isinstance(codex_cache.get("plan_type"), str) else None
+        credits = codex_cache.get("reset_credits")
+        credits = credits if type(credits) is int and codex_cache.get("status") == "ok" else None
+        for item in codex_cache.get("windows") or [] if isinstance(codex_cache.get("windows"), list) else []:
+            if isinstance(item, dict) and item.get("label") == "weekly":
+                add("codex", "weekly", item.get("used_percent"), item.get("resets_at"),
+                    codex_cache.get("reading_at"), plan=plan, reset_credits=credits)
+    if isinstance(agy, dict) and not agy.get("error") and agy.get("exit_code", 0) == 0:
+        for item in agy.get("buckets") or []:
+            if not isinstance(item, dict) or item.get("window") != "weekly":
+                continue
+            label = item.get("id") if isinstance(item.get("id"), str) and item.get("id") else "weekly"
+            # The Gemini models' own pool is the plain weekly window, as bin/lane labels it.
+            label = "weekly" if label == "gemini-weekly" else label if "weekly" in label else label + " weekly"
+            add("gemini", label, item.get("used_percentage"), item.get("reset_time"), now)
+    return readings
+
+
+def same_window(first, second):
+    first, second = parse_time(first), parse_time(second)
+    return (first is not None and second is not None and
+            abs((first - second).total_seconds()) <= WINDOW_RESET_SLACK_S)
+
+
+def window_point(source):
+    point = {"pct": source["pct"], "resets_at": source["resets_at"], "at": source["at"]}
+    if isinstance(source.get("plan"), str):
+        point["plan"] = source["plan"]
+    return point
+
+
+def compare_reading(previous, reading):
+    """(entry to store, event or None) for a new reading against the stored entry for its provider and window.
+
+    The entry is the last reading; only a fall makes an event.
+    """
+    point = window_point(reading)
+    entry = dict(point)
+    if type(reading.get("reset_credits")) is int:
+        entry["reset_credits"] = reading["reset_credits"]
+    if not isinstance(previous, dict) or number(previous.get("pct")) is None or parse_time(previous.get("at")) is None:
+        return entry, None
+    if parse_time(reading["at"]) <= parse_time(previous["at"]):
+        return previous, None  # the same reading again, or an older one
+    if not same_window(previous.get("resets_at"), reading["resets_at"]):
+        return entry, None  # a reset: a new window, not an event
+    before = window_point(dict(previous, pct=number(previous["pct"])))
+    if before["pct"] - reading["pct"] >= WINDOW_FELL_POINTS:
+        old_credits, new_credits = previous.get("reset_credits"), reading.get("reset_credits")
+        if type(old_credits) is int and type(new_credits) is int and new_credits < old_credits:
+            return entry, None  # the user applied a reset credit
+        event = {"kind": "fell", "before": before, "after": point}
+        if reading["pct"] > 0:
+            event["implied_scale"] = round(before["pct"] / reading["pct"], 3)
+        return entry, event
+    return entry, None
+
+
+def points_text(value):
+    return "{:.1f}".format(value).rstrip("0").rstrip(".") + "%"
+
+
+def change_text(event):
+    """The one-line warning for a fell event, as usage-status and bin/lane print it after 'warning: '."""
+    provider = event.get("provider")
+    name = "{} {}".format(PROVIDER_NAMES.get(provider, provider), event.get("window"))
+    before, after = event.get("before") or {}, event.get("after") or {}
+    seen = (iso_time(event.get("at")) or "")[:10]
+    text = "plan window change: {} fell from {} to {} with the same reset ({}), seen {}".format(
+        name, points_text(before.get("pct", 0)), points_text(after.get("pct", 0)), after.get("resets_at"), seen)
+    if event.get("implied_scale"):
+        text += ": the window looks {:.1f}x larger; arms.json needs a dated providers.{}.window_epochs entry".format(
+            event["implied_scale"], provider)
+    else:
+        text += ": an early reset or a larger window"
+    return text
+
+
+def notice_text(event):
+    provider = event["provider"]
+    name = PROVIDER_NAMES.get(provider, provider)
+    before, after = event["before"], event["after"]
+    evidence = "the {} {} meter went from {} (read {}) to {} (read {}), and its reset stayed at {}".format(
+        name, event["window"], points_text(before["pct"]), before["at"], points_text(after["pct"]), after["at"],
+        after["resets_at"])
+    epoch = ("lane-stats needs a dated window epoch in arms.json (providers.{}.window_epochs) in the next kit "
+             "release").format(provider)
+    if event.get("implied_scale"):
+        lead = "The {} {} plan window looks about {:.1f}x larger.".format(
+            name, event["window"], event["implied_scale"])
+    else:
+        lead = "The {} {} meter fell to 0% without a reset: an early reset or a larger window.".format(
+            name, event["window"])
+    text = "{} Evidence: {}, so this was not a reset.".format(lead, evidence)
+    if before.get("plan") and after.get("plan") and before["plan"] != after["plan"]:
+        text += " The plan type also changed from {} to {}; plan_scale in arms.json may cover that.".format(
+            before["plan"], after["plan"])
+    return text + (" {}; until then it prices {} runs on the old window. FINDINGS needs the measurement of "
+                   "the new window size.").format(epoch, name)
+
+
+def notice_id(event):
+    reset = parse_time(event["after"]["resets_at"])
+    raw = "window-change-{}-{}-{}-{}".format(event["provider"], event["window"], event["kind"],
+                                             reset.strftime("%Y%m%dT%H%MZ") if reset else "unknown")
+    return re.sub(r"[^A-Za-z0-9_.-]+", "-", raw)
+
+
+def write_window_notice(state, event, now):
+    directory = os.path.join(state, "notices")
+    private_dir(directory)
+    identifier = notice_id(event)
+    write_json_atomic(os.path.join(directory, identifier + ".json"), {
+        "id": identifier, "kind": "window_change", "created_at": utc_text(now), "text": notice_text(event),
+        "expires_at": utc_text(now + dt.timedelta(days=WINDOW_SHOW_DAYS))})
+
+
+def same_event(first, second):
+    """True when two events are the same fall: same provider, window and kind, with resets within the slack."""
+    return ((first.get("provider"), first.get("window"), first.get("kind")) ==
+            (second.get("provider"), second.get("window"), second.get("kind")) and
+            same_window(first["after"].get("resets_at"), second["after"].get("resets_at")))
+
+
+def append_window_change(path, event):
+    """Append one event as one line, in a single write to an O_APPEND handle, so no lock is needed: each write
+    lands at the end of the file. Two writers of the same event both append it, and read_window_changes keeps one."""
+    data = (json.dumps(event, ensure_ascii=False, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
+    fd = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | getattr(os, "O_BINARY", 0), 0o600)
+    try:
+        written = os.write(fd, data)
+    finally:
+        os.close(fd)
+    if written != len(data):
+        raise OSError("short write to the window change log")
+
+
+def read_window_changes(path):
+    """The fell events in the log, oldest first, one per fall: a copy written by a second writer is dropped."""
+    rows = []
+    try:
+        with open(path, "r", encoding="utf-8") as stream:
+            for line in stream:
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                if (isinstance(row, dict) and row.get("kind") == "fell" and isinstance(row.get("after"), dict) and
+                        isinstance(row.get("before"), dict) and parse_time(row.get("at"))):
+                    rows.append(row)
+    except (OSError, UnicodeError):
+        pass
+    kept = []
+    for row in sorted(rows, key=lambda item: parse_time(item["at"])):
+        if not any(same_event(row, other) for other in kept):
+            kept.append(row)
+    return kept
+
+
+def contradicted_claude_falls(events, claude_dir):
+    """Return ids of Claude falls disproved by a later reading in the same weekly window."""
+    candidates = [(index, event) for index, event in enumerate(events)
+                  if event.get("provider") == "claude" and event.get("kind") == "fell"]
+    if not candidates:
+        return set()
+    contradicted = set()
+    try:
+        with open(os.path.join(claude_dir, "claude-rate.jsonl"), "r", encoding="utf-8") as stream:
+            for line in stream:
+                try:
+                    row = json.loads(line)
+                except (ValueError, TypeError):
+                    continue
+                weekly = row.get("seven_day") if isinstance(row, dict) else None
+                observed = parse_time(row.get("observed_at")) if isinstance(row, dict) else None
+                pct = number(weekly.get("used_percentage")) if isinstance(weekly, dict) else None
+                if observed is None or pct is None:
+                    continue
+                for index, event in candidates:
+                    after = event.get("after") or {}
+                    after_at = parse_time(after.get("at"))
+                    before_pct = number((event.get("before") or {}).get("pct"))
+                    if (index not in contradicted and after_at is not None and before_pct is not None and
+                            observed > after_at and
+                            observed <= after_at + dt.timedelta(minutes=CLAUDE_FALL_CHECK_MINUTES) and
+                            pct >= before_pct and same_window(weekly.get("resets_at"), after.get("resets_at"))):
+                        contradicted.add(index)
+    except (OSError, UnicodeError):
+        pass
+    return contradicted
+
+
+def watch_windows(readings, now, state=None):
+    """Compare the readings with the stored ones, record new events once, and return the events of the last
+    WINDOW_SHOW_DAYS days, each with its warning text. Writers take no lock; reads dedupe their copies."""
+    state = state or lanes_state()
+    changes_path = os.path.join(state, "window-changes.jsonl")
+    if readings:
+        os.makedirs(state, mode=0o700, exist_ok=True)
+        record_window_changes(readings, now, state)
+    cutoff = now - dt.timedelta(days=WINDOW_SHOW_DAYS)
+    recent = [row for row in read_window_changes(changes_path) if parse_time(row["at"]) >= cutoff]
+    contradicted = contradicted_claude_falls(
+        recent, env_path("CLAUDE_USAGE_DIR", "~/.claude/usage"))
+    for index in contradicted:
+        try:
+            os.unlink(os.path.join(state, "notices", notice_id(recent[index]) + ".json"))
+        except OSError:
+            pass
+    recent = [dict(row, text=change_text(row)) for index, row in enumerate(recent)
+              if index not in contradicted]
+    return sorted(recent, key=lambda row: parse_time(row["at"]))
+
+
+def record_window_changes(readings, now, state):
+    path = os.path.join(state, "window-readings.json")
+    changes_path = os.path.join(state, "window-changes.jsonl")
+    stored = read_json(path)
+    stored = stored.get("readings") if isinstance(stored, dict) and isinstance(stored.get("readings"), dict) else {}
+    changed = False
+    for reading in readings:
+        windows = stored.get(reading["provider"])
+        windows = windows if isinstance(windows, dict) else {}
+        previous = windows.get(reading["window"])
+        entry, event = compare_reading(previous, reading)
+        if entry is not previous:
+            windows[reading["window"]] = entry
+            stored[reading["provider"]] = windows
+            changed = True
+        if event is None:
+            continue
+        event = dict({"at": utc_text(now), "provider": reading["provider"], "window": reading["window"]}, **event)
+        if any(same_event(row, event) for row in read_window_changes(changes_path)):
+            continue  # told already for this window
+        # The notice goes first: if it fails, nothing is stored and the next reading finds the event again.
+        # Its id is fixed by the event, so a second writer rewrites the same notice file.
+        write_window_notice(state, event, now)
+        append_window_change(changes_path, event)
+    if changed:
+        write_json_atomic(path, {"version": 1, "readings": stored})
+
+
+def window_changes(claude_data, codex_cache, agy, now):
+    try:
+        return watch_windows(weekly_readings(claude_data, codex_cache, agy, now), now)
+    except Exception:
+        return []  # the watch never breaks the meter
+
+
+def usage_status(args):
+    now = dt.datetime.now(UTC)
+    claude_dir = env_path("CLAUDE_USAGE_DIR", "~/.claude/usage")
+    if os.environ.get("CLAUDE_CODE_REMOTE") == "true":
+        age = _probe_age_minutes(os.environ.get("USAGE_OPTIMIZER_CLOUD_PROBE_MIN", "15"))
+        if age is not None and not _claude_fresh(claude_dir, age):
+            probe_claude(claude_dir, age, quiet=True)
+    codex_home = env_path("CODEX_HOME", "~/.codex")
+    claude, claude_line = claude_section(claude_dir, now)
+    codex, codex_line = codex_section(codex_home, now, claude_dir, args.no_codex_live)
+    agy, agy_line = (None, None) if args.no_agy else agy_section()
+    claude_weekly = claude.get("windows", {}).get("seven_day", {}).get("used_percentage")
+    codex_five = codex.get("five_hour", {}).get("used_percent") if codex.get("five_hour") else None
+    codex_weekly = codex.get("seven_day", {}).get("used_percent") if codex.get("seven_day") else None
+    codex_reached = codex.get("reached") is not None
+    codex_out = (codex_reached or codex.get("ordinary_usage_allowed") is False or
+                 (codex_weekly is not None and codex_weekly >= 95))
+    reset_credits = codex.get("reset_credits")
+    reset_credits = int(reset_credits) if isinstance(reset_credits, (int, float)) else 0
+    local = None if args.no_local else local_capacity(now)
+    if claude_weekly is not None and claude_weekly >= 85:
+        hint = "Claude ≥85% weekly: send reading and mechanical work to lanes; keep Claude for review and decisions"
+    elif codex.get("status") == "logged_out":
+        hint = "Codex logged out: route Codex units to gemini until codex login"
+    elif codex.get("status") == "api_key":
+        hint = "Codex is on an API key here, no plan meter: route by its billing, not by this meter"
+    elif codex_out and reset_credits >= 1:
+        noun = "credit" if reset_credits == 1 else "credits"
+        hint = ("Codex is out with {} reset {} available: tell the user (only they apply one); "
+                "meanwhile gemini first for what Codex can't take").format(
+                    reset_credits, noun)
+    elif codex_out:
+        hint = "Codex weekly ≥95%: Codex is out; gemini first for what Codex can't take"
+    elif codex_five is not None and codex_five >= 80:
+        hint = "Codex 5h window tight: normal units to gemini, keep Codex for sol"
+        if reset_credits >= 1:
+            hint += "; {} reset credit{} available (the user applies them)".format(
+                reset_credits, "s" if reset_credits != 1 else "")
+    elif codex_weekly is not None and codex_weekly >= 80:
+        hint = "Codex weekly window tight: normal units to gemini, keep Codex for sol"
+        if reset_credits >= 1:
+            hint += "; {} reset credit{} available (the user applies them)".format(
+                reset_credits, "s" if reset_credits != 1 else "")
+    elif local is not None and not any(local["fits"].values()):
+        hint = "PC memory full: wait for running lanes before starting more"
+    else:
+        hint = "all lanes open"
+
+    # The cache codex_section just read or refreshed; no further meter call.
+    changes = window_changes(claude.get("reading"), read_json(os.path.join(claude_dir, "codex-latest.json")),
+                             agy, now)
+    data = {"claude": claude, "codex": codex, "agy": agy, "local": local, "hint": hint}
+    if changes:
+        data["window_changes"] = changes
+    if args.json:
+        print(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+        return
+
+    lines = [claude_line, codex_line]
+    if agy_line:
+        lines.append(agy_line)
+    lines.extend("warning: " + change["text"] for change in changes)
+    if not args.no_local:
+        lines.append(local_line(local))
+    if args.brief:
+        # The Hint line is always last, so brief keeps at most five lines before it.
+        lines = lines[:5]
+    lines.append("Hint: " + hint)
+    print("\n".join(lines))
+
+
+def main():
+    # Windows pipes default to the ANSI code page, which cannot encode the reset and threshold symbols.
+    if os.name == "nt":
+        for stream in (sys.stdout, sys.stderr):
+            if hasattr(stream, "reconfigure"):
+                stream.reconfigure(encoding="utf-8", errors="replace")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--json", action="store_true", help="print one JSON document")
+    parser.add_argument("--no-agy", action="store_true", help="skip the Gemini /usage command")
+    parser.add_argument("--brief", action="store_true", help="print at most six lines")
+    parser.add_argument("--no-codex-live", action="store_true", help="use rollout data only")
+    parser.add_argument("--no-local", action="store_true", help="skip the local RAM and worker-fit line")
+    parser.add_argument("--codex-refresh", action="store_true", help="refresh the Codex cache and print nothing")
+    parser.add_argument("--probe-claude", action="store_true", help="refresh Claude's rate-limit reading")
+    parser.add_argument("--max-age", default="15", metavar="MIN", help="skip a probe when its reading is younger")
+    parser.add_argument("--quiet", action="store_true", help="print nothing while probing")
+    args = parser.parse_args()
+    if args.probe_claude:
+        probe_claude(env_path("CLAUDE_USAGE_DIR", "~/.claude/usage"), _probe_age_minutes(args.max_age), args.quiet)
+        return 0
+    if args.codex_refresh:
+        try:
+            cache = codex_refresh(timeout=codex_timeout(default=30))
+            # The statusline starts this refresh in the background, so the watch runs without a lane or a user.
+            window_changes(read_json(os.path.join(env_path("CLAUDE_USAGE_DIR", "~/.claude/usage"),
+                                                  "claude-latest.json")), cache, None, dt.datetime.now(UTC))
+        except Exception:
+            pass
+        return 0
+    try:
+        usage_status(args)
+    except Exception as error:
+        if args.json:
+            print(json.dumps({"error": str(error)}, ensure_ascii=False))
+        else:
+            print("usage-status: data unavailable")
+        return 0
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

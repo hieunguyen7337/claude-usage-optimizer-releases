@@ -1,0 +1,7 @@
+{
+  "claude": {
+    "age_seconds": 30,
+    "reading": {"five_hour": {"used_percentage": 10.0}, "seven_day": {"used_percentage": 20.0}}
+  },
+  "codex": {"seven_day": {"used_percent": 40.0}}
+}

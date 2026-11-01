@@ -1,0 +1,7 @@
+{
+ "window": "seven_day_overage_included",
+ "block": "C5",
+ "reading_before_pct": 0,
+ "reading_after_pct": 5,
+ "source": "reading supplied to the analysis (LIMITS.md:54); the Fable window is not in meter_readings.jsonl, which carries only five_hour and seven_day"
+}

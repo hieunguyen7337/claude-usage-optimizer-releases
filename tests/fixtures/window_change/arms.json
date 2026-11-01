@@ -1,0 +1,11 @@
+{
+  "providers": {
+    "codex": {
+      "scarcity": 0.3,
+      "plan_scale": {"prolite": 1.0, "plus": 5.8},
+      "window": {"weekly_credits": 8400, "plan": "prolite"}
+    },
+    "claude": {"scarcity": 1.0, "window": {"weekly_list_usd": 1525}},
+    "gemini": {"scarcity": 0.2}
+  }
+}

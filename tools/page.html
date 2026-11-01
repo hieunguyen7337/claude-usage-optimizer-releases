@@ -1,0 +1,336 @@
+<title>Claude Usage Optimizer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one 880px reading column; the setup prompt is the only lifted panel, everything else sits on the ground. */
+:root {
+  --ground: #f3f5f7;
+  --surface: #ffffff;
+  --ink: #17202a;
+  --muted: #586472;
+  --rule: #d8dee5;
+  --accent: #0c6767;
+  --accent-ink: #ffffff;
+  --code-bg: #e9edf1;
+  --term-bg: #16202a;
+  --term-ink: #d6e2ea;
+  --term-dim: #7f93a3;
+  --ok: #2b7a4b;
+  --font-display: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #10171e; --surface: #17212b; --ink: #e3e9ef; --muted: #95a2b0; --rule: #27323e;
+    --accent: #47b8b2; --accent-ink: #062322; --code-bg: #1d2833; --term-bg: #0b1117;
+    --term-ink: #cfdde6; --term-dim: #6f8494; --ok: #5cc48b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #10171e; --surface: #17212b; --ink: #e3e9ef; --muted: #95a2b0; --rule: #27323e;
+  --accent: #47b8b2; --accent-ink: #062322; --code-bg: #1d2833; --term-bg: #0b1117;
+  --term-ink: #cfdde6; --term-dim: #6f8494; --ok: #5cc48b; color-scheme: dark;
+}
+
+body { background: var(--ground); color: var(--ink); font: 400 16px/1.6 var(--font-body); }
+.wrap { max-width: 880px; margin: 0 auto; padding-inline: 20px; padding-block: 40px 72px; display: grid; gap: 48px; }
+.wrap > * { min-width: 0; }
+h1, h2 { font-family: var(--font-display); font-weight: 600; letter-spacing: 0.005em; text-wrap: balance; margin: 0; }
+h1 { font-size: 2.4rem; line-height: 1.1; }
+h2 { font-size: 1.45rem; line-height: 1.2; }
+h3 { font-family: var(--font-display); font-weight: 600; font-size: 1.1rem; margin: 1.6em 0 0.4em; }
+p { margin: 0; max-width: 66ch; }
+a { color: var(--accent); }
+code, pre, kbd { font-family: var(--font-mono); font-size: 0.86em; }
+:not(pre) > code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; overflow-wrap: anywhere; }
+.label { font: 500 0.72rem/1 var(--font-body); text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); }
+section { display: grid; gap: 14px; }
+.lede { color: var(--muted); font-size: 1.08rem; }
+
+header { display: grid; gap: 16px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; color: var(--muted); font-size: 0.9rem; }
+.chip { font: 500 0.8rem/1 var(--font-mono); border: 1px solid var(--rule); border-radius: 999px; padding: 5px 10px; color: var(--ink); }
+.term { background: var(--term-bg); color: var(--term-ink); font: 400 0.84rem/1.5 var(--font-mono); border-radius: 6px; padding: 10px 14px; overflow-x: auto; white-space: pre; }
+.term .dim { color: var(--term-dim); }
+
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 20px; display: grid; gap: 14px; box-shadow: 0 1px 2px rgba(10, 30, 40, 0.06); }
+.panel-head { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+.steps { display: flex; flex-wrap: wrap; gap: 6px 20px; padding: 0; margin: 0; list-style: none; color: var(--muted); font-size: 0.92rem; }
+.steps li { display: flex; gap: 6px; }
+.steps b { color: var(--ink); font-weight: 600; }
+pre.prompt { margin: 0; background: var(--code-bg); border-radius: 6px; padding: 16px; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 30rem; overflow-y: auto; line-height: 1.5; }
+
+button { font: 500 0.9rem/1 var(--font-body); cursor: pointer; border-radius: 6px; padding: 9px 14px; border: 1px solid var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-ink); }
+button.quiet { background: transparent; color: var(--accent); }
+button:focus-visible, summary:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: 0.55; cursor: progress; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.status { font-size: 0.86rem; color: var(--ok); min-height: 1.2em; }
+
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; font-size: 0.93rem; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; min-width: 0; font-family: var(--font-mono); font-size: 0.86rem; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+
+.table-scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--rule); }
+th { font-weight: 600; color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
+td:first-child { white-space: nowrap; }
+
+ul.checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+ul.checks label { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: start; cursor: pointer; }
+ul.checks input { margin: 4px 0 0; width: 16px; height: 16px; accent-color: var(--accent); }
+ul.checks .where { color: var(--muted); font-size: 0.88rem; }
+ul.checks input:checked + span { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--rule); }
+
+details { border-top: 1px solid var(--rule); padding-top: 12px; }
+summary { cursor: pointer; font-weight: 500; }
+pre.bundle { max-height: 26rem; overflow: auto; background: var(--code-bg); padding: 12px; border-radius: 6px; font-size: 0.78rem; margin: 12px 0 0; }
+.policy, .findings { font-size: 0.95rem; }
+.policy h1, .findings h1 { display: none; }
+.policy h2, .findings h2 { font-size: 1.15rem; margin: 1.6em 0 0.5em; }
+.policy ul, .policy ol, .findings ul, .findings ol { padding-left: 1.3em; max-width: 70ch; }
+.policy li, .findings li { margin: 0.2em 0; }
+.policy p, .findings p { margin: 0.6em 0; }
+.policy pre, .findings pre { background: var(--code-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
+.findings h3 { font-size: 1.02rem; margin: 1.4em 0 0.4em; }
+.policy p, .findings p { max-width: 70ch; }
+.policy .table-scroll, .findings .table-scroll { margin: 0.8em 0; max-width: 100%; border: 1px solid var(--rule); border-radius: 6px; }
+.policy table, .findings table { font-size: 0.82rem; width: 100%; font-variant-numeric: tabular-nums; }
+.policy th, .policy td, .findings th, .findings td { padding: 5px 10px; border-bottom: 1px solid var(--rule); }
+.policy th, .findings th { background: var(--code-bg); text-transform: none; letter-spacing: 0; font-size: 0.78rem; white-space: nowrap; }
+.policy td, .findings td { white-space: normal; min-width: 5em; vertical-align: top; }
+.policy tbody tr:last-child td, .findings tbody tr:last-child td { border-bottom: 0; }
+.policy tbody tr:nth-child(even), .findings tbody tr:nth-child(even) { background: var(--surface); }
+.wrap > section { min-width: 0; }
+details > .findings { margin-top: 12px; overflow-wrap: anywhere; }
+ul.evidence { padding-left: 1.3em; margin: 0.4em 0; max-width: 70ch; }
+footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--rule); padding-top: 18px; display: grid; gap: 6px; }
+
+@media (max-width: 560px) {
+  h1 { font-size: 1.95rem; }
+  .wrap { padding-inline: 16px; gap: 40px; }
+  dl.facts { grid-template-columns: 1fr; gap: 2px; }
+  dl.facts dd { margin-bottom: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="label">Claude Code configuration</span>
+    <h1>Claude Usage Optimizer</h1>
+    <p class="lede">One usage policy, eight worker lanes with an arms catalog and a run ledger, a usage meter with a per-turn cost meter, and a mobile-style terminal view, shared by every Claude Code session on every machine. Claude plans and reviews; cheaper lanes do the writing.</p>
+    <div class="meta">
+      <span class="chip">v{{VERSION}}</span>
+      <span>bundle built {{GENERATED}}</span>
+    </div>
+    <div class="term" aria-label="Example of the status line it installs"><span class="dim">statusline ›</span> Opus 5.5 · xhigh · ctx 189k/450k (42%) · ETA ~13m ≈0.07% wk · Usage Optimizer {{VERSION}}
+             Claude 5h 12% resets 19:00 · wk 61% resets Sun 02:00 · Fable 7% resets Sun 02:00 │ Codex wk 37% resets Mon 21:51</div>
+  </header>
+
+  <section aria-labelledby="setup-h">
+    <div class="panel">
+      <div class="panel-head">
+        <h2 id="setup-h">Set up another machine</h2>
+        <div class="btns">
+          <button class="primary" id="copy-prompt" type="button">Copy prompt</button>
+        </div>
+      </div>
+      <ol class="steps">
+        <li><b>1</b> Open Claude Code on that machine</li>
+        <li><b>2</b> Paste this prompt</li>
+        <li><b>3</b> Read its dry run, then say “go”</li>
+      </ol>
+      <pre class="prompt" id="prompt">{{PROMPT}}</pre>
+      <div class="status" id="prompt-status" role="status"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="bundle-h">
+    <h2 id="bundle-h">The bundle</h2>
+    <p>The prompt fetches this file with Claude's Artifact tool. A machine without that tool can take it from the clipboard, or by <code>scp</code> from the server that built it.</p>
+    <p>Without Claude Code, install from <a href="https://github.com/hieunguyen7337/claude-usage-optimizer-releases">the public releases repository</a>.</p>
+    <dl class="facts">
+      <dt>File</dt><dd>{{BUNDLE}}</dd>
+      <dt>Size</dt><dd>{{SIZE}}</dd>
+      <dt>sha256</dt><dd id="sha">{{SHA256}}</dd>
+      <dt>Page</dt><dd>{{URL}}</dd>
+    </dl>
+    <div class="btns">
+      <button class="quiet" id="copy-sha" type="button">Copy sha256</button>
+      <button class="quiet" id="copy-bundle" type="button">Copy bundle text</button>
+    </div>
+    <div class="status" id="bundle-status" role="status"></div>
+    <p>From the clipboard: run <code>cat &gt; ~/{{BUNDLE}}</code>, paste, press <kbd>Ctrl-D</kbd>, then check that <code>sha256sum ~/{{BUNDLE}}</code> prints the hash above. By <code>scp</code>: <code>scp &lt;user&gt;@&lt;server&gt;:claude-usage-optimizer/dist/{{BUNDLE}} ~/</code></p>
+    <p>The Suite R rescore evidence (FINDINGS section 8: the per-run rescores, the v2 outcomes and the v2 table) ships beside the bundle as <code>{{EVIDENCE}}</code>, {{EVIDENCESIZE}}, sha256 <code>{{EVIDENCESHA}}</code>. The kit runs without it. To add it, fetch it the same way (Artifact tool path <code>{{EVIDENCE}}</code>) and run <code>bash {{EVIDENCE}}</code>: it extracts next to the kit, checks every sha256 and installs nothing; the next install copies it into the kit.</p>
+    <details id="bundle-details">
+      <summary>Show the bundle</summary>
+      <pre class="bundle" id="bundle-text">Loading…</pre>
+    </details>
+  </section>
+
+  <section aria-labelledby="changes-h">
+    <h2 id="changes-h">What the installer changes</h2>
+    <p>It backs up anything it replaces and is safe to re-run. Settings are added only where a key is absent, except the four view settings, which it sets unless you changed one by hand after an earlier install. It also adds two turn-meter hooks, one on prompt submit and one on stop. <code>--no-view</code> leaves the mobile view out.</p>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Where</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td><code>~/.claude/CLAUDE.md</code></td><td>Appends one line, <code>@~/.claude/usage-optimizer/POLICY.md</code>. Rules for one machine go above it.</td></tr>
+          <tr><td><code>~/.claude/settings.json</code></td><td>Adds, if absent: <code>model</code> opus[1m] and <code>effortLevel</code> xhigh (from <code>explore.main_session</code> in arms.json), <code>autoCompactWindow</code> 250000 (moved from 450000), <code>cleanupPeriodDays</code> 30, <code>CLAUDE_CODE_SUBAGENT_MODEL</code>=sonnet, its status line, and the turn-meter <code>UserPromptSubmit</code> and <code>Stop</code> hooks. Sets the view: <code>verbose</code> false, <code>viewMode</code> default, <code>tui</code> fullscreen, <code>outputStyle</code> Mobile. Your permission mode is left alone.</td></tr>
+          <tr><td><code>~/.claude/agents/</code></td><td><code>scout</code>, <code>digest</code>, <code>researcher</code> on Sonnet; <code>verifier</code> on Opus.</td></tr>
+          <tr><td><code>~/.claude/skills/mobile-view/</code></td><td>The mobile view: each tool call folds to one line (click to open it), long code blocks fold, questions are numbered, <code>.</code> in an empty prompt lists them and jumps back to one (Esc goes back), <code>/mobile-view off</code> turns it off.</td></tr>
+          <tr><td><code>~/.claude/output-styles/Mobile.md</code></td><td>Short narration between steps, no long code in replies, a self-contained final answer.</td></tr>
+          <tr><td><code>~/.claude/usage-optimizer/</code></td><td>The policy, the arms catalog <code>arms.json</code>, and <code>lane</code>, <code>lane-stats</code>, <code>lane-mask</code>, <code>usage-status</code>, <code>turn-meter</code>, <code>claude-statusline</code>, <code>claude-prompts</code>.</td></tr>
+          <tr><td><code>~/.local/bin/</code></td><td>Symlinks to the tools. On Windows, bash and <code>.cmd</code> wrappers for <code>lane</code>, <code>lane-stats</code>, <code>usage-status</code>, <code>claude-statusline</code> and <code>claude-prompts</code> that run them with the Python the installer found.</td></tr>
+          <tr><td><code>~/.config/lanes/</code></td><td>An empty <code>mask.local</code> for that machine's own secret paths.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="hand-h">
+    <h2 id="hand-h">Switches only you can flip</h2>
+    <p>These live in web dashboards, so no session can set them. Ticks are remembered in this browser only.</p>
+    <ul class="checks">
+      <li><label><input type="checkbox" id="chk-reserve"><span>Claude extra usage: check whether it is on. <span class="where">claude.ai → Settings → Usage. The policy assumes it is off, so there is no reserve past the weekly limit. If you turn it on, cap it, and spend it only to finish critical work the weekly limit would stop.</span></span></label></li>
+      <li><label><input type="checkbox" id="chk-chatgpt"><span>ChatGPT: “Improve the model for everyone” off. <span class="where">chatgpt.com → Settings → Data controls. Covers Codex.</span></span></label></li>
+      <li><label><input type="checkbox" id="chk-gemini"><span>Antigravity / Gemini: training on your activity off. <span class="where">Google account → Gemini Apps Activity, and Antigravity's own settings.</span></span></label></li>
+      <li><label><input type="checkbox" id="chk-claude"><span>Claude: “Help improve Claude” off. <span class="where">claude.ai → Settings → Privacy.</span></span></label></li>
+      <li><label><input type="checkbox" id="chk-restart"><span>Restart open Claude Code sessions after installing, so they load the new settings.</span></label></li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="measured-h">
+    <h2 id="measured-h">What we measured</h2>
+    <p>Claude Max 20x: about $1,525 API-list value per week ($1,017–3,050) and $254 per 5h ($235–277). Fable draws from the shared week, with a 50% sub-cap. Cache-read charging remains unresolved.</p>
+    <p>Codex Pro Lite: about 8,400 credits per week (7,800–9,200), about $340 API value. Plus: about 1,450 credits per week. These are measured allowances, not guarantees.</p>
+    <p>The findings are our own measurements of the plan limits and of every model at every effort on a 36-item review suite, compared with public benchmarks. The bundle carries the data and the tools to regenerate them.</p>
+    <ul class="evidence">
+      <li><code>findings/FINDINGS.md</code>, <code>findings/findings.json</code>, <code>findings/public.json</code></li>
+      <li><code>findings/suite-r/</code>: <code>stats</code>, <code>compare</code>, <code>priors</code>, <code>outcomes.jsonl</code>, <code>panels</code></li>
+      <li><code>measure/</code>: the meter probes</li>
+      <li><code>bin/lane-bench</code>: grade, stats, compare, priors, export, panels</li>
+    </ul>
+    <p>All under <code>~/.claude/usage-optimizer/</code>.</p>
+    <details open>
+      <summary>Full findings (FINDINGS.md)</summary>
+      <div class="findings" id="findings"><pre id="findings-raw">{{FINDINGS}}</pre></div>
+    </details>
+  </section>
+
+  <section aria-labelledby="improving-h">
+    <h2 id="improving-h">How this kit keeps itself current</h2>
+    <p class="lede">Lessons from using the kit feed its next release, alongside the methods and tools to measure new models and research.</p>
+    <details open>
+      <summary>Improving the kit (IMPROVING.md)</summary>
+      <div class="findings" id="improving"><pre id="improving-raw">{{IMPROVING}}</pre></div>
+    </details>
+  </section>
+
+  <section aria-labelledby="policy-h">
+    <h2 id="policy-h">The policy every session loads</h2>
+    <p>Rendered from <code>POLICY.md</code> in this bundle. A machine's own <code>~/.claude/CLAUDE.md</code> rules sit above the import and win where they conflict.</p>
+    <div class="policy" id="policy"><pre id="policy-raw">{{POLICY}}</pre></div>
+  </section>
+
+  <footer>
+    <span>Follow the embedded guide to sweep for lessons, build and check a release, compare the live bundle when publishing from another machine, then publish to the same Artifact URL and re-run the setup prompt elsewhere.</span>
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script>
+(function () {
+  var BUNDLE = "{{BUNDLE}}";
+  var bundleText = null;
+
+  function say(id, text) {
+    var el = document.getElementById(id);
+    el.textContent = text;
+    clearTimeout(el._t);
+    el._t = setTimeout(function () { el.textContent = ""; }, 4000);
+  }
+  function selectNode(node) {
+    var range = document.createRange();
+    range.selectNodeContents(node);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+  function copy(text, statusId, okText, fallbackNode) {
+    var fail = function () {
+      if (fallbackNode) {
+        var d = fallbackNode.closest ? fallbackNode.closest("details") : null;
+        if (d) d.open = true;
+        selectNode(fallbackNode);
+        say(statusId, "Selected. Press Ctrl-C (⌘C on a Mac) to copy.");
+      }
+      else { say(statusId, "Copying is blocked here. Select the text and copy it by hand."); }
+    };
+    try {
+      if (!navigator.clipboard || !navigator.clipboard.writeText) { fail(); return; }
+      navigator.clipboard.writeText(text).then(function () { say(statusId, okText); }, fail);
+    } catch (e) { fail(); }
+  }
+
+  var promptEl = document.getElementById("prompt");
+  document.getElementById("copy-prompt").addEventListener("click", function () {
+    copy(promptEl.textContent, "prompt-status", "Copied. Paste it into Claude Code on the other machine.", promptEl);
+  });
+  var shaEl = document.getElementById("sha");
+  document.getElementById("copy-sha").addEventListener("click", function () {
+    copy(shaEl.textContent.trim(), "bundle-status", "Copied the hash.", shaEl);
+  });
+
+  var bundleBtn = document.getElementById("copy-bundle");
+  var bundlePre = document.getElementById("bundle-text");
+  bundleBtn.disabled = true;
+  fetch(BUNDLE).then(function (r) {
+    if (!r.ok) throw new Error(r.status);
+    return r.text();
+  }).then(function (t) {
+    bundleText = t;
+    bundlePre.textContent = t;
+    bundleBtn.disabled = false;
+  }).catch(function () {
+    bundlePre.textContent = "The bundle didn't load on this page. Use the Artifact tool or scp instead.";
+    bundleBtn.disabled = false;
+  });
+  bundleBtn.addEventListener("click", function () {
+    if (bundleText === null) { say("bundle-status", "The bundle isn't loaded. Use the Artifact tool or scp instead."); return; }
+    copy(bundleText, "bundle-status", "Copied " + Math.round(bundleText.length / 1024) + " KB. On the other machine: cat > ~/" + BUNDLE + ", paste, Ctrl-D.", bundlePre);
+  });
+
+  var boxes = document.querySelectorAll("ul.checks input[type=checkbox]");
+  var KEY = "claude-kit-checks";
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { saved = {}; }
+  boxes.forEach(function (box) {
+    box.checked = !!saved[box.id];
+    box.addEventListener("change", function () {
+      saved[box.id] = box.checked;
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+    });
+  });
+
+  ["policy", "findings"].forEach(function (id) {
+    var raw = document.getElementById(id + "-raw");
+    if (!raw || !window.marked || typeof window.marked.parse !== "function") return;
+    try {
+      var holder = document.getElementById(id);
+      holder.innerHTML = window.marked.parse(raw.textContent);
+      holder.querySelectorAll("table").forEach(function (t) {
+        var box = document.createElement("div");
+        box.className = "table-scroll";
+        t.parentNode.insertBefore(box, t);
+        box.appendChild(t);
+      });
+    } catch (e) { /* the raw text stays visible */ }
+  });
+})();
+</script>

@@ -1,0 +1,3902 @@
+[
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "high",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 1.73,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-astra-high"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "high",
+    "metric": "aa_ii_score",
+    "value": 51,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-astra-high"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "low",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.82,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-astra-low"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "low",
+    "metric": "aa_ii_score",
+    "value": 46,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-astra-low"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra (Codex)",
+    "effort": "max",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 7.47,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra (Codex)",
+    "effort": "max",
+    "metric": "aa_cai_index",
+    "value": 62,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra (Codex)",
+    "effort": "max",
+    "metric": "aa_cai_tb4_pct",
+    "value": 56,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "effort": "max",
+    "metric": "aa_cai_tb4_pct",
+    "value": 56.00000000000001,
+    "source": "Artificial Analysis coding-agent index v1.5, quoted in POLICY.md",
+    "date": "2026-10-17",
+    "url": null
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra (Codex)",
+    "effort": "max",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 3.3,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "max",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 3.26,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-astra"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "max",
+    "metric": "aa_ii_score",
+    "value": 53,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-astra"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "max",
+    "metric": "aa_standalone_tb4_pct",
+    "value": 59,
+    "source": "AA Astra article (TB4 standalone; same article also gives 56 in coding section)",
+    "date": "2026-09-09",
+    "url": "https://artificialanalysis.ai/articles/benchmarking-gpt-6-astra"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "max",
+    "metric": "review_cost_per_task_usd",
+    "value": 7.87,
+    "source": "Macroscope MacroscopeBench",
+    "date": "2026-09-22",
+    "url": "https://macroscope.com/content/ai-code-review-benchmark-best-models"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "max",
+    "metric": "review_f1_like_score",
+    "value": 78.0,
+    "source": "Macroscope MacroscopeBench all-bug leaderboard (vendor-run, unversioned)",
+    "date": "2026-09-22",
+    "url": "https://macroscope.com/content/ai-code-review-benchmark-best-models"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "max",
+    "metric": "review_precision_pct",
+    "value": 91.7,
+    "source": "Macroscope MacroscopeBench",
+    "date": "2026-09-22",
+    "url": "https://macroscope.com/content/ai-code-review-benchmark-best-models"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "max",
+    "metric": "review_recall_pct",
+    "value": 67.8,
+    "source": "Macroscope MacroscopeBench",
+    "date": "2026-09-22",
+    "url": "https://macroscope.com/content/ai-code-review-benchmark-best-models"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "medium",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 1.54,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-astra-medium"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "medium",
+    "metric": "aa_ii_score",
+    "value": 50,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-astra-medium"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "xhigh",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 2.31,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-astra-xhigh"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "xhigh",
+    "metric": "aa_ii_score",
+    "value": 52,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-astra-xhigh"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "high",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 3.91,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-fable-5-1-high"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "high",
+    "metric": "aa_ii_score",
+    "value": 51,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-fable-5-1-high"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "high",
+    "metric": "review_precision_pct",
+    "value": 36.4,
+    "source": "CodeRabbit internal review eval",
+    "date": "2026-09-01",
+    "url": "https://www.coderabbit.ai/blog/fable-5-1-model-review"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "high",
+    "metric": "review_recall_pct",
+    "value": 57.1,
+    "source": "CodeRabbit internal review eval",
+    "date": "2026-09-01",
+    "url": "https://www.coderabbit.ai/blog/fable-5-1-model-review"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "low",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 2.37,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-fable-5-1-low"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "low",
+    "metric": "aa_ii_score",
+    "value": 47,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-fable-5-1-low"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "low",
+    "metric": "review_precision_pct",
+    "value": 37.3,
+    "source": "CodeRabbit internal review eval",
+    "date": "2026-09-01",
+    "url": "https://www.coderabbit.ai/blog/fable-5-1-model-review"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "low",
+    "metric": "review_recall_pct",
+    "value": 61.0,
+    "source": "CodeRabbit internal review eval, 105 known-issue points, 45 tasks (vendor-run)",
+    "date": "2026-09-01",
+    "url": "https://www.coderabbit.ai/blog/fable-5-1-model-review"
+  },
+  {
+    "lane": "fable",
+    "model": "Fable 5.1 (Claude Code, with fallback)",
+    "effort": "max",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 12.39,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "fable",
+    "model": "Fable 5.1 (Claude Code, with fallback)",
+    "effort": "max",
+    "metric": "aa_cai_index",
+    "value": 62,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "fable",
+    "model": "Fable 5.1 (Claude Code, with fallback)",
+    "effort": "max",
+    "metric": "aa_cai_tb4_pct",
+    "value": 58,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "fable",
+    "model": "Fable 5.1 (Claude Code, with fallback)",
+    "effort": "max",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 5.7,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "max",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 7.63,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-fable-5-1"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "max",
+    "metric": "aa_ii_score",
+    "value": 53,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-fable-5-1"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "medium",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 2.98,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-fable-5-1-medium"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "medium",
+    "metric": "aa_ii_score",
+    "value": 49,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-fable-5-1-medium"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "unspecified",
+    "metric": "endor_secpass_pct",
+    "value": 37.4,
+    "source": "Endor Labs Agent Security League, Claude Code, memorization removed",
+    "date": "2026-09-24",
+    "url": "https://www.endorlabs.com/learn/opus-5-5-6x-cheaper-and-2x-faster-than-fable-5-1-but-memorization-keeps-it-off-the-top-spot"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "unspecified",
+    "metric": "vendor_terminal_bench_4_pct",
+    "value": 55.8,
+    "source": "Anthropic Opus 5.5 launch post, comparison column",
+    "date": "2026-09-22",
+    "url": "https://www.anthropic.com/news/claude-opus-5-5"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "xhigh",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 5.98,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-fable-5-1-xhigh"
+  },
+  {
+    "lane": "fable",
+    "model": "Claude Fable 5.1",
+    "effort": "xhigh",
+    "metric": "aa_ii_score",
+    "value": 53,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-fable-5-1-xhigh"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "high",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 0.36,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "high",
+    "metric": "aa_cai_index",
+    "value": 35,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "high",
+    "metric": "aa_cai_tb4_pct",
+    "value": 13,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "high",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 5.1,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Claude Haiku 5.5",
+    "effort": "high",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.08,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-high"
+  },
+  {
+    "lane": "haiku",
+    "model": "Claude Haiku 5.5",
+    "effort": "high",
+    "metric": "aa_ii_score",
+    "value": 38,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-high"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "low",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 0.14,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "low",
+    "metric": "aa_cai_index",
+    "value": 28,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "low",
+    "metric": "aa_cai_tb4_pct",
+    "value": 6,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "low",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 2.4,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Claude Haiku 5.5",
+    "effort": "low",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.02,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-low"
+  },
+  {
+    "lane": "haiku",
+    "model": "Claude Haiku 5.5",
+    "effort": "low",
+    "metric": "aa_ii_score",
+    "value": 29,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-low"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "max",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 2.58,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "max",
+    "metric": "aa_cai_index",
+    "value": 36,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "max",
+    "metric": "aa_cai_tb4_pct",
+    "value": 30,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "max",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 13.8,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Claude Haiku 5.5",
+    "effort": "max",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.21,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-haiku-5-5"
+  },
+  {
+    "lane": "haiku",
+    "model": "Claude Haiku 5.5",
+    "effort": "max",
+    "metric": "aa_ii_score",
+    "value": 43,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-haiku-5-5"
+  },
+  {
+    "lane": "haiku",
+    "model": "Claude Haiku 5.5",
+    "effort": "max",
+    "metric": "aa_standalone_tb4_pct",
+    "value": 33,
+    "source": "AA Haiku 5.5 article (Terminal-Bench 4.0 standalone)",
+    "date": "2026-10-07",
+    "url": "https://artificialanalysis.ai/articles/claude-haiku-5-5"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "medium",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 0.23,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "medium",
+    "metric": "aa_cai_index",
+    "value": 34,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "medium",
+    "metric": "aa_cai_tb4_pct",
+    "value": 12,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "medium",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 3.5,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Claude Haiku 5.5",
+    "effort": "medium",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.05,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-medium"
+  },
+  {
+    "lane": "haiku",
+    "model": "Claude Haiku 5.5",
+    "effort": "medium",
+    "metric": "aa_ii_score",
+    "value": 34,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-medium"
+  },
+  {
+    "lane": "haiku",
+    "model": "Claude Haiku 5.5",
+    "effort": "unspecified",
+    "metric": "vendor_frontiercode_v11_main_pct",
+    "value": 46.4,
+    "source": "Anthropic Haiku 5.5 launch post (vendor)",
+    "date": "2026-10-07",
+    "url": "https://www.anthropic.com/news/claude-haiku-5-5"
+  },
+  {
+    "lane": "haiku",
+    "model": "Claude Haiku 5.5",
+    "effort": "unspecified",
+    "metric": "vendor_terminal_bench_4_pct",
+    "value": 39.2,
+    "source": "Anthropic Haiku 5.5 launch post (vendor)",
+    "date": "2026-10-07",
+    "url": "https://www.anthropic.com/news/claude-haiku-5-5"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "xhigh",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 0.61,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "xhigh",
+    "metric": "aa_cai_index",
+    "value": 41,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "xhigh",
+    "metric": "aa_cai_tb4_pct",
+    "value": 24,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "xhigh",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 7.1,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "haiku",
+    "model": "Claude Haiku 5.5",
+    "effort": "xhigh",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.12,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-xhigh"
+  },
+  {
+    "lane": "haiku",
+    "model": "Claude Haiku 5.5",
+    "effort": "xhigh",
+    "metric": "aa_ii_score",
+    "value": 41,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-haiku-5-5-xhigh"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "high",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.03,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-luna-high"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "high",
+    "metric": "aa_ii_score",
+    "value": 33,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-luna-high"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "low",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.0045,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-luna-low"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "low",
+    "metric": "aa_ii_score",
+    "value": 22,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-luna-low"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna (Codex)",
+    "effort": "max",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 0.18,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna (Codex)",
+    "effort": "max",
+    "metric": "aa_cai_index",
+    "value": 41,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna (Codex)",
+    "effort": "max",
+    "metric": "aa_cai_tb4_pct",
+    "value": 15,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna (Codex)",
+    "effort": "max",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 10.2,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "max",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.07,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-luna"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "max",
+    "metric": "aa_ii_score",
+    "value": 38,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-luna"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "max",
+    "metric": "aa_standalone_tb4_pct",
+    "value": 13,
+    "source": "AA Haiku 5.5 article (Terminal-Bench 4.0 standalone)",
+    "date": "2026-10-07",
+    "url": "https://artificialanalysis.ai/articles/claude-haiku-5-5"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "medium",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.02,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-luna-medium"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "medium",
+    "metric": "aa_ii_score",
+    "value": 30,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-luna-medium"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "unspecified",
+    "metric": "anthropic_reported_frontiercode_v11_main_pct",
+    "value": 42.4,
+    "source": "Anthropic Haiku 5.5 launch post, comparison column [competitor-run]",
+    "date": "2026-10-07",
+    "url": "https://www.anthropic.com/news/claude-haiku-5-5"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "unspecified",
+    "metric": "anthropic_reported_terminal_bench_4_pct",
+    "value": 16.4,
+    "source": "Anthropic Haiku 5.5 launch post, comparison column [competitor-run]",
+    "date": "2026-10-07",
+    "url": "https://www.anthropic.com/news/claude-haiku-5-5"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "xhigh",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.04,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-luna-xhigh"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "xhigh",
+    "metric": "aa_ii_score",
+    "value": 35,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-luna-xhigh"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "high",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 1.82,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-opus-5-5-high"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "high",
+    "metric": "aa_ii_score",
+    "value": 54,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-opus-5-5-high"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "low",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.55,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-opus-5-5-low"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "low",
+    "metric": "aa_ii_score",
+    "value": 42,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-opus-5-5-low"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "low",
+    "metric": "known_bugs_caught_pct_customer_quote",
+    "value": 72,
+    "source": "Deloitte quote in Anthropic launch post [vendor/customer, not a benchmark]; 'lowest effort'",
+    "date": "2026-09-22",
+    "url": "https://www.anthropic.com/news/claude-opus-5-5"
+  },
+  {
+    "lane": "opus",
+    "model": "Opus 5.5 (Claude Code)",
+    "effort": "max",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 13.04,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "opus",
+    "model": "Opus 5.5 (Claude Code)",
+    "effort": "max",
+    "metric": "aa_cai_index",
+    "value": 66,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "opus",
+    "model": "Opus 5.5 (Claude Code)",
+    "effort": "max",
+    "metric": "aa_cai_tb4_pct",
+    "value": 63,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "opus",
+    "model": "Opus 5.5 (Claude Code)",
+    "effort": "max",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 15.6,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "max",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 5.98,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-opus-5-5"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "max",
+    "metric": "aa_ii_score",
+    "value": 58,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-opus-5-5"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "max",
+    "metric": "aa_standalone_tb4_pct",
+    "value": 59.6,
+    "source": "AA Terminal-Bench 4.0 evaluation page (also xhigh = 59.6)",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/evaluations/terminalbench-4-0"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "max",
+    "metric": "vendor_cursorbench_4_pct",
+    "value": 57.8,
+    "source": "Anthropic Opus 5.5 launch post (vendor)",
+    "date": "2026-09-22",
+    "url": "https://www.anthropic.com/news/claude-opus-5-5"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "medium",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 1.34,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-opus-5-5-medium"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "medium",
+    "metric": "aa_ii_score",
+    "value": 51,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-opus-5-5-medium"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "medium",
+    "metric": "vendor_cursorbench_4_pct",
+    "value": 52.5,
+    "source": "Anthropic Opus 5.5 launch post (vendor)",
+    "date": "2026-09-22",
+    "url": "https://www.anthropic.com/news/claude-opus-5-5"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "medium",
+    "metric": "vendor_frontiercode_v11_main_pct",
+    "value": 54.6,
+    "source": "Anthropic Opus 5.5 launch post (vendor)",
+    "date": "2026-09-22",
+    "url": "https://www.anthropic.com/news/claude-opus-5-5"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "unspecified",
+    "metric": "endor_secpass_pct",
+    "value": 33.5,
+    "source": "Endor Labs Agent Security League, Claude Code, memorization removed",
+    "date": "2026-09-24",
+    "url": "https://www.endorlabs.com/learn/opus-5-5-6x-cheaper-and-2x-faster-than-fable-5-1-but-memorization-keeps-it-off-the-top-spot"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "unspecified",
+    "metric": "oss_aug80_precision_pct_cfg_max",
+    "value": 35.7,
+    "source": "CodeRabbit OSS-August",
+    "date": "2026-09-22",
+    "url": "https://www.coderabbit.ai/blog/opus-5-5-model-review"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "unspecified",
+    "metric": "oss_aug80_precision_pct_cfg_standard",
+    "value": 38.6,
+    "source": "CodeRabbit OSS-August",
+    "date": "2026-09-22",
+    "url": "https://www.coderabbit.ai/blog/opus-5-5-model-review"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "unspecified",
+    "metric": "oss_aug80_recall_pct_cfg_max",
+    "value": 62.5,
+    "source": "CodeRabbit OSS-August; 'Max' = higher-effort pipeline config",
+    "date": "2026-09-22",
+    "url": "https://www.coderabbit.ai/blog/opus-5-5-model-review"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "unspecified",
+    "metric": "oss_aug80_recall_pct_cfg_standard",
+    "value": 63.8,
+    "source": "CodeRabbit OSS-August 80 patterns; 'Standard' = lower-effort pipeline config",
+    "date": "2026-09-22",
+    "url": "https://www.coderabbit.ai/blog/opus-5-5-model-review"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "unspecified",
+    "metric": "signal13_recall_pct_cfg_max",
+    "value": 76.9,
+    "source": "CodeRabbit Signal set (13 patterns, tiny n)",
+    "date": "2026-09-22",
+    "url": "https://www.coderabbit.ai/blog/opus-5-5-model-review"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "unspecified",
+    "metric": "signal13_recall_pct_cfg_standard",
+    "value": 61.5,
+    "source": "CodeRabbit Signal set (13 patterns, tiny n)",
+    "date": "2026-09-22",
+    "url": "https://www.coderabbit.ai/blog/opus-5-5-model-review"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "xhigh",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 3.46,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-opus-5-5-xhigh"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "xhigh",
+    "metric": "aa_ii_score",
+    "value": 56,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-opus-5-5-xhigh"
+  },
+  {
+    "lane": "opus",
+    "model": "Claude Opus 5.5",
+    "effort": "xhigh",
+    "metric": "vendor_terminal_bench_4_pct",
+    "value": 66.4,
+    "source": "Anthropic Opus 5.5 launch post (vendor)",
+    "date": "2026-09-22",
+    "url": "https://www.anthropic.com/news/claude-opus-5-5"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "high",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 0.89,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "high",
+    "metric": "aa_cai_index",
+    "value": 60,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "high",
+    "metric": "aa_cai_tb4_pct",
+    "value": 50,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "high",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 2.8,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol",
+    "effort": "high",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.32,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-high"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol",
+    "effort": "high",
+    "metric": "aa_ii_score",
+    "value": 50,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-high"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "low",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 0.50,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "low",
+    "metric": "aa_cai_index",
+    "value": 57,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "low",
+    "metric": "aa_cai_tb4_pct",
+    "value": 49,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "low",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 1.7,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol",
+    "effort": "low",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.13,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-low"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol",
+    "effort": "low",
+    "metric": "aa_ii_score",
+    "value": 42,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-low"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "max",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 1.55,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "max",
+    "metric": "aa_cai_index",
+    "value": 60,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "max",
+    "metric": "aa_cai_tb4_pct",
+    "value": 53,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "max",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 4.0,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol",
+    "effort": "max",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.72,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-1-sol"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol",
+    "effort": "max",
+    "metric": "aa_ii_score",
+    "value": 52,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-1-sol"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "medium",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 0.70,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "medium",
+    "metric": "aa_cai_index",
+    "value": 61,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "medium",
+    "metric": "aa_cai_tb4_pct",
+    "value": 52,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "medium",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 2.3,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol",
+    "effort": "medium",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.21,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-medium"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol",
+    "effort": "medium",
+    "metric": "aa_ii_score",
+    "value": 48,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-medium"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "xhigh",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 1.04,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "xhigh",
+    "metric": "aa_cai_index",
+    "value": 63,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "xhigh",
+    "metric": "aa_cai_tb4_pct",
+    "value": 55,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "xhigh",
+    "metric": "aa_cai_tb4_pct",
+    "value": 55.00000000000001,
+    "source": "Artificial Analysis coding-agent index v1.5, quoted in POLICY.md",
+    "date": "2026-10-17",
+    "url": null
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "xhigh",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 3.2,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol",
+    "effort": "xhigh",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.39,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-xhigh"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol",
+    "effort": "xhigh",
+    "metric": "aa_ii_score",
+    "value": 51,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/gpt-6-1-sol-xhigh"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "high",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 1.24,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "high",
+    "metric": "aa_cai_index",
+    "value": 55,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "high",
+    "metric": "aa_cai_tb4_pct",
+    "value": 42,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "high",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 2.7,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Claude Sonnet 5.5",
+    "effort": "high",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.88,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-high"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Claude Sonnet 5.5",
+    "effort": "high",
+    "metric": "aa_ii_score",
+    "value": 47,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-high"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "low",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 0.48,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "low",
+    "metric": "aa_cai_index",
+    "value": 42,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "low",
+    "metric": "aa_cai_tb4_pct",
+    "value": 25,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "low",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 0.977,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Claude Sonnet 5.5",
+    "effort": "low",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.35,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-low"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Claude Sonnet 5.5",
+    "effort": "low",
+    "metric": "aa_ii_score",
+    "value": 36,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-low"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "max",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 14.19,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "max",
+    "metric": "aa_cai_index",
+    "value": 68,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "max",
+    "metric": "aa_cai_tb4_pct",
+    "value": 66,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "max",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 27.7,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Claude Sonnet 5.5",
+    "effort": "max",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 5.46,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Claude Sonnet 5.5",
+    "effort": "max",
+    "metric": "aa_ii_score",
+    "value": 56,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Claude Sonnet 5.5",
+    "effort": "max",
+    "metric": "aa_standalone_tb4_pct",
+    "value": 63.6,
+    "source": "AA Terminal-Bench 4.0 evaluation page",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/evaluations/terminalbench-4-0"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Claude Sonnet 5.5",
+    "effort": "max",
+    "metric": "vendor_frontiercode_v11_main_pct",
+    "value": 46.2,
+    "source": "Anthropic Sonnet 5.5 launch post (vendor; mapping inferred from footnote)",
+    "date": "2026-09-28",
+    "url": "https://www.anthropic.com/news/claude-sonnet-5-5"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "medium",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 0.62,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "medium",
+    "metric": "aa_cai_index",
+    "value": 46,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "medium",
+    "metric": "aa_cai_tb4_pct",
+    "value": 27,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "medium",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 1.3,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Claude Sonnet 5.5",
+    "effort": "medium",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 0.48,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-medium"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Claude Sonnet 5.5",
+    "effort": "medium",
+    "metric": "aa_ii_score",
+    "value": 41,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-medium"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Claude Sonnet 5.5",
+    "effort": "unspecified",
+    "metric": "vendor_terminal_bench_4_pct",
+    "value": 70.6,
+    "source": "Anthropic Sonnet 5.5 launch post (vendor)",
+    "date": "2026-09-28",
+    "url": "https://www.anthropic.com/news/claude-sonnet-5-5"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "xhigh",
+    "metric": "aa_cai_cost_per_task_usd",
+    "value": 3.33,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "xhigh",
+    "metric": "aa_cai_index",
+    "value": 63,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "effort": "xhigh",
+    "metric": "aa_cai_tb4_pct",
+    "value": 57.99999999999999,
+    "source": "Artificial Analysis coding-agent index v1.5, quoted in POLICY.md",
+    "date": "2026-10-17",
+    "url": null
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "xhigh",
+    "metric": "aa_cai_tb4_pct",
+    "value": 58,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "xhigh",
+    "metric": "aa_cai_tokens_per_task_m",
+    "value": 7.1,
+    "source": "AA-CAI",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Claude Sonnet 5.5",
+    "effort": "xhigh",
+    "metric": "aa_ii_cost_per_task_usd",
+    "value": 2.01,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-xhigh"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Claude Sonnet 5.5",
+    "effort": "xhigh",
+    "metric": "aa_ii_score",
+    "value": 52,
+    "source": "AA-II",
+    "date": "2026-10-20",
+    "url": "https://artificialanalysis.ai/models/claude-sonnet-5-5-xhigh"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Claude Sonnet 5.5",
+    "effort": "xhigh",
+    "metric": "vendor_frontiercode_v11_main_pct",
+    "value": 52.1,
+    "source": "Anthropic Sonnet 5.5 launch post (vendor)",
+    "date": "2026-09-28",
+    "url": "https://www.anthropic.com/news/claude-sonnet-5-5"
+  },
+  {
+    "lane": "opus",
+    "model": "Opus 5.5",
+    "effort": "max",
+    "metric": "frontiercode_score_pct",
+    "value": 52,
+    "source": "FrontierCode 1.1 Main independent AA",
+    "date": "2026-10-12",
+    "url": "https://artificialanalysis.ai/articles/frontiercode"
+  },
+  {
+    "lane": "opus",
+    "model": "Opus 5.5",
+    "effort": "max",
+    "metric": "frontiercode_cost_per_task_usd",
+    "value": 10.15,
+    "source": "FrontierCode 1.1 Main independent AA",
+    "date": "2026-10-12",
+    "url": "https://artificialanalysis.ai/articles/frontiercode"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol",
+    "effort": "max",
+    "metric": "frontiercode_score_pct",
+    "value": 49,
+    "source": "FrontierCode 1.1 Main independent AA",
+    "date": "2026-10-12",
+    "url": "https://artificialanalysis.ai/articles/frontiercode"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol",
+    "effort": "max",
+    "metric": "frontiercode_cost_per_task_usd",
+    "value": 0.81,
+    "source": "FrontierCode 1.1 Main independent AA",
+    "date": "2026-10-12",
+    "url": "https://artificialanalysis.ai/articles/frontiercode"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "max",
+    "metric": "frontiercode_score_pct",
+    "value": 42,
+    "source": "FrontierCode 1.1 Main independent AA",
+    "date": "2026-10-12",
+    "url": "https://artificialanalysis.ai/articles/frontiercode"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "max",
+    "metric": "frontiercode_cost_per_task_usd",
+    "value": 0.09,
+    "source": "FrontierCode 1.1 Main independent AA",
+    "date": "2026-10-12",
+    "url": "https://artificialanalysis.ai/articles/frontiercode"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "max",
+    "metric": "frontiercode_score_pct",
+    "value": 47,
+    "source": "FrontierCode independent AA inferred",
+    "date": "2026-10-12",
+    "url": "https://artificialanalysis.ai/articles/frontiercode"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "max",
+    "metric": "frontiercode_cost_per_task_usd",
+    "value": 4.22,
+    "source": "FrontierCode 1.1 Main independent AA",
+    "date": "2026-10-12",
+    "url": "https://artificialanalysis.ai/articles/frontiercode"
+  },
+  {
+    "lane": "gemini",
+    "model": "Gemini 3.8 Flash",
+    "effort": "high",
+    "metric": "deepswe_datacurve_score_pct",
+    "value": 74,
+    "source": "DeepSWE v1.1 independent Datacurve",
+    "date": "2026-09-22",
+    "url": "https://deepswe.datacurve.ai/"
+  },
+  {
+    "lane": "gemini",
+    "model": "Gemini 3.8 Flash",
+    "effort": "high",
+    "metric": "deepswe_datacurve_cost_per_task_usd",
+    "value": 2.36,
+    "source": "DeepSWE v1.1 independent Datacurve",
+    "date": "2026-09-22",
+    "url": "https://deepswe.datacurve.ai/"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "xhigh",
+    "metric": "deepswe_datacurve_score_pct",
+    "value": 74,
+    "source": "DeepSWE v1.1 independent Datacurve",
+    "date": "2026-09-22",
+    "url": "https://deepswe.datacurve.ai/"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "xhigh",
+    "metric": "deepswe_datacurve_cost_per_task_usd",
+    "value": 4.43,
+    "source": "DeepSWE v1.1 independent Datacurve",
+    "date": "2026-09-22",
+    "url": "https://deepswe.datacurve.ai/"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "low",
+    "metric": "deepswe_epoch_score_pct",
+    "value": 67,
+    "source": "DeepSWE per effort independent Epoch",
+    "date": "2026-09",
+    "url": "https://llmrun.dev/benchmark/deepswe?show=all"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "medium",
+    "metric": "deepswe_epoch_score_pct",
+    "value": 72.8,
+    "source": "DeepSWE per effort independent Epoch",
+    "date": "2026-09",
+    "url": "https://llmrun.dev/benchmark/deepswe?show=all"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "high",
+    "metric": "deepswe_epoch_score_pct",
+    "value": 73.2,
+    "source": "DeepSWE per effort independent Epoch",
+    "date": "2026-09",
+    "url": "https://llmrun.dev/benchmark/deepswe?show=all"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "max",
+    "metric": "deepswe_epoch_score_pct",
+    "value": 73.2,
+    "source": "DeepSWE per effort independent Epoch",
+    "date": "2026-09",
+    "url": "https://llmrun.dev/benchmark/deepswe?show=all"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "xhigh",
+    "metric": "deepswe_epoch_score_pct",
+    "value": 74.1,
+    "source": "DeepSWE per effort independent Epoch",
+    "date": "2026-09",
+    "url": "https://llmrun.dev/benchmark/deepswe?show=all"
+  },
+  {
+    "lane": "opus",
+    "model": "Opus 5.5",
+    "effort": "high",
+    "metric": "qodo_f1",
+    "value": 56.8,
+    "source": "Qodo vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "opus",
+    "model": "Opus 5.5",
+    "effort": "high",
+    "metric": "qodo_cost_per_task_usd",
+    "value": 1,
+    "source": "Qodo vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5",
+    "effort": "high",
+    "metric": "qodo_f1",
+    "value": 54.9,
+    "source": "Qodo vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5",
+    "effort": "high",
+    "metric": "qodo_cost_per_task_usd",
+    "value": 0.73,
+    "source": "Qodo vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6 Sol",
+    "effort": "medium",
+    "metric": "qodo_f1",
+    "value": 48.7,
+    "source": "Qodo vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6 Sol",
+    "effort": "medium",
+    "metric": "qodo_cost_per_task_usd",
+    "value": 0.18,
+    "source": "Qodo vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6 Sol",
+    "effort": "xhigh",
+    "metric": "qodo_f1",
+    "value": 48.4,
+    "source": "Qodo vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6 Sol",
+    "effort": "xhigh",
+    "metric": "qodo_cost_per_task_usd",
+    "value": 0.51,
+    "source": "Qodo vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "high",
+    "metric": "qodo_f1",
+    "value": 42.2,
+    "source": "Qodo vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "high",
+    "metric": "qodo_cost_per_task_usd",
+    "value": 0.02,
+    "source": "Qodo vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "fable",
+    "model": "Fable 5.1",
+    "effort": "high",
+    "metric": "qodo_f1",
+    "value": 53.5,
+    "source": "Qodo vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "fable",
+    "model": "Fable 5.1",
+    "effort": "high",
+    "metric": "qodo_cost_per_task_usd",
+    "value": 2.31,
+    "source": "Qodo vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra (Codex)",
+    "effort": "xhigh",
+    "metric": "swe_atlas_qna_score",
+    "value": 59.14,
+    "source": "SWE-Atlas QnA Scale vendor-run",
+    "date": "2026-07-28",
+    "url": "https://labs.scale.com/leaderboard/sweatlas-qna"
+  },
+  {
+    "lane": "fable",
+    "model": "Fable 5.1 (Claude Code)",
+    "effort": "xhigh",
+    "metric": "swe_atlas_qna_score",
+    "value": 59.95,
+    "source": "SWE-Atlas QnA Scale vendor-run",
+    "date": "2026-07-28",
+    "url": "https://labs.scale.com/leaderboard/sweatlas-qna"
+  },
+  {
+    "lane": "gemini",
+    "model": "Gemini 3.8 Flash",
+    "effort": "n/a",
+    "metric": "swe_atlas_qna_score",
+    "value": 47.04,
+    "source": "SWE-Atlas QnA Scale vendor-run",
+    "date": "2026-07-28",
+    "url": "https://labs.scale.com/leaderboard/sweatlas-qna"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra (Codex)",
+    "effort": "xhigh",
+    "metric": "swe_atlas_refactoring_score",
+    "value": 59,
+    "source": "SWE-Atlas Refactoring BenchLM",
+    "date": "2026-10-19",
+    "url": "https://benchlm.ai/benchmarks/sweatlasrefactoring"
+  },
+  {
+    "lane": "fable",
+    "model": "Fable 5.1 (Claude Code)",
+    "effort": "xhigh",
+    "metric": "swe_atlas_refactoring_score",
+    "value": 56.7,
+    "source": "SWE-Atlas Refactoring BenchLM",
+    "date": "2026-10-19",
+    "url": "https://benchlm.ai/benchmarks/sweatlasrefactoring"
+  },
+  {
+    "lane": "gemini",
+    "model": "Gemini 3.8 Flash",
+    "effort": "n/a",
+    "metric": "swe_atlas_refactoring_score",
+    "value": 44.8,
+    "source": "SWE-Atlas Refactoring BenchLM",
+    "date": "2026-10-19",
+    "url": "https://benchlm.ai/benchmarks/sweatlasrefactoring"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "n/a",
+    "metric": "hle_scale_score_pct",
+    "value": 54.8,
+    "source": "HLE Scale (vendor-run)",
+    "date": "2026-09-17",
+    "url": "https://labs.scale.com/leaderboard/humanitys_last_exam"
+  },
+  {
+    "lane": "fable",
+    "model": "Fable 5.1",
+    "effort": "xhigh",
+    "metric": "hle_scale_score_pct",
+    "value": 46.5,
+    "source": "HLE Scale (vendor-run)",
+    "date": "2026-09-17",
+    "url": "https://labs.scale.com/leaderboard/humanitys_last_exam"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5",
+    "effort": "xhigh",
+    "metric": "hle_scale_score_pct",
+    "value": 46.1,
+    "source": "HLE Scale (vendor-run)",
+    "date": "2026-09-17",
+    "url": "https://labs.scale.com/leaderboard/humanitys_last_exam"
+  },
+  {
+    "lane": "gemini",
+    "model": "Gemini 3.8 Flash",
+    "effort": "n/a",
+    "metric": "hle_scale_score_pct",
+    "value": 44.5,
+    "source": "HLE Scale (vendor-run)",
+    "date": "2026-09-17",
+    "url": "https://labs.scale.com/leaderboard/humanitys_last_exam"
+  },
+  {
+    "lane": "hybrid",
+    "model": "Opus 5.5 max + GPT-6 Luna high",
+    "effort": "max + high",
+    "metric": "aa_fusion_index",
+    "value": 68,
+    "source": "AA Fusion Coding Agent Index v1.5",
+    "date": "2026-10-22",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/devin-fusion-cli-vs-kimi-code-cli"
+  },
+  {
+    "lane": "hybrid",
+    "model": "Opus 5.5 max + GPT-6 Luna high",
+    "effort": "max + high",
+    "metric": "aa_fusion_cost_per_task_usd",
+    "value": 9.02,
+    "source": "AA Fusion Coding Agent Index v1.5",
+    "date": "2026-10-22",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/devin-fusion-cli-vs-kimi-code-cli"
+  },
+  {
+    "lane": "hybrid",
+    "model": "Fable 5.1 xhigh + SWE-2 medium",
+    "effort": "xhigh + medium",
+    "metric": "aa_fusion_index",
+    "value": 61.7,
+    "source": "AA Fusion Coding Agent Index v1.5",
+    "date": "2026-09",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/codex-vs-devin-fusion-cli"
+  },
+  {
+    "lane": "hybrid",
+    "model": "Fable 5.1 xhigh + SWE-2 medium",
+    "effort": "xhigh + medium",
+    "metric": "aa_fusion_cost_per_task_usd",
+    "value": 7.9,
+    "source": "AA Fusion Coding Agent Index v1.5",
+    "date": "2026-09",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/codex-vs-devin-fusion-cli"
+  },
+  {
+    "lane": "hybrid",
+    "model": "GPT-6 Astra xhigh + SWE-2 medium",
+    "effort": "xhigh + medium",
+    "metric": "aa_fusion_index",
+    "value": 58.9,
+    "source": "AA Fusion Coding Agent Index v1.5",
+    "date": "2026-09",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/codex-vs-devin-fusion-cli"
+  },
+  {
+    "lane": "hybrid",
+    "model": "GPT-6 Astra xhigh + SWE-2 medium",
+    "effort": "xhigh + medium",
+    "metric": "aa_fusion_cost_per_task_usd",
+    "value": 4.55,
+    "source": "AA Fusion Coding Agent Index v1.5",
+    "date": "2026-09",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/codex-vs-devin-fusion-cli"
+  },
+  {
+    "lane": "gemini",
+    "model": "Gemini 3.8 Flash",
+    "effort": "medium",
+    "metric": "deepswe_epoch_score_pct",
+    "value": 71,
+    "source": "DeepSWE per effort independent Epoch",
+    "date": "2026-09",
+    "url": "https://llmrun.dev/benchmark/deepswe?show=all"
+  },
+  {
+    "lane": "gemini",
+    "model": "Gemini 3.8 Flash",
+    "effort": "high",
+    "metric": "deepswe_epoch_score_pct",
+    "value": 73.8,
+    "source": "DeepSWE per effort independent Epoch",
+    "date": "2026-09",
+    "url": "https://llmrun.dev/benchmark/deepswe?show=all"
+  },
+  {
+    "lane": "opus",
+    "model": "Opus 5.5",
+    "effort": "xhigh",
+    "metric": "qodo_f1",
+    "value": 54,
+    "source": "Qodo code review benchmark vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5",
+    "effort": "high",
+    "metric": "qodo_f1",
+    "value": 51.7,
+    "source": "Qodo code review benchmark vendor-run prose result",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5",
+    "effort": "high",
+    "metric": "qodo_cost_per_task_usd",
+    "value": 0.31,
+    "source": "Qodo code review benchmark vendor-run prose result",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "fable",
+    "model": "Fable 5.1",
+    "effort": "low",
+    "metric": "qodo_f1",
+    "value": 53.4,
+    "source": "Qodo code review benchmark vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "gemini",
+    "model": "Gemini 3.8 Flash",
+    "effort": "high",
+    "metric": "qodo_f1",
+    "value": 47,
+    "source": "Qodo code review benchmark vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "gemini",
+    "model": "Gemini 3.8 Flash",
+    "effort": "high",
+    "metric": "qodo_cost_per_task_usd",
+    "value": 3.63,
+    "source": "Qodo code review benchmark vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "high",
+    "metric": "qodo_f1",
+    "value": 46.6,
+    "source": "Qodo code review benchmark vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra",
+    "effort": "high",
+    "metric": "qodo_cost_per_task_usd",
+    "value": 1.56,
+    "source": "Qodo code review benchmark vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "xhigh",
+    "metric": "qodo_f1",
+    "value": 41.7,
+    "source": "Qodo code review benchmark vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna",
+    "effort": "xhigh",
+    "metric": "qodo_cost_per_task_usd",
+    "value": 0.02,
+    "source": "Qodo code review benchmark vendor-run",
+    "date": "2026-10-12",
+    "url": "https://www.qodo.ai/?p=22396"
+  },
+  {
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "effort": "default",
+    "metric": "reviewbench_grounded_f1",
+    "value": 35.9,
+    "source": "ReviewBench Klaussy wrapper submitter BenchLM mirror",
+    "date": "2026-10-14",
+    "url": "https://benchlm.ai/md/benchmarks/reviewbench.md"
+  },
+  {
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "effort": "include-nits",
+    "metric": "reviewbench_grounded_f1",
+    "value": 44.1,
+    "source": "ReviewBench Klaussy wrapper submitter BenchLM mirror",
+    "date": "2026-10-14",
+    "url": "https://benchlm.ai/md/benchmarks/reviewbench.md"
+  },
+  {
+    "lane": "opus",
+    "model": "claude-opus-5.5 (Laude RevEngine Prime)",
+    "effort": "n/s",
+    "metric": "reviewbench_grounded_f1",
+    "value": 59.6,
+    "source": "ReviewBench submitters BenchLM mirror",
+    "date": "2026-10-14",
+    "url": "https://benchlm.ai/md/benchmarks/reviewbench.md"
+  },
+  {
+    "lane": "fable",
+    "model": "Fable 5.1",
+    "effort": "max",
+    "metric": "frontiercode_score_pct",
+    "value": 49,
+    "source": "FrontierCode 1.1 Main independent AA",
+    "date": "2026-10-12",
+    "url": "https://artificialanalysis.ai/articles/frontiercode"
+  },
+  {
+    "lane": "fable",
+    "model": "Fable 5.1",
+    "effort": "max",
+    "metric": "frontiercode_cost_per_task_usd",
+    "value": 12,
+    "source": "FrontierCode 1.1 Main independent AA",
+    "date": "2026-10-12",
+    "url": "https://artificialanalysis.ai/articles/frontiercode"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5",
+    "effort": "max",
+    "metric": "frontiercode_cost_per_task_usd",
+    "value": 8.26,
+    "source": "FrontierCode 1.1 Main independent AA",
+    "date": "2026-10-12",
+    "url": "https://artificialanalysis.ai/articles/frontiercode"
+  },
+  {
+    "lane": "opus",
+    "model": "Opus 5.5",
+    "effort": "medium",
+    "metric": "frontiercode_score_pct",
+    "value": 57.1,
+    "source": "FrontierCode 1.1 live page independent AA",
+    "date": "2026-10-22",
+    "url": "https://artificialanalysis.ai/evaluations/frontiercode"
+  },
+  {
+    "lane": "opus",
+    "model": "Opus 5.5",
+    "effort": "high",
+    "metric": "frontiercode_score_pct",
+    "value": 54,
+    "source": "FrontierCode 1.1 live page independent AA",
+    "date": "2026-10-22",
+    "url": "https://artificialanalysis.ai/evaluations/frontiercode"
+  },
+  {
+    "lane": "opus",
+    "model": "Opus 5.5",
+    "effort": "xhigh",
+    "metric": "frontiercode_score_pct",
+    "value": 53.5,
+    "source": "FrontierCode 1.1 live page independent AA",
+    "date": "2026-10-22",
+    "url": "https://artificialanalysis.ai/evaluations/frontiercode"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5",
+    "effort": "xhigh",
+    "metric": "frontiercode_score_pct",
+    "value": 52.1,
+    "source": "FrontierCode 1.1 vendor secondary Anthropic system card via Apidog",
+    "date": "2026-10-08",
+    "url": "https://apidog.com/blog/claude-haiku-5-5-benchmarks/"
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5",
+    "effort": "max",
+    "metric": "frontiercode_score_pct",
+    "value": 46.2,
+    "source": "FrontierCode 1.1 vendor secondary Anthropic system card via Apidog",
+    "date": "2026-10-08",
+    "url": "https://apidog.com/blog/claude-haiku-5-5-benchmarks/"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5",
+    "effort": "xhigh",
+    "metric": "frontiercode_score_pct",
+    "value": 45.8,
+    "source": "FrontierCode 1.1 vendor secondary Anthropic system card via Apidog",
+    "date": "2026-10-08",
+    "url": "https://apidog.com/blog/claude-haiku-5-5-benchmarks/"
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5",
+    "effort": "max",
+    "metric": "frontiercode_score_pct",
+    "value": 46.4,
+    "source": "FrontierCode 1.1 vendor secondary Anthropic system card via Apidog",
+    "date": "2026-10-08",
+    "url": "https://apidog.com/blog/claude-haiku-5-5-benchmarks/"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "low",
+    "metric": "aa_ii_v5_score",
+    "value": 29,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-low-vs-gpt-6-1-terra-low"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "low",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.07,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-low-vs-gpt-6-1-terra-low"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "low",
+    "metric": "aa_ii_v5_tb4_pct",
+    "value": 15,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-low-vs-gpt-6-1-terra-low"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "low",
+    "metric": "aa_ii_v5_score",
+    "value": 35,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-low-vs-gpt-6-1-terra-low"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "low",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.16,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-low-vs-gpt-6-1-terra-low"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "low",
+    "metric": "aa_ii_v5_tb4_pct",
+    "value": 31,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-low-vs-gpt-6-1-terra-low"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "medium",
+    "metric": "aa_ii_v5_score",
+    "value": 38,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-medium-vs-gpt-6-1-terra-medium"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "medium",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.17,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-medium-vs-gpt-6-1-terra-medium"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "medium",
+    "metric": "aa_ii_v5_tb4_pct",
+    "value": 32,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-medium-vs-gpt-6-1-terra-medium"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "medium",
+    "metric": "aa_ii_v5_score",
+    "value": 46,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-medium-vs-gpt-6-1-terra-medium"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "medium",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.36,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-medium-vs-gpt-6-1-terra-medium"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "medium",
+    "metric": "aa_ii_v5_tb4_pct",
+    "value": 48,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-medium-vs-gpt-6-1-terra-medium"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "high",
+    "metric": "aa_ii_v5_score",
+    "value": 42,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-high-vs-gpt-6-1-terra-high"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "high",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.26,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-high-vs-gpt-6-1-terra-high"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "high",
+    "metric": "aa_ii_v5_tb4_pct",
+    "value": 42,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-high-vs-gpt-6-1-terra-high"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "metric": "aa_ii_v5_score",
+    "value": 50,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-high-vs-gpt-6-1-terra-high"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.59,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-high-vs-gpt-6-1-terra-high"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "high",
+    "metric": "aa_ii_v5_tb4_pct",
+    "value": 52,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-high-vs-gpt-6-1-terra-high"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "xhigh",
+    "metric": "aa_ii_v5_score",
+    "value": 45,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-xhigh-vs-gpt-6-1-terra-xhigh"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "xhigh",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.4,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-xhigh-vs-gpt-6-1-terra-xhigh"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "xhigh",
+    "metric": "aa_ii_v5_tb4_pct",
+    "value": 46,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-xhigh-vs-gpt-6-1-terra-xhigh"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "xhigh",
+    "metric": "aa_ii_v5_score",
+    "value": 52,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-xhigh-vs-gpt-6-1-terra-xhigh"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "xhigh",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.76,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-xhigh-vs-gpt-6-1-terra-xhigh"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "xhigh",
+    "metric": "aa_ii_v5_tb4_pct",
+    "value": 54,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-xhigh-vs-gpt-6-1-terra-xhigh"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "max",
+    "metric": "aa_ii_v5_score",
+    "value": 51,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "max",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.96,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "max",
+    "metric": "aa_ii_v5_tb4_pct",
+    "value": 56,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "max",
+    "metric": "aa_ii_v5_score",
+    "value": 55,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "max",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 1.27,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "max",
+    "metric": "aa_ii_v5_tb4_pct",
+    "value": 56,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "max",
+    "metric": "frontiercode_v2_pct",
+    "value": 42,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra"
+  },
+  {
+    "lane": "sol",
+    "model": "gpt-6.1-sol",
+    "effort": "max",
+    "metric": "frontiercode_v2_pct",
+    "value": 41,
+    "source": "AA Intelligence Index v5.0, live comparison page (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-28",
+    "url": "https://artificialanalysis.ai/models/comparisons/gpt-6-1-sol-vs-gpt-6-1-terra"
+  },
+  {
+    "lane": "terra",
+    "model": "gpt-6.1-terra",
+    "effort": "max",
+    "metric": "vendor_terminal_bench_4_pct",
+    "value": 50.3,
+    "source": "OpenAI terra announcement (vendor; read through search snippets, page returned 403)",
+    "date": "2026-10-26",
+    "url": "https://openai.com/index/introducing-gpt-6-1-terra/"
+  },
+  {
+    "lane": "opus",
+    "model": "Opus 5.5 (Claude Code)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+    "metric": "aa_cai2_index",
+    "value": 62
+  },
+  {
+    "lane": "opus",
+    "model": "Opus 5.5 (Claude Code)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+    "metric": "aa_cai2_tb4_pct",
+    "value": 63
+  },
+  {
+    "lane": "opus",
+    "model": "Opus 5.5 (Claude Code)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+    "metric": "aa_cai2_cost_per_task_usd",
+    "value": 11.42
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+    "metric": "aa_cai2_index",
+    "value": 59
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+    "metric": "aa_cai2_tb4_pct",
+    "value": 66
+  },
+  {
+    "lane": "sonnet",
+    "model": "Sonnet 5.5 (Claude Code)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+    "metric": "aa_cai2_cost_per_task_usd",
+    "value": 13.3
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+    "metric": "aa_cai2_index",
+    "value": 37
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+    "metric": "aa_cai2_tb4_pct",
+    "value": 31
+  },
+  {
+    "lane": "haiku",
+    "model": "Haiku 5.5 (Claude Code)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+    "metric": "aa_cai2_cost_per_task_usd",
+    "value": 2.67
+  },
+  {
+    "lane": "fable",
+    "model": "Fable 5.1 (Claude Code, with fallback)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+    "metric": "aa_cai2_index",
+    "value": 58
+  },
+  {
+    "lane": "fable",
+    "model": "Fable 5.1 (Claude Code, with fallback)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+    "metric": "aa_cai2_tb4_pct",
+    "value": 58
+  },
+  {
+    "lane": "fable",
+    "model": "Fable 5.1 (Claude Code, with fallback)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/claude-code-vs-codex",
+    "metric": "aa_cai2_cost_per_task_usd",
+    "value": 11.53
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_index",
+    "value": 54
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_tb4_pct",
+    "value": 53
+  },
+  {
+    "lane": "sol",
+    "model": "GPT-6.1 Sol (Codex)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_cost_per_task_usd",
+    "value": 1.5
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra (Codex)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_index",
+    "value": 55
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra (Codex)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_tb4_pct",
+    "value": 56
+  },
+  {
+    "lane": "astra",
+    "model": "GPT-6 Astra (Codex)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_cost_per_task_usd",
+    "value": 7.04
+  },
+  {
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_index",
+    "value": 48
+  },
+  {
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_tb4_pct",
+    "value": 48
+  },
+  {
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_cost_per_task_usd",
+    "value": 1.24
+  },
+  {
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "effort": "xhigh",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_index",
+    "value": 48
+  },
+  {
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "effort": "xhigh",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_tb4_pct",
+    "value": 46
+  },
+  {
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "effort": "xhigh",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_cost_per_task_usd",
+    "value": 0.69
+  },
+  {
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "effort": "high",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_index",
+    "value": 46
+  },
+  {
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "effort": "high",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_tb4_pct",
+    "value": 42
+  },
+  {
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "effort": "high",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_cost_per_task_usd",
+    "value": 0.54
+  },
+  {
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "effort": "medium",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_index",
+    "value": 42
+  },
+  {
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "effort": "medium",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_tb4_pct",
+    "value": 35
+  },
+  {
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "effort": "medium",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_cost_per_task_usd",
+    "value": 0.39
+  },
+  {
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "effort": "low",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_index",
+    "value": 35
+  },
+  {
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "effort": "low",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_tb4_pct",
+    "value": 25
+  },
+  {
+    "lane": "terra",
+    "model": "GPT-6.1 Terra (Codex)",
+    "effort": "low",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_cost_per_task_usd",
+    "value": 0.2
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna (Codex)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_index",
+    "value": 31
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna (Codex)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_tb4_pct",
+    "value": 16
+  },
+  {
+    "lane": "luna",
+    "model": "GPT-6 Luna (Codex)",
+    "effort": "max",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-cli-vs-codex",
+    "metric": "aa_cai2_cost_per_task_usd",
+    "value": 0.16
+  },
+  {
+    "lane": "gemini",
+    "model": "Gemini 3.8 Flash (Antigravity SDK)",
+    "effort": "high",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-sdk-vs-codex",
+    "metric": "aa_cai2_index",
+    "value": 33
+  },
+  {
+    "lane": "gemini",
+    "model": "Gemini 3.8 Flash (Antigravity SDK)",
+    "effort": "high",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-sdk-vs-codex",
+    "metric": "aa_cai2_tb4_pct",
+    "value": 15
+  },
+  {
+    "lane": "gemini",
+    "model": "Gemini 3.8 Flash (Antigravity SDK)",
+    "effort": "high",
+    "source": "AA-CAI v2.0",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/agents/coding-agents/comparisons/antigravity-sdk-vs-codex",
+    "metric": "aa_cai2_cost_per_task_usd",
+    "value": 2.51
+  },
+  {
+    "lane": "opus",
+    "model": "claude-opus-5-5",
+    "effort": "max",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 58
+  },
+  {
+    "lane": "opus",
+    "model": "claude-opus-5-5",
+    "effort": "max",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 10.04
+  },
+  {
+    "lane": "opus",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 57
+  },
+  {
+    "lane": "opus",
+    "model": "claude-opus-5-5",
+    "effort": "xhigh",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 6.05
+  },
+  {
+    "lane": "opus",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 52
+  },
+  {
+    "lane": "opus",
+    "model": "claude-opus-5-5",
+    "effort": "high",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 3.46
+  },
+  {
+    "lane": "opus",
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 48
+  },
+  {
+    "lane": "opus",
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 2.45
+  },
+  {
+    "lane": "opus",
+    "model": "claude-opus-5-5",
+    "effort": "low",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 35
+  },
+  {
+    "lane": "opus",
+    "model": "claude-opus-5-5",
+    "effort": "low",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.98
+  },
+  {
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "effort": "max",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 54
+  },
+  {
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "effort": "max",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 10.02
+  },
+  {
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "effort": "xhigh",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 50
+  },
+  {
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "effort": "xhigh",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 4.09
+  },
+  {
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 41
+  },
+  {
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "effort": "high",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 1.64
+  },
+  {
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 30
+  },
+  {
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "effort": "medium",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.78
+  },
+  {
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "effort": "low",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 25
+  },
+  {
+    "lane": "sonnet",
+    "model": "claude-sonnet-5-5",
+    "effort": "low",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.51
+  },
+  {
+    "lane": "haiku",
+    "model": "claude-haiku-5-5",
+    "effort": "max",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 36
+  },
+  {
+    "lane": "haiku",
+    "model": "claude-haiku-5-5",
+    "effort": "max",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.41
+  },
+  {
+    "lane": "haiku",
+    "model": "claude-haiku-5-5",
+    "effort": "xhigh",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 34
+  },
+  {
+    "lane": "haiku",
+    "model": "claude-haiku-5-5",
+    "effort": "xhigh",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.25
+  },
+  {
+    "lane": "haiku",
+    "model": "claude-haiku-5-5",
+    "effort": "high",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 30
+  },
+  {
+    "lane": "haiku",
+    "model": "claude-haiku-5-5",
+    "effort": "high",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.16
+  },
+  {
+    "lane": "haiku",
+    "model": "claude-haiku-5-5",
+    "effort": "medium",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 25
+  },
+  {
+    "lane": "haiku",
+    "model": "claude-haiku-5-5",
+    "effort": "medium",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.09
+  },
+  {
+    "lane": "haiku",
+    "model": "claude-haiku-5-5",
+    "effort": "low",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 19
+  },
+  {
+    "lane": "haiku",
+    "model": "claude-haiku-5-5",
+    "effort": "low",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.04
+  },
+  {
+    "lane": "fable",
+    "model": "claude-fable-5-1",
+    "effort": "max",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 49
+  },
+  {
+    "lane": "fable",
+    "model": "claude-fable-5-1",
+    "effort": "max",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 12.99
+  },
+  {
+    "lane": "fable",
+    "model": "claude-fable-5-1",
+    "effort": "xhigh",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 50
+  },
+  {
+    "lane": "fable",
+    "model": "claude-fable-5-1",
+    "effort": "xhigh",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 10.85
+  },
+  {
+    "lane": "fable",
+    "model": "claude-fable-5-1",
+    "effort": "high",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 47
+  },
+  {
+    "lane": "fable",
+    "model": "claude-fable-5-1",
+    "effort": "high",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 7.54
+  },
+  {
+    "lane": "fable",
+    "model": "claude-fable-5-1",
+    "effort": "medium",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 43
+  },
+  {
+    "lane": "fable",
+    "model": "claude-fable-5-1",
+    "effort": "medium",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 5.56
+  },
+  {
+    "lane": "fable",
+    "model": "claude-fable-5-1",
+    "effort": "low",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 38
+  },
+  {
+    "lane": "fable",
+    "model": "claude-fable-5-1",
+    "effort": "low",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 4.47
+  },
+  {
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "effort": "max",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 57
+  },
+  {
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "effort": "max",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 6.24
+  },
+  {
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "effort": "xhigh",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 55
+  },
+  {
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "effort": "xhigh",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 3.66
+  },
+  {
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 55
+  },
+  {
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "effort": "high",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 3.24
+  },
+  {
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 51
+  },
+  {
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "effort": "medium",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 2.73
+  },
+  {
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 43
+  },
+  {
+    "lane": "astra",
+    "model": "gpt-6-astra",
+    "effort": "low",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 1.42
+  },
+  {
+    "lane": "luna",
+    "model": "gpt-6-luna",
+    "effort": "max",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 28
+  },
+  {
+    "lane": "luna",
+    "model": "gpt-6-luna",
+    "effort": "max",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.15
+  },
+  {
+    "lane": "luna",
+    "model": "gpt-6-luna",
+    "effort": "xhigh",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 23
+  },
+  {
+    "lane": "luna",
+    "model": "gpt-6-luna",
+    "effort": "xhigh",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.1
+  },
+  {
+    "lane": "luna",
+    "model": "gpt-6-luna",
+    "effort": "high",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 21
+  },
+  {
+    "lane": "luna",
+    "model": "gpt-6-luna",
+    "effort": "high",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.07
+  },
+  {
+    "lane": "luna",
+    "model": "gpt-6-luna",
+    "effort": "medium",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 18
+  },
+  {
+    "lane": "luna",
+    "model": "gpt-6-luna",
+    "effort": "medium",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.04
+  },
+  {
+    "lane": "luna",
+    "model": "gpt-6-luna",
+    "effort": "low",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 10
+  },
+  {
+    "lane": "luna",
+    "model": "gpt-6-luna",
+    "effort": "low",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 0.01
+  },
+  {
+    "lane": "gemini",
+    "model": "gemini-3.8-flash",
+    "effort": "high",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 31
+  },
+  {
+    "lane": "gemini",
+    "model": "gemini-3.8-flash",
+    "effort": "high",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 7.77
+  },
+  {
+    "lane": "gemini",
+    "model": "gemini-3.8-flash",
+    "effort": "medium",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 30
+  },
+  {
+    "lane": "gemini",
+    "model": "gemini-3.8-flash",
+    "effort": "medium",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_cost_per_task_usd",
+    "value": 6.26
+  },
+  {
+    "lane": "gemini",
+    "model": "gemini-3.8-flash",
+    "effort": "low",
+    "source": "AA Intelligence Index v5.0, leaderboard (rescaled since the 2026-10-20 AA-II rows)",
+    "date": "2026-10-31",
+    "url": "https://artificialanalysis.ai/leaderboards/models",
+    "metric": "aa_ii_v5_score",
+    "value": 22
+  }
+]

@@ -1,0 +1,6 @@
+[
+  {"id": "D1", "file": "src/app.py", "line": 3, "line_end": 4, "type": "off-by-one",
+   "description": "the loop stops one element early and drops the last value"},
+  {"id": "D2", "file": "src/app.py", "line": 13, "line_end": 13, "type": "debug-output",
+   "description": "prints every label on the hot path"}
+]

@@ -1,0 +1,33 @@
+name: Validate weekly statistics
+
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  validate:
+    if: contains(github.event.issue.labels.*.name, 'stats')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Save issue body
+        env:
+          BODY: ${{ github.event.issue.body }}
+        run: printf '%s' "$BODY" > body.md
+      - name: Validate and update issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE: ${{ github.event.issue.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          if python3 -I bin/lane-stats share --validate body.md >validator.txt 2>&1; then
+            gh issue edit "$ISSUE" --repo "$REPO" --add-label stats-valid --remove-label stats-invalid
+          else
+            gh issue edit "$ISSUE" --repo "$REPO" --add-label stats-invalid --remove-label stats-valid
+            gh issue comment "$ISSUE" --repo "$REPO" --body-file validator.txt
+            gh issue close "$ISSUE" --repo "$REPO"
+          fi

@@ -1,0 +1,1115 @@
+{
+  "catalog_version": "2026-10-31.2",
+  "about": "Exploration arms: one arm is one lane, model and effort. lane refuses an arm that is absent or retired unless --off-catalog; lane-stats pick samples only active arms. Add or override arms (same lane, model, effort) in ~/.config/lanes/arms.local.json. prior_pct is a guess at the share of the provider's weekly window one run takes on prior_plan's base window (before window_epochs), prior_usable a guess at its usable rate (Artificial Analysis coding-agent index v1.5 / 80); both give way to measured runs. lane-stats turns every weekly % into a share of today's window on today's plan (plan_scale, then window_epochs) and prices it in plan dollars (plan_prices; see explore.points_basis). weight scales how often exploration samples the arm.",
+  "lanes": {
+    "luna": {
+      "model": "gpt-6-luna",
+      "provider": "codex",
+      "places": ["process"]
+    },
+    "terra": {
+      "model": "gpt-6.1-terra",
+      "provider": "codex",
+      "places": ["process"],
+      "prior_basis": "No Artificial Analysis coding-agent entry (2026-10-28). prior_pct: sol's at the same effort x terra's cost per task over sol's (AA Intelligence Index v5.0 comparison pages: 0.44 low, 0.47 medium, 0.44 high). prior_usable: sol's at the same effort x terra's index over sol's (29/35, 38/46, 42/50). Suite R (planted key) measured low, medium and high on 2026-10-28; reviewed runs replace the rest."
+    },
+    "sol": {
+      "model": "gpt-6.1-sol",
+      "provider": "codex",
+      "places": ["process"]
+    },
+    "astra": {
+      "model": "gpt-6-astra",
+      "provider": "codex",
+      "places": ["process"]
+    },
+    "gemini": {
+      "model": "gemini-3.8-flash-high",
+      "provider": "gemini",
+      "places": ["process"]
+    },
+    "haiku": {
+      "model": "claude-haiku-5-5",
+      "provider": "claude",
+      "places": ["process", "subagent", "cloud"]
+    },
+    "sonnet": {
+      "model": "claude-sonnet-5-5",
+      "provider": "claude",
+      "places": ["process", "subagent", "cloud"]
+    },
+    "opus": {
+      "model": "claude-opus-5-5",
+      "provider": "claude",
+      "places": ["process", "subagent", "cloud"]
+    },
+    "fable": {
+      "model": "claude-fable-5-1",
+      "provider": "claude",
+      "places": ["process", "subagent"],
+      "role": "advisor: disabled while its arms' status is disabled; once enabled, called by role through lane --role, never picked (explore.advisor, POLICY.md Advisor)"
+    },
+    "glm": {
+      "model": "z-ai/glm-5.3-flash",
+      "provider": "cline",
+      "places": ["process"]
+    },
+    "codex-cloud": {
+      "model": "codex-cloud",
+      "provider": "codex",
+      "places": ["cloud"]
+    }
+  },
+  "providers": {
+    "codex": {
+      "scarcity": 0.3,
+      "prior_plan": "prolite",
+      "plan_scale": {
+        "prolite": 1.0,
+        "plus": 5.8
+      },
+      "window_epochs": [
+        {
+          "plan": "prolite",
+          "from": "2026-10-29T16:56:07Z",
+          "scale": 2.0,
+          "source": "Tibo (@thsottiaux, OpenAI) on X, 2026-10-29 16:56:07 UTC, https://x.com/thsottiaux/status/2115850175868727621: usage limits doubled for the Pro 100/200/500 tiers and Business Premium, effective that day, no end date given; Plus is not named. Meter: 6% -> 3% between 2026-10-29 04:02 and 10-30 00:24 UTC on the window resetting 2026-11-04T06:42Z with no spend between."
+        }
+      ],
+      "plan_prices": {
+        "prolite": {
+          "usd_per_month": 100,
+          "source": "OpenAI pricing page (learn.chatgpt.com/docs/pricing): Pro at $100, $200 or $500 a month; prolite is the $100 tier",
+          "checked": "2026-10-31"
+        },
+        "plus": {
+          "usd_per_month": 20,
+          "source": "OpenAI pricing page (learn.chatgpt.com/docs/pricing): Plus $20 a month",
+          "checked": "2026-10-31"
+        }
+      },
+      "basis": "plan_scale is the base windows, before window_epochs: measured Pro Lite \u2248 8,400 credits a week (usage-lab U3, 2026-10-19) and Plus \u2248 1,450 (U1), so a Plus run takes 5.8x the % of a Pro Lite run. Since 2026-10-29 16:56 UTC Pro Lite is about 16,800 credits a week (window_epochs: limits doubled; the meter fell 6% to 3% with no spend), so today a Plus run takes about 11.6x; Plus is not reported doubled. Three measured waves on a plan replace the prior; a window epoch's scale applies to runs read on or after its from time.",
+      "usd_per_credit": 0.04,
+      "rate_card": {
+        "gpt-6-luna": {
+          "input": 2.5,
+          "cached_input": 0.25,
+          "output": 12.5
+        },
+        "gpt-5.6-luna": {
+          "input": 2.5,
+          "cached_input": 0.25,
+          "output": 12.5
+        },
+        "gpt-6.1-terra": {
+          "input": 25,
+          "cached_input": 1.25,
+          "output": 125
+        },
+        "gpt-6.1-sol": {
+          "input": 50,
+          "cached_input": 2.5,
+          "output": 250
+        },
+        "gpt-6-astra": {
+          "input": 250,
+          "cached_input": 25,
+          "output": 1250
+        }
+      },
+      "rate_card_source": "OpenAI Codex rate card, credits per 1M tokens, as used in usage-lab LIMITS.md 2026-10-19; gpt-6.1-terra from OpenAI's Codex rate card, 2026-10-26",
+      "window": {
+        "weekly_credits": 8400,
+        "interval": [
+          7800,
+          9200
+        ],
+        "plan": "prolite",
+        "source": "usage-lab U3 controlled astra blocks 2026-10-19: 1,011 credits moved the weekly meter 2% to 14%",
+        "note": "weekly_credits and interval are the base Pro Lite window, measured before 2026-10-29 16:56 UTC (8,400). Since then the window is about 16,800 credits (window_epochs scale 2.0, from the meter; not yet measured in credits). lane-bench divides credits by weekly_credits, so Suite R pct_week values are shares of the base window, and lane-stats applies window_epochs to them."
+      }
+    },
+    "claude": {
+      "scarcity": 1.0,
+      "prior_plan": "max_20x",
+      "plan_scale": {"max_20x": 1.0, "max_5x": 4.0},
+      "plan_prices": {
+        "max_20x": {
+          "usd_per_month": 200,
+          "source": "Claude Max 20x, $200 a month",
+          "checked": "2026-10-31"
+        },
+        "max_5x": {
+          "usd_per_month": 100,
+          "source": "Claude Max 5x, $100 a month; scale 4.0 is the 5x/20x naming, not measured",
+          "checked": "2026-10-31"
+        }
+      },
+      "prior_pct_per_usd": 0.0656,
+      "basis": "usage-lab C-series controlled blocks 2026-10-19: 1% of the week \u2248 $15.25 list (interval $10.2\u201330.5); turn-meter calibrate replaces it",
+      "window": {
+        "weekly_list_usd": 1525,
+        "weekly_interval": [
+          1017,
+          3050
+        ],
+        "five_hour_list_usd": 254,
+        "five_hour_interval": [
+          235,
+          277
+        ],
+        "model_weight_5h": {
+          "haiku": 1.72,
+          "sonnet": 1.0,
+          "opus": 0.95,
+          "fable": 2.06
+        },
+        "model_weight_week": {
+          "sonnet": 1.0,
+          "opus": 0.67,
+          "fable": 1.69
+        },
+        "model_weight_week_source": "FINDINGS section 1 weekly weights per list dollar, Sonnet = 1 (Opus 0.22-2.00, Fable 0.75-4.49; Haiku has no point estimate). The calibrated pct_per_usd comes mostly from Opus main sessions, so lane-stats prices a Fable run at fable/opus of it",
+        "fable_weekly_list_usd": 531,
+        "source": "usage-lab C-series controlled blocks 2026-10-19 (U2b); haiku weight unresolved (0-3.75)"
+      },
+      "prices": {
+        "claude-haiku-5-5": {
+          "input": 0.1,
+          "output": 0.5,
+          "cache_write_5m": 0.125,
+          "cache_write_1h": 0.2,
+          "cache_read": 0.01,
+          "long_context": {
+            "above_prompt_tokens": 100000,
+            "input": 0.5,
+            "output": 2.5,
+            "cache_write_5m": 0.625,
+            "cache_write_1h": 1.0,
+            "cache_read": 0.05
+          }
+        },
+        "claude-sonnet-5-5": {
+          "input": 2,
+          "output": 10,
+          "cache_write_5m": 2.5,
+          "cache_write_1h": 4,
+          "cache_read": 0.2
+        },
+        "claude-opus-5-5": {
+          "input": 4,
+          "output": 20,
+          "cache_write_5m": 5,
+          "cache_write_1h": 8,
+          "cache_read": 0.2
+        },
+        "claude-fable-5-1": {
+          "input": 10,
+          "output": 50,
+          "cache_write_5m": 12.5,
+          "cache_write_1h": 20,
+          "cache_read": 0.25
+        },
+        "source": "Claude API reference, cached 2026-10-06; Sonnet and Haiku cache writes and the Haiku cache read follow its 1.25x / 2x / 0.1x rule"
+      }
+    },
+    "gemini": {
+      "scarcity": 0.2,
+      "prior_plan": "google_ai_pro",
+      "plan_prices": {
+        "google_ai_pro": {
+          "usd_per_month": 19.99,
+          "source": "Google AI Pro, $19.99 a month",
+          "checked": "2026-10-31"
+        }
+      },
+      "basis": "Google AI Pro ($19.99 a month), plenty spare; scarcity 0.2 applies only to a plan without a price"
+    },
+    "cline": {
+      "scarcity": 0.0
+    }
+  },
+  "explore": {
+    "share": {"repo": "hieunguyen7337/claude-usage-optimizer-releases", "min_reviewed": 3},
+    "min_runs": 2,
+    "floor": 0.2,
+    "half_life_days": 60,
+    "shrink": 2.0,
+    "review_points": 0.01,
+    "fix_points_per_minute": 0.003,
+    "weeks_per_month": 4.345,
+    "places": ["process", "subagent", "cloud"],
+    "points_basis": "Cost points are plan dollars. A run's cost is its share of the provider's weekly window, as a % of today's window on today's plan (plan_scale, then window_epochs), / 100 x the plan's usd_per_month / weeks_per_month, times the usage mode's pace factor. A provider or plan without a price (cline; Codex 'pro') pays share x scarcity x Claude's plan dollars per 1% of its week (200 / 4.345 / 100 = $0.46). review_points and fix_points_per_minute stay in Claude-% (1 = 1% of Claude's week) and convert at that rate: a review costs about $0.0046 and a fix minute about $0.0014; pace does not apply to them. Without a Claude price every term stays in Claude-%.",
+    "targets": {
+      "mechanical": 0.8,
+      "substantive": 0.7,
+      "hard": 0.5,
+      "design": 0.5,
+      "review": 0.6,
+      "research": 0.7
+    },
+    "pace": {
+      "low_pct": 60,
+      "high_pct": 90,
+      "low_factor": 0.25,
+      "high_factor": 3.0
+    },
+    "mode": "auto",
+    "modes": {
+      "saving_pct": 110,
+      "utilization_pct": 90
+    },
+    "exclude_weekly_pct": 95,
+    "exclude_5h_pct": 90,
+    "claude_guard_pct": 85,
+    "lock": {
+      "leaning_p": 0.5,
+      "leaning_runs": 4,
+      "locked_p": 0.8,
+      "locked_runs": 8
+    },
+    "measured_weight": 4,
+    "measured_shrink": 4.0,
+    "measured_min_n": 10,
+    "time": {
+      "basis": "151 untagged real units on one machine to 2026-10-29 (FINDINGS §16): class medians rounded, design between substantive and hard; a ridge fit put terra at 0.39x the other lanes (n=10) and could not separate effort from lane, so effort factors are mild; residual log-sd 1.2. The brief-size term (minutes x (brief bytes / 6000)^0.8) is the fitted slope of the log error on log brief size over 183 units with a known brief (correlation 0.40); in a time-ordered backtest it cut the median error factor from 1.89 to about 1.7. A run's own tag, class and arm history replace these as runs accumulate.",
+      "class_minutes": {"mechanical": 4, "substantive": 15, "hard": 25, "design": 20, "review": 4, "research": 9},
+      "effort_factor": {"low": 0.8, "medium": 0.9, "high": 1.0, "xhigh": 1.2, "max": 1.5},
+      "lane_factor": {"terra": 0.5},
+      "prior_runs": 2,
+      "log_sd": 1.0,
+      "brief_ref_bytes": 6000,
+      "brief_exponent": 0.8
+    },
+    "memory": {
+      "basis": "Rough priors from one Windows snapshot on 2026-10-29: interactive Claude Code sessions held 640-670 MB each, the Codex app-server about 50 MB, and the worker's own tool commands (tests, builds) come on top. A lane's need is the median peak_mem_mb of its last recent_runs runs once it has min_runs of them; these priors only cover the first runs. The reserve keeps the main session and the desktop usable.",
+      "lane_mb": {"luna": 400, "terra": 400, "sol": 400, "astra": 400, "haiku": 700, "sonnet": 700, "opus": 700, "fable": 700, "gemini": 500, "glm": 500},
+      "default_mb": 700,
+      "reserve_mb": 1536,
+      "reserve_fraction": 0.1,
+      "recent_runs": 20,
+      "min_runs": 3,
+      "young_run_seconds": 120
+    },
+    "advisor": {
+      "lane": "fable",
+      "model": "claude-fable-5-1",
+      "active": false,
+      "inactive_reason": "the fable lane is disabled: only Fable 5.1 is accessible, it is weaker than Opus 5.5 on every public index and costs more, and a Fable 5.5 is not confirmed (the owner, 2026-11-01); the advisor turns on for a Fable model that passes the switch rule in POLICY.md (Advisor)",
+      "roles": {"plan": "xhigh", "ladder": "xhigh", "final-review": "high", "tiebreak": "medium"},
+      "weekly_list_usd": 60,
+      "budget_basis": "Fable list dollars over the last 7 days, every role but user. $60 is about 11% of the measured Fable sub-cap ($531, FINDINGS section 1) and, at Fable's weekly weight, about 5-6% of Claude's week: room for a planner call on each hard or design unit and a final review of each release"
+    },
+    "main_session": {
+      "model": "opus[1m]",
+      "effort": "xhigh",
+      "previous_models": [],
+      "previous_efforts": [],
+      "basis": "The main session's model and effort, local and cloud. install.sh sets them when absent and moves a setting still at a previous kit value to this one; lane main starts mirrors on the model without its [context] suffix. Change it only through the switch rule in POLICY.md (Advisor)"
+    }
+  },
+  "arms": [
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "status": "active",
+      "classes": [
+        "mechanical"
+      ],
+      "weight": 3.0,
+      "prior_pct": 0.01,
+      "prior_usable": 0.35,
+      "measured": {
+        "review": {
+          "usable": 0.5763888888888888,
+          "pct_week": 0.001511482432208995,
+          "recall": 0.3881578947368421,
+          "n": 118,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      },
+      "classes_reason": "Reviewed real units to 2026-10-28 (findings/ledger, both snapshots): medium substantive 1 of 5 usable and low/medium research 1 of 3, against 12 of 13 at xhigh/max outside review; low mechanical 6 of 7. Low and medium stopped after 12-20 tool calls (FINDINGS section 12). Suite R recall 0.39 at low and 0.57 at medium."
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "effort": "medium",
+      "status": "active",
+      "classes": [
+        "mechanical"
+      ],
+      "weight": 3.0,
+      "prior_pct": 0.02,
+      "prior_usable": 0.4,
+      "measured": {
+        "review": {
+          "usable": 0.7708333333333334,
+          "pct_week": 0.0011839262566137564,
+          "recall": 0.5723684210526315,
+          "n": 129,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      },
+      "classes_reason": "Reviewed real units to 2026-10-28 (findings/ledger, both snapshots): medium substantive 1 of 5 usable and low/medium research 1 of 3, against 12 of 13 at xhigh/max outside review; low mechanical 6 of 7. Low and medium stopped after 12-20 tool calls (FINDINGS section 12). Suite R recall 0.39 at low and 0.57 at medium."
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "effort": "high",
+      "status": "active",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "research"
+      ],
+      "weight": 3.0,
+      "prior_pct": 0.025,
+      "prior_usable": 0.45,
+      "measured": {
+        "review": {
+          "usable": 0.875,
+          "pct_week": 0.0016800243055555557,
+          "recall": 0.7171052631578947,
+          "n": 136,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "effort": "xhigh",
+      "status": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "research",
+        "review"
+      ],
+      "weight": 3.0,
+      "prior_pct": 0.03,
+      "prior_usable": 0.5,
+      "measured": {
+        "review": {
+          "usable": 0.8819444444444444,
+          "pct_week": 0.0022907170965608464,
+          "recall": 0.7828947368421053,
+          "n": 131,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "effort": "max",
+      "status": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "design",
+        "review"
+      ],
+      "weight": 3.0,
+      "prior_pct": 0.06,
+      "prior_usable": 0.51,
+      "measured": {
+        "review": {
+          "usable": 0.9027777777777778,
+          "pct_week": 0.002457276207010582,
+          "recall": 0.8157894736842105,
+          "n": 136,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "status": "active",
+      "classes": [
+        "mechanical",
+        "substantive"
+      ],
+      "weight": 1.0,
+      "prior_pct": 0.45,
+      "prior_usable": 0.71,
+      "measured": {
+        "review": {
+          "usable": 0.9351851851851852,
+          "pct_week": 0.01921081349206349,
+          "recall": 0.8421052631578947,
+          "n": 108,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "status": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "review",
+        "research"
+      ],
+      "weight": 1.0,
+      "prior_pct": 0.65,
+      "prior_usable": 0.76,
+      "measured": {
+        "review": {
+          "usable": 0.9537037037037037,
+          "pct_week": 0.023061240079365077,
+          "recall": 0.8771929824561403,
+          "n": 108,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "status": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "design",
+        "review"
+      ],
+      "weight": 1.0,
+      "prior_pct": 0.8,
+      "prior_usable": 0.75,
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.028830961199294534,
+          "recall": 0.9035087719298246,
+          "n": 108,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "xhigh",
+      "status": "active",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "weight": 1.0,
+      "prior_pct": 0.95,
+      "prior_usable": 0.79,
+      "measured": {
+        "review": {
+          "usable": 0.9907407407407407,
+          "pct_week": 0.03468558972663139,
+          "recall": 0.9210526315789473,
+          "n": 106,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "effort": "xhigh",
+      "status": "active",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "weight": 0.5,
+      "prior_pct": 4.0,
+      "prior_usable": 0.75,
+      "measured": {
+        "review": {
+          "usable": 0.9907407407407407,
+          "pct_week": 0.19888888888888887,
+          "recall": 0.9385964912280702,
+          "n": 107,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "effort": "max",
+      "status": "active",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "weight": 0.5,
+      "prior_pct": 6.8,
+      "prior_usable": 0.78,
+      "measured": {
+        "review": {
+          "usable": 1.0,
+          "pct_week": 0.22274050374779542,
+          "recall": 0.9824561403508771,
+          "n": 108,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "gemini",
+      "model": "gemini-3.8-flash-low",
+      "effort": "low",
+      "status": "active",
+      "classes": [
+        "mechanical",
+        "research"
+      ],
+      "weight": 1.0,
+      "prior_pct": 0.4,
+      "prior_usable": 0.42
+    },
+    {
+      "lane": "gemini",
+      "model": "gemini-3.8-flash-medium",
+      "effort": "medium",
+      "status": "active",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "research"
+      ],
+      "weight": 1.0,
+      "prior_pct": 0.6,
+      "prior_usable": 0.48
+    },
+    {
+      "lane": "gemini",
+      "model": "gemini-3.8-flash-high",
+      "effort": "high",
+      "status": "active",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "research",
+        "review"
+      ],
+      "weight": 1.0,
+      "prior_pct": 1.0,
+      "prior_usable": 0.52
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "effort": "low",
+      "status": "active",
+      "classes": [
+        "mechanical",
+        "review"
+      ],
+      "weight": 2.0,
+      "prior_pct": 0.005,
+      "prior_usable": 0.35,
+      "measured": {
+        "review": {
+          "usable": 0.9444444444444444,
+          "pct_week": 0.0005368257559198544,
+          "recall": 0.8947368421052632,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "effort": "medium",
+      "status": "active",
+      "classes": [
+        "mechanical",
+        "research",
+        "review"
+      ],
+      "weight": 2.0,
+      "prior_pct": 0.01,
+      "prior_usable": 0.42,
+      "measured": {
+        "review": {
+          "usable": 0.9444444444444444,
+          "pct_week": 0.0007372791621129326,
+          "recall": 0.9473684210526315,
+          "n": 35,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "effort": "high",
+      "status": "active",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "research"
+      ],
+      "weight": 2.0,
+      "prior_pct": 0.015,
+      "prior_usable": 0.48,
+      "measured": {
+        "review": {
+          "usable": 0.9444444444444444,
+          "pct_week": 0.0010988037887067399,
+          "recall": 0.9473684210526315,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "effort": "xhigh",
+      "status": "active",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "hard",
+        "research",
+        "review"
+      ],
+      "weight": 2.0,
+      "prior_pct": 0.023,
+      "prior_usable": 0.51,
+      "measured": {
+        "review": {
+          "usable": 0.9166666666666666,
+          "pct_week": 0.0033189615118397087,
+          "recall": 1.0,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "effort": "medium",
+      "status": "active",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "research",
+        "review"
+      ],
+      "weight": 1.0,
+      "prior_pct": 0.023,
+      "prior_usable": 0.58,
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.007734306739526412,
+          "recall": 0.868421052631579,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "effort": "high",
+      "status": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "research",
+        "review"
+      ],
+      "weight": 1.0,
+      "prior_pct": 0.06,
+      "prior_usable": 0.7,
+      "measured": {
+        "review": {
+          "usable": 0.9861111111111112,
+          "pct_week": 0.009109192167577416,
+          "recall": 0.8947368421052632,
+          "n": 72,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "effort": "xhigh",
+      "status": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "design",
+        "review"
+      ],
+      "weight": 1.0,
+      "prior_pct": 0.12,
+      "prior_usable": 0.79,
+      "measured": {
+        "review": {
+          "usable": 0.9861111111111112,
+          "pct_week": 0.015336746083788703,
+          "recall": 0.9342105263157895,
+          "n": 72,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "effort": "max",
+      "status": "active",
+      "classes": [
+        "hard",
+        "design"
+      ],
+      "weight": 0.3,
+      "prior_pct": 0.52,
+      "prior_usable": 0.85,
+      "measured": {
+        "review": {
+          "usable": 1.0,
+          "pct_week": 0.06000939918032788,
+          "recall": 0.9736842105263158,
+          "n": 72,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "medium",
+      "status": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "review"
+      ],
+      "weight": 0.7,
+      "prior_pct": 0.1,
+      "prior_usable": 0.7,
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.018891152276867038,
+          "recall": 0.9473684210526315,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "high",
+      "status": "active",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "weight": 0.7,
+      "prior_pct": 0.2,
+      "prior_usable": 0.76,
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.02269540145719491,
+          "recall": 0.9473684210526315,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "xhigh",
+      "status": "active",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "weight": 0.7,
+      "prior_pct": 0.3,
+      "prior_usable": 0.8,
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.037001864845173045,
+          "recall": 0.9473684210526315,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "max",
+      "status": "active",
+      "classes": [
+        "hard",
+        "design"
+      ],
+      "weight": 0.3,
+      "prior_pct": 0.48,
+      "prior_usable": 0.83,
+      "measured": {
+        "review": {
+          "usable": 0.9722222222222222,
+          "pct_week": 0.09407310892531878,
+          "recall": 1.0,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "fable",
+      "model": "claude-fable-5-1",
+      "effort": "medium",
+      "status": "disabled",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "weight": 0,
+      "prior_pct": 0.6,
+      "prior_usable": 0.66,
+      "reason": "only Fable 5.1 is accessible, and a Fable 5.5 is not confirmed (the owner, 2026-11-01); the switch rule (POLICY.md, Advisor) sets the status to manual. Once enabled, an advisor arm: called by role, never drawn by the picker. Fable 5.1 scores below Opus 5.5 at every effort on Intelligence Index v5.0 (50 against 57 at xhigh) at 2.5x its list price, and on Suite R it matched Opus's recall at about 3x the price per item (FINDINGS section 5). prior_pct: Opus's at the same effort x Fable's Suite R cost per item over Opus's (about 3) x the weekly weight ratio (1.69/0.67), rounded down for a short advisor brief; prior_usable: Opus's x Fable's index over Opus's"
+    },
+    {
+      "lane": "fable",
+      "model": "claude-fable-5-1",
+      "effort": "high",
+      "status": "disabled",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "weight": 0,
+      "prior_pct": 1.0,
+      "prior_usable": 0.72,
+      "reason": "only Fable 5.1 is accessible, and a Fable 5.5 is not confirmed (the owner, 2026-11-01); the switch rule (POLICY.md, Advisor) sets the status to manual. Once enabled, an advisor arm: called by role, never drawn by the picker. Fable 5.1 scores below Opus 5.5 at every effort on Intelligence Index v5.0 (50 against 57 at xhigh) at 2.5x its list price, and on Suite R it matched Opus's recall at about 3x the price per item (FINDINGS section 5). prior_pct: Opus's at the same effort x Fable's Suite R cost per item over Opus's (about 3) x the weekly weight ratio (1.69/0.67), rounded down for a short advisor brief; prior_usable: Opus's x Fable's index over Opus's"
+    },
+    {
+      "lane": "fable",
+      "model": "claude-fable-5-1",
+      "effort": "xhigh",
+      "status": "disabled",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "weight": 0,
+      "prior_pct": 1.5,
+      "prior_usable": 0.76,
+      "reason": "only Fable 5.1 is accessible, and a Fable 5.5 is not confirmed (the owner, 2026-11-01); the switch rule (POLICY.md, Advisor) sets the status to manual. Once enabled, an advisor arm: called by role, never drawn by the picker. Fable 5.1 scores below Opus 5.5 at every effort on Intelligence Index v5.0 (50 against 57 at xhigh) at 2.5x its list price, and on Suite R it matched Opus's recall at about 3x the price per item (FINDINGS section 5). prior_pct: Opus's at the same effort x Fable's Suite R cost per item over Opus's (about 3) x the weekly weight ratio (1.69/0.67), rounded down for a short advisor brief; prior_usable: Opus's x Fable's index over Opus's"
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "max",
+      "status": "retired",
+      "classes": [],
+      "weight": 0,
+      "prior_pct": 1.4,
+      "prior_usable": 0.75,
+      "reason": "Artificial Analysis v1.5: 60 at $1.55 a task, below xhigh's 63 at $1.04; Suite R 2026-10-20 agrees: no recall gain over xhigh at a higher price",
+      "measured": {
+        "review": {
+          "usable": 0.9907407407407407,
+          "pct_week": 0.03784920304232804,
+          "recall": 0.9473684210526315,
+          "n": 108,
+          "source": "suite_r 2026-10-22",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "effort": "max",
+      "status": "retired",
+      "classes": [],
+      "weight": 0,
+      "prior_pct": 0.095,
+      "prior_usable": 0.45,
+      "reason": "Artificial Analysis v1.5: 36 at $2.58 a task, below xhigh's 41 at $0.61; Suite R 2026-10-20 agrees: no recall gain over xhigh at a higher price",
+      "measured": {
+        "review": {
+          "usable": 0.9444444444444444,
+          "pct_week": 0.01057762338797814,
+          "recall": 0.9736842105263158,
+          "n": 36,
+          "source": "suite_r 2026-10-22"
+        }
+      }
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-5.6-luna",
+      "effort": "*",
+      "status": "manual",
+      "classes": [],
+      "weight": 0,
+      "prior_pct": 0.03,
+      "prior_usable": 0.45,
+      "reason": "fallback when gpt-6-luna is unavailable"
+    },
+    {
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "effort": "low",
+      "status": "active",
+      "classes": [
+        "mechanical",
+        "review",
+        "research"
+      ],
+      "weight": 1.5,
+      "prior_pct": 0.2,
+      "prior_usable": 0.59,
+      "measured": {
+        "review": {
+          "usable": 0.9166666666666666,
+          "pct_week": 0.008288688822751323,
+          "recall": 0.9210526315789473,
+          "n": 35,
+          "source": "suite_r 2026-10-28, planted key (v1; not rescored)",
+          "plan": "prolite"
+        }
+      },
+      "classes_reason": "Suite R 2026-10-28: recall 0.92 at 0.70 credits an item, the cheapest Codex arm at that recall; AA v5.0 Terminal-Bench 15% at low against sol low's 31%, and 1 of 2 real substantive units usable, so no substantive work."
+    },
+    {
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "effort": "medium",
+      "status": "active",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "hard",
+        "review",
+        "research"
+      ],
+      "weight": 1.5,
+      "prior_pct": 0.31,
+      "prior_usable": 0.63,
+      "measured": {
+        "review": {
+          "usable": 0.9444444444444444,
+          "pct_week": 0.009577119708994709,
+          "recall": 0.9210526315789473,
+          "n": 36,
+          "source": "suite_r 2026-10-28, planted key (v1; not rescored)",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "effort": "high",
+      "status": "active",
+      "classes": [
+        "substantive",
+        "hard",
+        "design",
+        "review"
+      ],
+      "weight": 1.5,
+      "prior_pct": 0.35,
+      "prior_usable": 0.63,
+      "measured": {
+        "review": {
+          "usable": 0.9444444444444444,
+          "pct_week": 0.010883983134920635,
+          "recall": 0.9210526315789473,
+          "n": 36,
+          "source": "suite_r 2026-10-28, planted key (v1; not rescored)",
+          "plan": "prolite"
+        }
+      }
+    },
+    {
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "effort": "xhigh",
+      "status": "retired",
+      "classes": [],
+      "weight": 0,
+      "prior_pct": 0.5,
+      "prior_usable": 0.68,
+      "reason": "AA v5.0 (2026-10-28): 45 at $0.40 a task, below sol medium's 46 at $0.36; Suite R 2026-10-28 (23 of 36 items): the same defects as terra low at 1.9x the cost and 2.2x the unmatched findings."
+    },
+    {
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "effort": "max",
+      "status": "retired",
+      "classes": [],
+      "weight": 0,
+      "prior_pct": 1.06,
+      "prior_usable": 0.7,
+      "reason": "AA v5.0 (2026-10-28): 51 at $0.96 a task against sol xhigh's 52 at $0.76; not run on Suite R. Terra costs 0.76x sol per task at max (0.44-0.53x below it) because it writes almost as many tokens."
+    },
+    {
+      "lane": "glm",
+      "model": "z-ai/glm-5.3-flash",
+      "effort": "*",
+      "status": "manual",
+      "classes": [],
+      "weight": 0,
+      "prior_pct": 0,
+      "prior_usable": 0.3,
+      "reason": "throwaway, low-stakes work only; never picked"
+    },
+    {
+      "lane": "codex-cloud",
+      "model": "codex-cloud",
+      "effort": "default",
+      "status": "manual",
+      "classes": [],
+      "weight": 0,
+      "prior_pct": 0.65,
+      "prior_usable": 0.76,
+      "reason": "no model or effort can be chosen (the CLI sends none); the agent names itself GPT-5.6 Sol (self-report in two environments, 2026-10-31); quality and cost are unmeasured; this arm is manual so the picker never sends a unit here"
+    }
+  ]
+}

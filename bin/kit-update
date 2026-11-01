@@ -1,0 +1,434 @@
+#!/usr/bin/env python3
+"""Tell this machine when a newer Claude Usage Optimizer release is published.
+
+  kit-update check    fetch the default branch of the recorded checkout's origin, compare its POLICY.md
+                      version with the installed one, record the result and print one line
+
+install.sh records the git checkout it ran from in <install>/source.json; a bundle install records none, so
+there is nothing to fetch. The result goes to $LANES_STATE/kit-update.json (default ~/.local/state/lanes):
+{checked_at, installed, latest, checkout, error, announced}. The statusline reads it and runs this check in
+the background at most every 6 hours. The first check that finds a newer release writes a kit notice to
+$LANES_STATE/notices/ with the update commands and pushes it once through bin/cloud-notify, when that is
+installed; the notice is removed once the installed release catches up. A check that cannot run (no
+checkout, no git, offline) records why and exits 0. USAGE_OPTIMIZER_UPDATE_CHECK=off turns it all off.
+"""
+
+import argparse
+import datetime as dt
+import json
+import os
+import re
+import shlex
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+
+GIT_TIMEOUT = 30
+PUSH_TIMEOUT = 10
+LOCK_STALE = 300
+VERSION_RE = re.compile(r"^Claude Usage Optimizer version: (\d{4}-\d{2}-\d{2}\.\d+)\.", re.M)
+RELEASE_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})\.(\d+)")
+NOTICE_RE = re.compile(r"kit-update-\d{4}-\d{2}-\d{2}\.\d+\.json")
+BRANCH_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,199}")
+REMOTE_PREFIX = "refs/remotes/origin/"
+# Where this tool fetches origin's branches: private to it, so the user's refs/remotes/origin/* stay as they were.
+UPDATE_PREFIX = "refs/usage-optimizer/update/"
+REPLACE_DELAYS = (0.25, 0.25, 0.5)  # three retries, about 1 s in all, when Windows holds the file open
+
+
+def utc_now():
+    return dt.datetime.now(dt.timezone.utc)
+
+
+def iso(moment):
+    return moment.astimezone(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def release_key(value):
+    """(year, month, day, n) for a release name such as 2026-10-31.13, so .9 < .10 < the next day's .1."""
+    match = RELEASE_RE.fullmatch(value) if isinstance(value, str) else None
+    return tuple(int(part) for part in match.groups()) if match else None
+
+
+def is_newer(latest, installed):
+    newer, current = release_key(latest), release_key(installed)
+    return newer is not None and current is not None and newer > current
+
+
+def update_check_enabled():
+    return os.environ.get("USAGE_OPTIMIZER_UPDATE_CHECK", "on").strip().lower() != "off"
+
+
+def state_dir():
+    return os.path.abspath(os.path.expanduser(os.environ.get("LANES_STATE", "~/.local/state/lanes")))
+
+
+def install_prefix():
+    return os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+
+
+def installed_version():
+    path = os.environ.get("USAGE_OPTIMIZER_POLICY") or os.path.join(install_prefix(), "POLICY.md")
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            match = VERSION_RE.search(handle.read(4096))
+    except OSError:
+        return None
+    return match.group(1) if match else None
+
+
+def read_json(path):
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            value = json.load(handle)
+    except (OSError, ValueError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def recorded_checkout():
+    record = read_json(os.path.join(install_prefix(), "source.json")) or {}
+    value = record.get("checkout")
+    return value if isinstance(value, str) and value and os.path.isabs(value) else None
+
+
+def write_json(directory, name, value):
+    """Write the file atomically; False when it was skipped because another process kept it open."""
+    fd, temporary = tempfile.mkstemp(prefix="." + name[:-len(".json")] + "-", suffix=".tmp", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(value, handle, ensure_ascii=False)
+            handle.write("\n")
+        return replace_file(temporary, os.path.join(directory, name))
+    finally:
+        try:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+        except OSError:
+            pass
+
+
+def _detached():
+    # No terminal for git, ssh or a credential helper to prompt on, and no console window on Windows.
+    if os.name == "nt":
+        return {"creationflags": 0x08000000}
+    return {"start_new_session": True}
+
+
+def _stop(process):
+    """End the process and everything it started. _detached() gives git its own session (POSIX process group);
+    on Windows taskkill /T ends the tree below this one pid, which this tool started."""
+    try:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(process.pid)], stdin=subprocess.DEVNULL,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10, **_detached())
+        else:
+            os.killpg(process.pid, signal.SIGKILL)
+    except (OSError, subprocess.SubprocessError):
+        pass
+    try:
+        process.kill()
+    except OSError:
+        pass
+    try:
+        process.wait(timeout=5)
+    except Exception:
+        pass
+
+
+def replace_file(source, target):
+    """os.replace, retried while Windows holds the target open for a reader. False when it never lands; the
+    caller then skips the write, so nothing is raised for a file another process was reading."""
+    attempts = len(REPLACE_DELAYS) + 1
+    for attempt in range(attempts):
+        try:
+            os.replace(source, target)
+            return True
+        except PermissionError:
+            if attempt == attempts - 1:
+                return False
+            time.sleep(REPLACE_DELAYS[attempt])
+    return False
+
+
+def git_env():
+    env = dict(os.environ)
+    # An empty GIT_ASKPASS stops git falling back to core.askPass or SSH_ASKPASS; GIT_TERMINAL_PROMPT=0 makes
+    # it fail rather than ask; GCM_INTERACTIVE=never does the same for Git Credential Manager.
+    env.update({"GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "", "SSH_ASKPASS": "",
+                "SSH_ASKPASS_REQUIRE": "never", "GCM_INTERACTIVE": "never"})
+    return env
+
+
+def run_git(git, checkout, *args):
+    """(exit code, stdout) of one git command; the code is None when git timed out or could not start.
+
+    stderr is dropped: it can echo a remote URL, and a URL can carry a token."""
+    command = [git, "-c", "gc.auto=0", "-c", "maintenance.auto=false", "-C", checkout] + list(args)
+    try:
+        process = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                   stderr=subprocess.DEVNULL, env=git_env(), **_detached())
+    except OSError:
+        return None, ""
+    try:
+        output, _ = process.communicate(timeout=GIT_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        _stop(process)
+        return None, ""
+    return process.returncode, output.decode("utf-8", "replace")
+
+
+def _same_path(first, second):
+    return os.path.normcase(os.path.realpath(first)) == os.path.normcase(os.path.realpath(second))
+
+
+def default_branches(git, checkout):
+    """The branch names to fetch, best first, or (None, error).
+
+    origin itself names its default branch first: a local origin/HEAD is only set when the clone was made, so
+    it goes stale when origin renames its default branch."""
+    code, output = run_git(git, checkout, "ls-remote", "--symref", "origin", "HEAD")
+    if code == 0:
+        for line in output.splitlines():
+            match = re.match(r"ref: refs/heads/(\S+)\s+HEAD$", line)
+            if match and BRANCH_RE.fullmatch(match.group(1)):
+                return [match.group(1)], None
+    # origin did not name a branch: no answer, a git too old for --symref (129), or no HEAD. Fall back to the
+    # local origin/HEAD, then to the usual names.
+    code_local, output_local = run_git(git, checkout, "symbolic-ref", "--quiet", REMOTE_PREFIX + "HEAD")
+    local = output_local.strip()
+    name = local[len(REMOTE_PREFIX):] if code_local == 0 and local.startswith(REMOTE_PREFIX) else ""
+    if BRANCH_RE.fullmatch(name):
+        return [name], None
+    if code is None:
+        return None, "origin did not answer within {} s".format(GIT_TIMEOUT)
+    if code not in (0, 129):
+        # 129 is a git too old for --symref; anything else means origin cannot be read without a prompt.
+        return None, "git ls-remote origin failed (exit {}): offline, or origin needs a login".format(code)
+    known = [branch for branch in ("master", "main")
+             if run_git(git, checkout, "rev-parse", "--verify", "--quiet", REMOTE_PREFIX + branch)[0] == 0]
+    return known + [branch for branch in ("master", "main") if branch not in known], None
+
+
+def published_version(checkout):
+    """(latest release on origin's default branch, error)."""
+    git = shutil.which("git")
+    if not git:
+        return None, "git is not installed"
+    if not os.path.isdir(checkout):
+        return None, "the recorded checkout is missing"
+    code, output = run_git(git, checkout, "rev-parse", "--show-toplevel")
+    if code != 0 or not output.strip() or not _same_path(output.strip(), checkout):
+        # Never fetch for a folder that is now inside some other repository.
+        return None, "the recorded checkout is not a git checkout"
+    if run_git(git, checkout, "config", "--get", "remote.origin.url")[0] != 0:
+        return None, "the checkout has no origin remote"
+    branches, error = default_branches(git, checkout)
+    if error:
+        return None, error
+    for branch in branches:
+        # The fetch lands in a private ref: the user's own refs/remotes/origin/* and FETCH_HEAD belong to the
+        # user's git, and --refmap= stops git also moving the remote-tracking ref for this branch.
+        code, _ = run_git(git, checkout, "fetch", "--quiet", "--no-write-fetch-head", "--refmap=", "origin",
+                          "+refs/heads/{0}:{1}{0}".format(branch, UPDATE_PREFIX))
+        if code is None:
+            return None, "git fetch origin {} did not finish within {} s".format(branch, GIT_TIMEOUT)
+        if code != 0:
+            error = "git fetch origin {} failed (exit {}): offline, or origin needs a login".format(branch, code)
+            continue
+        code, output = run_git(git, checkout, "show", UPDATE_PREFIX + branch + ":POLICY.md")
+        if code == 0:
+            match = VERSION_RE.search(output)
+            if match:
+                return match.group(1), None
+        return None, "origin/{} has no POLICY.md version line".format(branch)
+    return None, error
+
+
+def acquire(lock):
+    for _ in range(2):
+        try:
+            os.close(os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+            return True
+        except FileExistsError:
+            try:
+                age = time.time() - os.path.getmtime(lock)
+            except OSError:
+                continue
+            if -LOCK_STALE < age < LOCK_STALE:
+                return False
+            try:
+                os.unlink(lock)
+            except OSError:
+                return False
+        except OSError:
+            return False
+    return False
+
+
+def remove_notices(state, keep=None):
+    """Remove this tool's own kit notices, except the file named keep."""
+    folder = os.path.join(state, "notices")
+    try:
+        names = os.listdir(folder)
+    except OSError:
+        return
+    for name in names:
+        if name != keep and NOTICE_RE.fullmatch(name):
+            try:
+                os.unlink(os.path.join(folder, name))
+            except OSError:
+                pass
+
+
+def _shell_path(path, home_relative=False):
+    if home_relative:
+        home = os.path.expanduser("~").replace("\\", "/").rstrip("/")
+        plain = path.replace("\\", "/")
+        if home and plain.startswith(home + "/"):
+            return "~/" + shlex.quote(plain[len(home) + 1:])
+    return shlex.quote(path)
+
+
+def update_commands(checkout, home_relative=False):
+    script = checkout.rstrip("/\\") + "/install.sh"
+    return ("git -C {} pull --ff-only".format(_shell_path(checkout, home_relative)),
+            "bash {}".format(_shell_path(script, home_relative)))
+
+
+def notice_text(latest, installed, checkout):
+    pull, install = update_commands(checkout)
+    return ("A newer Claude Usage Optimizer release, {}, is published (installed: {}). To update, run `{}`, "
+            "then `{}`, and restart or /compact open sessions to load it.".format(latest, installed, pull, install))
+
+
+def write_notice(state, latest, installed, checkout, now):
+    """True when the notice is in place; False when the write was skipped."""
+    folder = os.path.join(state, "notices")
+    os.makedirs(folder, mode=0o700, exist_ok=True)
+    try:
+        os.chmod(folder, 0o700)
+    except OSError:
+        pass
+    notice = {"id": "kit-update-" + latest, "kind": "kit_update", "created_at": iso(now),
+              "text": notice_text(latest, installed, checkout), "expires_at": None}
+    return write_json(folder, notice["id"] + ".json", notice)
+
+
+def push(latest, installed, checkout):
+    """One phone notification through cloud-notify, when it is installed; every failure is ignored."""
+    folder = os.path.dirname(os.path.realpath(__file__))
+    # On Windows bin/cloud-notify may be a bash wrapper beside the real cloud-notify.py.
+    script = next((path for path in (os.path.join(folder, name) for name in ("cloud-notify.py", "cloud-notify"))
+                   if os.path.isfile(path)), None)
+    if not script:
+        return
+    # The message leaves the machine, so the checkout is written from ~ where it can be.
+    pull, install = update_commands(checkout, home_relative=True)
+    message = "Installed {}. Update: {} && {}".format(installed, pull, install)
+    try:
+        process = subprocess.Popen([sys.executable, script, "push", "--title", "Usage Optimizer " + latest,
+                                    "--message", message], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, **_detached())
+    except Exception:
+        return
+    try:
+        process.wait(timeout=PUSH_TIMEOUT)
+    except Exception:
+        _stop(process)
+
+
+def summary(cache):
+    installed, latest, error = cache.get("installed"), cache.get("latest"), cache.get("error")
+    newer = None
+    if is_newer(latest, installed):
+        pull, install = update_commands(cache["checkout"]) if cache.get("checkout") else ("", "")
+        newer = "Claude Usage Optimizer {} is published; this machine runs {}.".format(latest, installed)
+        if pull:
+            newer += " Update: {} && {}".format(pull, install)
+    if error:
+        text = "Update check failed: {}.".format(error)
+        return text + (" An earlier check found: " + newer if newer else "")
+    if newer:
+        return newer
+    if latest == installed:
+        return "Claude Usage Optimizer {} is the newest published release.".format(installed)
+    return "This machine runs {}; the newest published release is {}.".format(installed, latest)
+
+
+def check(now=None):
+    """Run one check and return the line to print."""
+    state = state_dir()
+    if not update_check_enabled():
+        remove_notices(state)
+        return "The update check is off (USAGE_OPTIMIZER_UPDATE_CHECK=off)."
+    os.makedirs(state, mode=0o700, exist_ok=True)
+    lock = os.path.join(state, "kit-update.lock")
+    if not acquire(lock):
+        return "Another update check is running."
+    try:
+        now = now or utc_now()
+        previous = read_json(os.path.join(state, "kit-update.json")) or {}
+        installed = installed_version()
+        checkout = recorded_checkout()
+        latest = error = None
+        if installed is None:
+            error = "the installed POLICY.md has no version line"
+        elif checkout is None:
+            error = "no source checkout is recorded (a bundle install, or one older than this check)"
+        else:
+            latest, error = published_version(checkout)
+        if latest is None and checkout and previous.get("checkout") == checkout and release_key(previous.get("latest")):
+            latest = previous["latest"]  # the release the last good check found; error says this one failed
+        announced = previous.get("announced") if release_key(previous.get("announced")) else None
+        cache = {"checked_at": iso(now), "installed": installed, "latest": latest, "checkout": checkout,
+                 "error": error, "announced": announced}
+        fresh = False
+        if is_newer(latest, installed):
+            remove_notices(state, keep="kit-update-{}.json".format(latest))
+            if announced != latest and checkout:
+                try:
+                    if write_notice(state, latest, installed, checkout, now):
+                        cache["announced"] = latest
+                        fresh = True
+                    # else skipped: not announced, so the next check tries again
+                except OSError:
+                    pass  # not announced, so the next check tries again
+        elif installed and latest:
+            remove_notices(state)
+        write_json(state, "kit-update.json", cache)
+        if fresh:
+            push(latest, installed, checkout)
+        return summary(cache)
+    finally:
+        try:
+            os.unlink(lock)
+        except OSError:
+            pass
+
+
+def main(argv=None):
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+    parser = argparse.ArgumentParser(description="Say when a newer Claude Usage Optimizer release is published.")
+    commands = parser.add_subparsers(dest="command", metavar="check")
+    commands.add_parser("check", help="fetch origin and compare its release with the installed one")
+    args = parser.parse_args(argv)
+    if args.command != "check":
+        parser.print_usage(sys.stderr)
+        return 2
+    try:
+        print(check())
+    except Exception as error:
+        print("Update check failed: {}.".format(type(error).__name__))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,1048 @@
+#!/usr/bin/env python3
+"""Small, failure-safe Claude Code status line and usage logger."""
+
+import datetime as _dt
+import json
+import math
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+
+def _number(value):
+    try:
+        value = float(value)
+        if math.isfinite(value):
+            return value
+    except (TypeError, ValueError, OverflowError):
+        pass
+    return None
+
+
+def _stamp(value):
+    if isinstance(value, (int, float)):
+        number = float(value)
+        if abs(number) > 100000000000:
+            number /= 1000.0
+        try:
+            return _dt.datetime.fromtimestamp(number, _dt.timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+    if isinstance(value, str):
+        try:
+            parsed = _dt.datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=_dt.timezone.utc)
+            return parsed.astimezone(_dt.timezone.utc)
+        except (TypeError, ValueError, OverflowError):
+            return None
+    return None
+
+
+def _iso(value):
+    parsed = _stamp(value)
+    return parsed.isoformat().replace("+00:00", "Z") if parsed else None
+
+
+def _get(obj, *keys):
+    for key in keys:
+        if not isinstance(obj, dict):
+            return None
+        obj = obj.get(key)
+    return obj
+
+
+def _record_from_item(item):
+    if not isinstance(item, dict):
+        return None
+    percent = None
+    percent_is_utilization = False
+    reset = None
+    for key, value in item.items():
+        lowered = str(key).lower()
+        if percent is None and ("percent" in lowered or "utilization" in lowered):
+            percent = _number(value)
+            percent_is_utilization = "utilization" in lowered
+        if reset is None and "reset" in lowered:
+            reset = _stamp(value)
+    if percent is None:
+        return None
+    if percent_is_utilization and percent <= 1.0:
+        percent *= 100.0
+    result = {"used_percentage": percent}
+    if reset:
+        result["resets_at"] = reset.isoformat().replace("+00:00", "Z")
+    return result
+
+
+def _rate_data(data):
+    limits = data.get("rate_limits")
+    five = None
+    seven = None
+    scoped = []
+    if isinstance(limits, dict):
+        for name, dest in (("five_hour", "five"), ("seven_day", "seven")):
+            value = _record_from_item(limits.get(name))
+            if value:
+                if dest == "five":
+                    five = value
+                else:
+                    seven = value
+        items = limits.get("limits")
+        if isinstance(items, list):
+            for item in items:
+                kind = str(item.get("kind", "")).lower() if isinstance(item, dict) else ""
+                value = _record_from_item(item)
+                if not value:
+                    continue
+                if kind == "session":
+                    five = value
+                elif kind == "weekly_all":
+                    seven = value
+                elif kind == "weekly_scoped":
+                    scope = {"kind": kind}
+                    for key in ("name", "id", "scope", "model"):
+                        if key in item:
+                            scope[key] = item[key]
+                    scope.update(value)
+                    scoped.append(scope)
+    return five, seven, scoped
+
+
+def _pct(value):
+    return "{}%".format(int(round(value)))
+
+
+def _tokens(value):
+    if value >= 1000000:
+        return "{:g}M".format(round(value / 1000000.0, 1))
+    if value >= 1000:
+        return "{}k".format(int(round(value / 1000.0)))
+    return str(int(value))
+
+
+def _compact_window():
+    # Claude Code compacts at settings.autoCompactWindow but never sends it to the status line.
+    base = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+    try:
+        with open(os.path.join(base, "settings.json"), "r", encoding="utf-8") as handle:
+            value = _number(json.load(handle).get("autoCompactWindow"))
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+    return value if value and value > 0 else None
+
+
+def _compact_gate_enabled():
+    return os.environ.get("USAGE_OPTIMIZER_COMPACT_GATE", "on").strip().lower() != "off"
+
+
+def _compact_hard():
+    # The context ceiling: above the soft threshold, compaction waits for the next turn, but not past this.
+    value = _number(os.environ.get("USAGE_OPTIMIZER_COMPACT_HARD", "350000"))
+    return value if value and value > 0 else 350000.0
+
+
+def _context_data(context):
+    if not isinstance(context, dict):
+        return None
+    # current_usage and used_percentage are null until the first reply after a start or a
+    # compaction, and total_input_tokens is then 0: computing from it would print a false "0%".
+    usage = context.get("current_usage")
+    used = None
+    if isinstance(usage, dict):
+        counts = [_number(usage.get(key)) for key in
+                  ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")]
+        if all(count is not None for count in counts):
+            used = sum(counts)
+    size = _number(context.get("context_window_size"))
+    window = _compact_window()
+    if window and (not size or window < size):
+        size = window
+    if used is not None and size and size > 0:
+        # With the gate on, Claude Code compacts between turns once the context passes the soft threshold.
+        compacts = _compact_gate_enabled() and bool(window) and used > window
+        return {"used": _tokens(used), "size": _tokens(size),
+                "percentage": used / size * 100.0, "ratio": True,
+                "compacts": compacts, "hard": compacts and used >= _compact_hard()}
+    percent = _number(context.get("used_percentage"))
+    return {"percentage": percent, "ratio": False} if percent is not None else None
+
+
+def _effort_text(effort):
+    # Present only when the model takes an effort parameter; it follows mid-session /effort changes.
+    level = effort.get("level") if isinstance(effort, dict) else None
+    if isinstance(level, str) and level.isalpha() and len(level) <= 12:
+        return level.lower()
+    return None
+
+
+def _format_reset(value, weekly=False):
+    parsed = _stamp(value)
+    if not parsed:
+        return None
+    local = parsed.astimezone(_display_zone())
+    return local.strftime("%a %H:%M" if weekly else "%H:%M")
+
+
+def _display_zone():
+    # USAGE_OPTIMIZER_TZ (an IANA name such as Australia/Brisbane) overrides the machine's own zone,
+    # for a server kept on UTC. Unknown names and Pythons without zoneinfo fall back to local time.
+    name = os.environ.get("USAGE_OPTIMIZER_TZ", "").strip()
+    if not name:
+        return None
+    try:
+        from zoneinfo import ZoneInfo
+        return ZoneInfo(name)
+    except Exception:
+        return None
+
+
+def _segment(label, record, weekly=False):
+    if not record or record.get("used_percentage") is None:
+        return None
+    result = "{} {}".format(label, _pct(record["used_percentage"]))
+    reset = _format_reset(record.get("resets_at"), weekly)
+    if reset:
+        result += " resets " + reset
+    return result
+
+
+def _codex_ttl():
+    try:
+        return max(60.0, float(os.environ.get("USAGE_OPTIMIZER_CODEX_TTL", "300")))
+    except (TypeError, ValueError, OverflowError):
+        return 300.0
+
+
+def _codex_age(seconds):
+    seconds = max(0, int(seconds))
+    if seconds < 3600:
+        return "{}m".format(max(1, seconds // 60))
+    if seconds < 86400:
+        return "{}h".format(seconds // 3600)
+    return "{}d".format(seconds // 86400)
+
+
+def _codex_window_label(minutes):
+    try:
+        minutes = float(minutes)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if minutes == 300:
+        return "5h"
+    if minutes == 10080:
+        return "wk"
+    if minutes < 1440:
+        hours = minutes / 60.0
+        return "{}h".format(int(hours) if hours == int(hours) else hours)
+    days = minutes / 1440.0
+    return "{}d".format(int(days) if days == int(days) else days)
+
+
+def _codex_fallback_label(value):
+    if not isinstance(value, str) or not value.strip():
+        return None
+    value = value.strip()
+    return "wk" if value == "weekly" else value
+
+
+def _spawn_codex_refresh(directory):
+    lock = os.path.join(directory, "codex-refresh.lock")
+    try:
+        age = _dt.datetime.now().timestamp() - os.path.getmtime(lock)
+    except OSError:
+        age = None
+    if age is not None and age < 60:
+        return
+    marker = os.path.join(directory, "codex-refresh.spawned")
+    try:
+        marker_age = _dt.datetime.now().timestamp() - os.path.getmtime(marker)
+    except OSError:
+        marker_age = None
+    if marker_age is not None and marker_age < 60:
+        return
+    script = _sibling_script("usage-status")
+    if not script:
+        return
+    try:
+        os.makedirs(directory, mode=0o700, exist_ok=True)
+        with open(marker, "a", encoding="utf-8"):
+            pass
+        os.utime(marker, None)
+    except OSError:
+        pass
+    _spawn_detached([sys.executable, script, "--codex-refresh"])
+
+
+def _sibling_script(name):
+    # On Windows bin/<tool> is a bash wrapper, which python cannot run, beside the real bin/<tool>.py.
+    folder = os.path.dirname(os.path.realpath(__file__))
+    return next((os.path.join(folder, candidate) for candidate in (name + ".py", name)
+                 if os.path.isfile(os.path.join(folder, candidate))), None)
+
+
+def _spawn_detached(command):
+    options = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
+               "stderr": subprocess.DEVNULL, "close_fds": True}
+    if os.name == "nt":
+        options["creationflags"] = 0x00000008 | 0x00000200 | 0x08000000
+    else:
+        options["start_new_session"] = True
+    try:
+        subprocess.Popen(command, **options)
+    except Exception:
+        pass
+
+
+def _codex_executable():
+    override = os.environ.get("USAGE_OPTIMIZER_CODEX_BIN")
+    if override:
+        return shutil.which(override)
+    lane_bin = os.path.join(os.path.abspath(os.path.expanduser(os.environ.get("LANES_CONFIG", "~/.config/lanes"))), "bin")
+    found = shutil.which("codex", path=lane_bin)
+    if found:
+        return found
+    return shutil.which("codex")
+
+
+def _codex_cache(now):
+    try:
+        if os.environ.get("USAGE_OPTIMIZER_CODEX", "auto").strip().lower() == "off":
+            return None
+        directory = os.path.abspath(os.path.expanduser(
+            os.environ.get("CLAUDE_USAGE_DIR", "~/.claude/usage")))
+        path = os.path.join(directory, "codex-latest.json")
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                cache = json.load(handle)
+        except (OSError, ValueError, TypeError):
+            cache = None
+
+        if not isinstance(cache, dict):
+            codex_home = os.path.abspath(os.path.expanduser(os.environ.get("CODEX_HOME", "~/.codex")))
+            executable = _codex_executable()
+            if executable is None and not os.path.exists(codex_home):
+                return None
+            _spawn_codex_refresh(directory)
+            return None
+
+        observed = _stamp(cache.get("observed_at"))
+        current = now if isinstance(now, _dt.datetime) else _dt.datetime.now(_dt.timezone.utc)
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=_dt.timezone.utc)
+        current = current.astimezone(_dt.timezone.utc)
+        if not observed or (current - observed).total_seconds() >= _codex_ttl():
+            _spawn_codex_refresh(directory)
+        return cache
+    except Exception:
+        return None
+
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _color_enabled():
+    return "NO_COLOR" not in os.environ and os.environ.get("USAGE_OPTIMIZER_COLOR", "").strip().lower() != "off"
+
+
+def _style(text, code, enabled):
+    return "\x1b[{}m{}\x1b[0m".format(code, text) if enabled else text
+
+
+def _percentage(value, enabled):
+    shown = _pct(value)
+    if enabled and value >= 95:
+        return _style(shown, 31, True)
+    if enabled and value >= 80:
+        return _style(shown, 33, True)
+    return shown
+
+
+def _label(value, enabled):
+    return _style(value, 2, enabled)
+
+
+def _reset_text(value, enabled):
+    return _label("resets " + value, enabled)
+
+
+def _codex_group(cache, now, enabled, reset_mode="all"):
+    if not isinstance(cache, dict):
+        return None
+    status = cache.get("status")
+    if status == "logged_out":
+        return _label("Codex", enabled) + " logged out"
+    if status == "api_key":
+        return _label("Codex", enabled) + " api key"
+    if status == "no_cli":
+        return None
+
+    current = now if isinstance(now, _dt.datetime) else _dt.datetime.now(_dt.timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=_dt.timezone.utc)
+    current = current.astimezone(_dt.timezone.utc)
+    windows = cache.get("windows") if isinstance(cache.get("windows"), list) else []
+    pieces = []
+    for item in windows:
+        if not isinstance(item, dict):
+            continue
+        minutes = _number(item.get("window_minutes"))
+        label = (_codex_window_label(minutes) if minutes is not None else
+                 _codex_fallback_label(item.get("label")))
+        percent = _number(item.get("used_percent"))
+        if not label or percent is None:
+            continue
+        reset_at = _stamp(item.get("resets_at"))
+        shown_percent = 0 if reset_at and reset_at <= current else int(round(percent))
+        piece = "{} {}".format(_label(label, enabled), _percentage(shown_percent, enabled))
+        if reset_at and not (reset_mode == "none" or
+                             (reset_mode == "above70" and percent < 70)):
+            if reset_at <= current:
+                piece += " " + _label("reset", enabled)
+            else:
+                weekly = (minutes >= 1440 if minutes is not None else item.get("label") == "weekly")
+                reset = reset_at.astimezone(_display_zone()).strftime("%a %H:%M" if weekly else "%H:%M")
+                piece += " " + _reset_text(reset, enabled)
+        pieces.append(piece)
+
+    if not pieces:
+        if status == "no_cli":
+            return None
+        return _label("Codex", enabled) + " ?"
+
+    out = cache.get("reached") is not None or cache.get("ordinary_usage_allowed") is False
+    result = _label("Codex", enabled) + " "
+    if out:
+        result += _style("OUT", 31, enabled) + " "
+    result += " · ".join(pieces)
+    reading = _stamp(cache.get("reading_at"))
+    if reading:
+        age = max(0, int((current - reading).total_seconds()))
+        if age > 15 * 60:
+            result += " ({} old)".format(_codex_age(age))
+    return result
+
+
+def _codex_text(now):
+    try:
+        return _codex_group(_codex_cache(now), now, _color_enabled())
+    except Exception:
+        return None
+
+
+def _claude_text(five, seven, scoped, enabled, reset_mode="all", include_scoped=True):
+    pieces = []
+
+    def add(label, record, weekly=False):
+        if not record or record.get("used_percentage") is None:
+            return
+        percent = _number(record.get("used_percentage"))
+        if percent is None:
+            return
+        piece = "{} {}".format(_label(label, enabled), _percentage(percent, enabled))
+        reset = _format_reset(record.get("resets_at"), weekly)
+        if reset and not (reset_mode == "none" or
+                          (reset_mode == "above70" and percent < 70)):
+            piece += " " + _reset_text(reset, enabled)
+        pieces.append(piece)
+
+    add("5h", five)
+    add("wk", seven, True)
+    if include_scoped:
+        for item in scoped:
+            name = item.get("name") or item.get("id") or item.get("scope") or "scoped"
+            add(str(name), item, True)
+    if not pieces:
+        return None
+    return _label("Claude", enabled) + " " + " · ".join(pieces)
+
+
+def _context_text(context, enabled, include_percentage=True):
+    if not isinstance(context, dict):
+        return None
+    percent = context.get("percentage")
+    if percent is None:
+        return None
+    if context.get("compacts"):
+        # Past the soft threshold: the note takes the percentage's place, and the whole segment is yellow
+        # (red at the hard ceiling). The narrow variant keeps the figures only.
+        text = "ctx {}/{}".format(context["used"], context["size"])
+        if include_percentage:
+            text += ", compacts between turns"
+        return _style(text, 31 if context.get("hard") else 33, enabled)
+    label = _label("ctx", enabled)
+    shown = _percentage(percent, enabled)
+    if context.get("ratio"):
+        result = "{} {}/{}".format(label, context["used"], context["size"])
+        if include_percentage:
+            result += " ({})".format(shown)
+        return result
+    return "{} {}".format(label, shown)
+
+
+def _clean_model_name(value):
+    return re.sub(r"\s+\([^()]*\)\s*$", "", value).strip()
+
+
+def _columns():
+    try:
+        value = int(os.environ.get("COLUMNS", ""))
+        # Claude Code pads the status row, so a line of exactly COLUMNS is still cut; keep 2 spare.
+        return max(1, value - 2) if value > 0 else None
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _visible_width(value):
+    return len(_ANSI_RE.sub("", value))
+
+
+def _truncate_visible(value, limit):
+    output = []
+    visible = 0
+    active = False
+    index = 0
+    for match in _ANSI_RE.finditer(value):
+        plain = value[index:match.start()]
+        for char in plain:
+            if visible >= limit:
+                if active:
+                    output.append("\x1b[0m")
+                return "".join(output) + "…"
+            output.append(char)
+            visible += 1
+        sequence = match.group(0)
+        if visible >= limit and not sequence.endswith("[0m"):
+            if active:
+                output.append("\x1b[0m")
+            return "".join(output) + "…"
+        output.append(sequence)
+        active = sequence not in ("\x1b[0m", "\x1b[;0m")
+        index = match.end()
+    for char in value[index:]:
+        if visible >= limit:
+            if active:
+                output.append("\x1b[0m")
+            return "".join(output) + "…"
+        output.append(char)
+        visible += 1
+    return "".join(output)
+
+
+def _fit_line(builder, columns, variants):
+    value = builder()
+    if not columns or _visible_width(value) <= columns:
+        return value
+    for variant in variants:
+        value = builder(**variant)
+        if _visible_width(value) <= columns:
+            return value
+    return _truncate_visible(value, max(0, columns - 1))
+
+
+_KIT_VERSION_RE = re.compile(r"^Claude Usage Optimizer version: (\d{4}-\d{2}-\d{2}\.\d+)\.", re.M)
+
+
+def _kit_label_enabled():
+    return os.environ.get("USAGE_OPTIMIZER_KIT_LABEL", "on").strip().lower() != "off"
+
+
+def _installed_version():
+    try:
+        path = os.environ.get("USAGE_OPTIMIZER_POLICY") or os.path.join(
+            os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "POLICY.md")
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            match = _KIT_VERSION_RE.search(handle.read(4096))
+        return match.group(1) if match else None
+    except Exception:
+        return None
+
+
+def _session_version(directory, session_id):
+    try:
+        if not isinstance(session_id, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,180}", session_id):
+            return None
+        with open(os.path.join(directory, "sessions", session_id + ".json"), "r", encoding="utf-8") as handle:
+            value = json.load(handle).get("kit_version")
+        return value if isinstance(value, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2}\.\d+", value) else None
+    except Exception:
+        return None
+
+
+def _kit_segment(installed, started, enabled, short_label=False, short_date=False, latest=None):
+    def date(value):
+        return value[5:] if short_date else value
+    text = "{} {}".format("UO" if short_label else "Usage Optimizer", date(started))
+    if started != installed:
+        text += " " + _style("→ " + date(installed), 33, enabled)
+    if latest:
+        text += " " + _style("⇡ " + date(latest), 36, enabled)
+    return text
+
+
+_UPDATE_INTERVAL = 6 * 3600
+_UPDATE_LOCK_STALE = 300
+_RELEASE_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})\.(\d+)")
+
+
+def _state_dir():
+    return os.path.abspath(os.path.expanduser(os.environ.get("LANES_STATE", "~/.local/state/lanes")))
+
+
+def _update_check_enabled():
+    return os.environ.get("USAGE_OPTIMIZER_UPDATE_CHECK", "on").strip().lower() != "off"
+
+
+def _release_key(value):
+    match = _RELEASE_RE.fullmatch(value) if isinstance(value, str) else None
+    return tuple(int(part) for part in match.groups()) if match else None
+
+
+def _spawn_kit_update(state, installed):
+    # bin/kit-update fetches the source checkout's origin, so it runs detached and is never waited on: at most
+    # once every 6 hours for each installed release, and only on an install that recorded its checkout.
+    folder = os.path.dirname(os.path.realpath(__file__))
+    if not os.path.isfile(os.path.join(os.path.dirname(folder), "source.json")):
+        return
+    now = _dt.datetime.now().timestamp()
+    try:
+        lock_age = now - os.path.getmtime(os.path.join(state, "kit-update.lock"))
+        if -_UPDATE_LOCK_STALE < lock_age < _UPDATE_LOCK_STALE:
+            return
+    except OSError:
+        pass
+    marker = os.path.join(state, "kit-update.spawned")
+    try:
+        marker_age = now - os.path.getmtime(marker)
+        with open(marker, "r", encoding="utf-8") as handle:
+            spawned_for = handle.read().strip()
+        # A new install (the marker names the release it was spawned for) is checked again at once.
+        if 0 <= marker_age < _UPDATE_INTERVAL and spawned_for == installed:
+            return
+    except OSError:
+        pass
+    script = _sibling_script("kit-update")
+    if not script:
+        return
+    try:
+        os.makedirs(state, mode=0o700, exist_ok=True)
+        with open(marker, "w", encoding="utf-8") as handle:
+            handle.write(installed + "\n")
+    except OSError:
+        return  # with no marker, every refresh would spawn another check
+    _spawn_detached([sys.executable, script, "check"])
+
+
+def _kit_update_latest(installed, now):
+    # The newer published release the background check last found, read from its cache only.
+    if not installed or not _update_check_enabled():
+        return None
+    state = _state_dir()
+    try:
+        with open(os.path.join(state, "kit-update.json"), "r", encoding="utf-8") as handle:
+            cache = json.load(handle)
+    except (OSError, ValueError, TypeError):
+        cache = None
+    if not isinstance(cache, dict):
+        cache = {}
+    checked = _stamp(cache.get("checked_at"))
+    age = (now - checked).total_seconds() if checked else None
+    if age is None or not -_UPDATE_LOCK_STALE <= age < _UPDATE_INTERVAL or cache.get("installed") != installed:
+        _spawn_kit_update(state, installed)
+    latest = cache.get("latest")
+    newer, current = _release_key(latest), _release_key(installed)
+    return latest if newer and current and newer > current else None
+
+
+def _turns_enabled():
+    return os.environ.get("USAGE_OPTIMIZER_TURNS", "on").strip().lower() != "off"
+
+
+def _turn_pct_per_usd():
+    state = _state_dir()
+    try:
+        with open(os.path.join(state, "claude-calibration.json"), "r", encoding="utf-8") as handle:
+            value = _number(json.load(handle).get("pct_per_usd"))
+        if value is not None and value >= 0:
+            return value
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+    catalog = os.environ.get("LANES_ARMS") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "arms.json")
+    try:
+        with open(catalog, "r", encoding="utf-8") as handle:
+            value = _number(_get(json.load(handle), "providers", "claude", "prior_pct_per_usd"))
+        if value is not None and value >= 0:
+            return value
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+    return 0.037
+
+
+def _turn_time_label(minutes):
+    if minutes < 60:
+        return "{}m".format(int(minutes))
+    whole_hours = int(minutes // 60)
+    remainder = int(minutes % 60)
+    return "{}h{:02d}".format(whole_hours, remainder)
+
+
+_RUN_FOLDER_RE = re.compile(r"(\d{8}-\d{6})-")
+
+
+def _turn_eta_remaining(turn, elapsed):
+    # Claude's own estimate, scaled by the calibration factor it was recorded with. None once it is overrun.
+    eta = turn.get("eta") if isinstance(turn.get("eta"), dict) else {}
+    eta_elapsed = _number(eta.get("elapsed_minutes"))
+    eta_remaining = _number(eta.get("remaining_minutes"))
+    factor = _number(eta.get("factor"))
+    if factor is None:
+        factor = _number(turn.get("time_factor"))
+    if factor is None:
+        factor = 1.0
+    if eta_elapsed is None or eta_remaining is None or eta_elapsed < 0 or eta_remaining < 0 or factor < 0:
+        return None
+    remaining = eta_elapsed + eta_remaining * factor - elapsed
+    return remaining if remaining > 0 else None
+
+
+def _turn_history_remaining(turn, elapsed):
+    # The median of the past turns that ran longer than this one so far; a turn opened by an older kit has none.
+    history = turn.get("history_minutes")
+    if not isinstance(history, list):
+        return max(elapsed, 1.0)
+    durations = [_number(item) for item in history]
+    longer = [duration for duration in durations if duration is not None and duration > elapsed]
+    if len(longer) >= 8:
+        # The median, without importing statistics: that import costs about 80 ms on every 10 s run.
+        ordered = sorted(longer)
+        middle = len(ordered) // 2
+        median = ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2.0
+        return max(0.0, median - elapsed)
+    return max(elapsed, 1.0)
+
+
+def _turn_lane_remaining(state, session_started, now):
+    # Each lane run still in flight: its ETA less its elapsed time. Run folders are stamped in UTC; only the
+    # ones stamped within the last 12 h are opened, since this runs every 10 s.
+    cutoff = now - _dt.timedelta(hours=12)
+    floor = cutoff.strftime("%Y%m%d-%H%M%S")
+    remaining = []
+    try:
+        entries = list(os.scandir(os.path.join(state, "runs")))
+    except OSError:
+        return remaining
+    for entry in entries:
+        match = _RUN_FOLDER_RE.match(entry.name)
+        if not match or match.group(1) < floor:
+            continue
+        try:
+            with open(os.path.join(entry.path, "meta.json"), "r", encoding="utf-8") as handle:
+                run = json.load(handle)
+        except (OSError, ValueError, TypeError):
+            continue
+        started = _stamp(run.get("started_at")) if isinstance(run, dict) else None
+        if (started is None or started > now or started < cutoff or
+                run.get("ended_at") is not None or (session_started is not None and started < session_started)):
+            continue
+        eta_seconds = _number(run.get("eta_s"))
+        if eta_seconds is None or eta_seconds < 0:
+            continue
+        elapsed = (now - started).total_seconds() / 60.0
+        remaining.append(max(0.0, eta_seconds / 60.0 - elapsed))
+    return remaining
+
+
+def _turn_remaining(state, turn, elapsed, now):
+    remaining = _turn_eta_remaining(turn, elapsed)
+    if remaining is None:
+        remaining = _turn_history_remaining(turn, elapsed)
+    lanes = _turn_lane_remaining(state, _stamp(turn.get("session_started_at")), now)
+    return max([remaining] + lanes)
+
+
+def _turn_segment(data):
+    if not _turns_enabled():
+        return None
+    session_id = data.get("session_id")
+    cost = _get(data, "cost", "total_cost_usd")
+    if (not isinstance(session_id, str) or not session_id or
+            not re.fullmatch(r"[A-Za-z0-9_.-]{1,180}", session_id) or
+            isinstance(cost, bool) or not isinstance(cost, (int, float)) or _number(cost) is None):
+        return None
+    state = _state_dir()
+    try:
+        with open(os.path.join(state, "turns", "open", session_id + ".json"), "r", encoding="utf-8") as handle:
+            turn = json.load(handle)
+        start = _number(turn.get("cost_start_usd")) if isinstance(turn, dict) else None
+        spent = max(0.0, float(cost) - (start if start is not None else 0.0))
+        weekly = spent * _turn_pct_per_usd()
+        started = _stamp(turn.get("started_at")) if isinstance(turn, dict) else None
+        if started is None:
+            return "turn ≈{:.2f}% wk".format(weekly)
+        now = _dt.datetime.now(_dt.timezone.utc)
+        elapsed = max(0.0, (now - started).total_seconds() / 60.0)
+        remaining = _turn_remaining(state, turn, elapsed, now)
+        if remaining < 1.0:
+            text = "ETA <1m"
+        else:
+            text = "ETA ~" + _turn_time_label(math.ceil(remaining))
+        return "{} ≈{:.2f}% wk".format(text, weekly)
+    except Exception:
+        return None
+
+
+def _write_session_cost(directory, session_id, cost, model, installed=None):
+    if (not isinstance(session_id, str) or not session_id or
+            not re.fullmatch(r"[A-Za-z0-9_.-]{1,180}", session_id) or
+            isinstance(cost, bool) or not isinstance(cost, (int, float)) or _number(cost) is None):
+        return
+    sessions = os.path.join(directory, "sessions")
+    os.makedirs(sessions, mode=0o700, exist_ok=True)
+    path = os.path.join(sessions, session_id + ".json")
+    kit_version = installed
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            previous = json.load(handle)
+        if isinstance(previous, dict):
+            if _number(previous.get("total_cost_usd")) == float(cost):
+                return
+            if previous.get("kit_version"):
+                kit_version = previous["kit_version"]
+    except (OSError, ValueError, TypeError):
+        pass
+    record = {"session_id": session_id, "total_cost_usd": float(cost),
+              "observed_at": _dt.datetime.now(_dt.timezone.utc).isoformat().replace("+00:00", "Z"),
+              "model": model}
+    if kit_version:
+        record["kit_version"] = kit_version
+    _replace_session_record(sessions, path, record)
+
+
+def _reading_is_fresh(directory, session_id, cost):
+    """Whether this session has made a model call since its last status-line run."""
+    if (not isinstance(session_id, str) or not session_id or
+            not re.fullmatch(r"[A-Za-z0-9_.-]{1,180}", session_id) or
+            isinstance(cost, bool) or not isinstance(cost, (int, float)) or _number(cost) is None):
+        return True
+    try:
+        with open(os.path.join(directory, "sessions", session_id + ".json"), "r", encoding="utf-8") as handle:
+            previous = json.load(handle)
+        previous_cost = _number(previous.get("total_cost_usd")) if isinstance(previous, dict) else None
+        return previous_cost is None or previous_cost != float(cost)
+    except (OSError, ValueError, TypeError):
+        return True
+
+
+def _replace_session_record(sessions, path, record):
+    fd, temporary = tempfile.mkstemp(prefix=".session-cost-", suffix=".tmp", dir=sessions)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(record, handle, separators=(",", ":"), ensure_ascii=False)
+            handle.write("\n")
+        os.replace(temporary, path)
+    finally:
+        try:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+        except OSError:
+            pass
+
+
+def _session_start(raw):
+    # SessionStart hook (startup, resume, compact): a restarted session keeps its id, and a compaction
+    # reloads the policy, so move the record's kit_version to the installed release. Never creates a
+    # record and prints nothing, since a SessionStart hook's stdout reaches Claude's context.
+    try:
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            return
+        session_id = data.get("session_id")
+        if (data.get("source") not in ("startup", "resume", "compact") or
+                not isinstance(session_id, str) or not re.fullmatch(r"[A-Za-z0-9_.-]{1,180}", session_id)):
+            return
+        installed = _installed_version()
+        if not installed:
+            return
+        sessions = os.path.join(os.environ.get("CLAUDE_USAGE_DIR", os.path.expanduser("~/.claude/usage")), "sessions")
+        path = os.path.join(sessions, session_id + ".json")
+        with open(path, "r", encoding="utf-8") as handle:
+            record = json.load(handle)
+        if isinstance(record, dict) and record.get("kit_version") != installed:
+            record["kit_version"] = installed
+            _replace_session_record(sessions, path, record)
+    except Exception:
+        pass
+
+
+def _write_reading(directory, reading):
+    os.makedirs(directory, mode=0o700, exist_ok=True)
+    try:
+        os.chmod(directory, 0o700)
+    except OSError:
+        pass
+    latest_path = os.path.join(directory, "claude-latest.json")
+    history_path = os.path.join(directory, "claude-rate.jsonl")
+    previous = None
+    try:
+        with open(latest_path, "r", encoding="utf-8") as handle:
+            previous = json.load(handle)
+    except (OSError, ValueError, TypeError):
+        pass
+    # Rate fields only: two concurrent sessions would otherwise alternate session_id and
+    # append a history line on every refresh.
+    changed_fields = ("five_hour", "seven_day", "scoped")
+    changed = previous is None or any(previous.get(key) != reading.get(key) for key in changed_fields)
+    if not changed and previous.get("observed_at"):
+        then = _stamp(previous.get("observed_at"))
+        now = _stamp(reading.get("observed_at"))
+        changed = not then or not now or (now - then).total_seconds() >= 600
+    elif not changed:
+        changed = True
+
+    fd, temporary = tempfile.mkstemp(prefix=".claude-latest-", suffix=".tmp", dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(reading, handle, separators=(",", ":"), ensure_ascii=False)
+            handle.write("\n")
+        os.replace(temporary, latest_path)
+    finally:
+        try:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+        except OSError:
+            pass
+    if changed:
+        with open(history_path, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(reading, separators=(",", ":"), ensure_ascii=False) + "\n")
+
+
+def _use_utf8_streams():
+    # Claude Code sends and reads UTF-8; Windows pipes otherwise default to the ANSI code page.
+    if os.name == "nt":
+        for stream in (sys.stdin, sys.stdout):
+            if hasattr(stream, "reconfigure"):
+                try:
+                    stream.reconfigure(encoding="utf-8", errors="replace")
+                except Exception:
+                    pass
+
+
+def main():
+    model_name = "claude"
+    _use_utf8_streams()
+    if sys.argv[1:] == ["session-start"]:
+        try:
+            _session_start(sys.stdin.read())
+        except Exception:
+            pass
+        return
+    try:
+        raw = sys.stdin.read()
+        data = json.loads(raw)
+        if not isinstance(data, dict):
+            data = {}
+        model = data.get("model")
+        if isinstance(model, dict):
+            candidate = model.get("display_name") or model.get("id")
+            if candidate:
+                model_name = str(candidate).replace("\r", " ").replace("\n", " ")
+
+        context_data = _context_data(data.get("context_window"))
+
+        five, seven, scoped = _rate_data(data)
+        effort_text = _effort_text(data.get("effort"))
+        display_model = _clean_model_name(model_name)
+        now = _dt.datetime.now(_dt.timezone.utc)
+        enabled = _color_enabled()
+
+        turn_text = _turn_segment(data)
+        directory = os.environ.get("CLAUDE_USAGE_DIR", os.path.expanduser("~/.claude/usage"))
+        policy_version = _installed_version()
+        installed = None
+        kit_started = None
+        try:
+            if _kit_label_enabled() and policy_version:
+                installed = policy_version
+                kit_started = _session_version(directory, data.get("session_id")) or installed
+        except Exception:
+            installed = None
+        try:
+            kit_latest = _kit_update_latest(policy_version, now)
+        except Exception:
+            kit_latest = None
+
+        def first_line(include_ctx_pct=True, include_turn=True, kit="full"):
+            parts = [display_model] if display_model else []
+            if effort_text:
+                parts.append(effort_text)
+            context = _context_text(context_data, enabled, include_ctx_pct)
+            if context:
+                parts.append(context)
+            if include_turn and turn_text:
+                parts.append(turn_text)
+            if installed and kit:
+                parts.append(_kit_segment(installed, kit_started, enabled, kit != "full", kit == "short", kit_latest))
+            return " · ".join(parts)
+
+        cache = _codex_cache(now)
+
+        def second_line(reset_mode="all", include_scoped=True):
+            groups = []
+            claude = _claude_text(five, seven, scoped, enabled, reset_mode, include_scoped)
+            codex = _codex_group(cache, now, enabled, reset_mode)
+            if claude:
+                groups.append(claude)
+            if codex:
+                groups.append(codex)
+            return " │ ".join(groups)
+
+        columns = _columns()
+        line1 = _fit_line(first_line, columns, [
+            {"include_turn": False},
+            {"include_turn": False, "kit": "uo"},
+            {"include_turn": False, "kit": "short"},
+            {"include_turn": False, "include_ctx_pct": False, "kit": "short"},
+            {"include_turn": False, "include_ctx_pct": False, "kit": None},
+        ])
+        line2 = _fit_line(second_line, columns, [
+            {"reset_mode": "above70", "include_scoped": True},
+            {"reset_mode": "none", "include_scoped": True},
+            {"reset_mode": "none", "include_scoped": False},
+        ])
+        output = line1 + ("\n" + line2 if line2 else "")
+
+        cost = _get(data, "cost", "total_cost_usd")
+        # Check before _write_session_cost replaces the session's previous cost.
+        reading_is_fresh = _reading_is_fresh(directory, data.get("session_id"), cost)
+        try:
+            _write_session_cost(directory, data.get("session_id"),
+                                cost, model_name,
+                                policy_version)
+        except Exception:
+            pass
+
+        if reading_is_fresh and (five is not None or seven is not None or scoped):
+            reading = {
+                "observed_at": _dt.datetime.now(_dt.timezone.utc).isoformat().replace("+00:00", "Z"),
+                "five_hour": five,
+                "seven_day": seven,
+                "scoped": scoped,
+                "model": model_name,
+            }
+            session_id = data.get("session_id")
+            if session_id is not None:
+                reading["session_id"] = session_id
+            try:
+                _write_reading(directory, reading)
+            except Exception:
+                pass
+        print(output)
+    except Exception:
+        print(model_name or "claude")
+
+
+if __name__ == "__main__":
+    main()

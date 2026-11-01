@@ -1,0 +1,7783 @@
+{
+  "schema_version": 1,
+  "suite": "suite_r",
+  "class": "review",
+  "window": 5,
+  "items": 36,
+  "total_defects": 38,
+  "pricing": {
+    "windows": {
+      "codex": {
+        "weekly_credits": 8400,
+        "usd_per_credit": 0.04,
+        "interval": [
+          7800,
+          9200
+        ],
+        "plan": "prolite",
+        "source": "usage-lab U3 controlled astra blocks 2026-10-19: 1,011 credits moved the weekly meter 2% to 14%"
+      },
+      "claude": {
+        "weekly_list_usd": 1525,
+        "five_hour_list_usd": 254,
+        "model_weight_5h": {
+          "haiku": 1.72,
+          "sonnet": 1.0,
+          "opus": 0.95,
+          "fable": 2.06
+        },
+        "weekly_interval": [
+          1017,
+          3050
+        ],
+        "five_hour_interval": [
+          235,
+          277
+        ],
+        "fable_weekly_list_usd": 531,
+        "source": "usage-lab C-series controlled blocks 2026-10-19 (U2b); haiku weight unresolved (0-3.75)"
+      }
+    },
+    "rate_card": {
+      "luna": {
+        "input": 2.5,
+        "cached": 0.25,
+        "output": 12.5
+      },
+      "terra": {
+        "input": 25,
+        "cached": 1.25,
+        "output": 125
+      },
+      "sol": {
+        "input": 50,
+        "cached": 2.5,
+        "output": 250
+      },
+      "astra": {
+        "input": 250,
+        "cached": 25,
+        "output": 1250
+      }
+    }
+  },
+  "arms": {
+    "astra-high": {
+      "arm": "astra-high",
+      "lane": "astra",
+      "effort": "high",
+      "model": "gpt-6-astra",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.8947368421052632,
+      "lenient_false_alarms": 11,
+      "defects_found": 34,
+      "defects_total": 38,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "recall_bootstrap": [
+        0.8,
+        0.9761904761904762
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.36666666666666664,
+          "completed_only_per_item": 0.36666666666666664,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7555555555555555,
+      "matched_findings": 34,
+      "unmatched_findings": 11,
+      "usable": {
+        "items": 35,
+        "rate": 0.9722222222222222
+      },
+      "wall_s": {
+        "median": 40.1735,
+        "p90": 49.224000000000004,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 30718.555555555555,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 12.226394444444445,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.14555231481481481,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.15411421568627456,
+      "plan": "prolite"
+    },
+    "astra-high-r2": {
+      "arm": "astra-high-r2",
+      "lane": "astra",
+      "effort": "high",
+      "model": "gpt-6-astra",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9210526315789473,
+      "lenient_false_alarms": 11,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "recall_bootstrap": [
+        0.8372093023255814,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.36666666666666664,
+          "completed_only_per_item": 0.36666666666666664,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7608695652173914,
+      "matched_findings": 35,
+      "unmatched_findings": 11,
+      "usable": {
+        "items": 35,
+        "rate": 0.9722222222222222
+      },
+      "wall_s": {
+        "median": 36.1025,
+        "p90": 49.989,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 29638.055555555555,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 11.728102777777778,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.13962027116402118,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.14360942176870747,
+      "plan": "prolite"
+    },
+    "astra-low": {
+      "arm": "astra-low",
+      "lane": "astra",
+      "effort": "low",
+      "model": "gpt-6-astra",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9210526315789473,
+      "lenient_false_alarms": 10,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "recall_bootstrap": [
+        0.8292682926829268,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.3333333333333333,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7777777777777778,
+      "matched_findings": 35,
+      "unmatched_findings": 10,
+      "usable": {
+        "items": 35,
+        "rate": 0.9722222222222222
+      },
+      "wall_s": {
+        "median": 32.703,
+        "p90": 40.4735,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 22083.694444444445,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 9.01910138888889,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.10737025462962962,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.11043797619047617,
+      "plan": "prolite"
+    },
+    "astra-low-r2": {
+      "arm": "astra-low-r2",
+      "lane": "astra",
+      "effort": "low",
+      "model": "gpt-6-astra",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9210526315789473,
+      "lenient_false_alarms": 12,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "recall_bootstrap": [
+        0.8292682926829268,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.4,
+          "completed_only_per_item": 0.4,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7446808510638298,
+      "matched_findings": 35,
+      "unmatched_findings": 12,
+      "usable": {
+        "items": 35,
+        "rate": 0.9722222222222222
+      },
+      "wall_s": {
+        "median": 29.7595,
+        "p90": 37.926,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 22410.13888888889,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 9.019106944444445,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.10737032076719577,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.11043804421768708,
+      "plan": "prolite"
+    },
+    "astra-max": {
+      "arm": "astra-max",
+      "lane": "astra",
+      "effort": "max",
+      "model": "gpt-6-astra",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9736842105263158,
+      "lenient_false_alarms": 10,
+      "defects_found": 37,
+      "defects_total": 38,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "recall_bootstrap": [
+        0.9142857142857143,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.3333333333333333,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7872340425531915,
+      "matched_findings": 37,
+      "unmatched_findings": 10,
+      "usable": {
+        "items": 36,
+        "rate": 1.0
+      },
+      "wall_s": {
+        "median": 78.1695,
+        "p90": 131.7815,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 41516.666666666664,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 17.52592222222222,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.20864193121693123,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.2030029601029601,
+      "plan": "prolite"
+    },
+    "astra-max-r2": {
+      "arm": "astra-max-r2",
+      "lane": "astra",
+      "effort": "max",
+      "model": "gpt-6-astra",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9736842105263158,
+      "lenient_false_alarms": 13,
+      "defects_found": 37,
+      "defects_total": 38,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "recall_bootstrap": [
+        0.9142857142857143,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.43333333333333335,
+          "completed_only_per_item": 0.43333333333333335,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.74,
+      "matched_findings": 37,
+      "unmatched_findings": 13,
+      "usable": {
+        "items": 36,
+        "rate": 1.0
+      },
+      "wall_s": {
+        "median": 71.5185,
+        "p90": 117.10249999999999,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 41771.916666666664,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 17.68712916666667,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.2105610615079365,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.20487022200772195,
+      "plan": "prolite"
+    },
+    "astra-max-r3": {
+      "arm": "astra-max-r3",
+      "lane": "astra",
+      "effort": "max",
+      "model": "gpt-6-astra",
+      "rep": 3,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 1.0,
+      "lenient_false_alarms": 11,
+      "defects_found": 38,
+      "defects_total": 38,
+      "recall": 1.0,
+      "recall_wilson": [
+        0.908190131774416,
+        0.9999999999999999
+      ],
+      "recall_bootstrap": [
+        1.0,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.36666666666666664,
+          "completed_only_per_item": 0.36666666666666664,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7755102040816326,
+      "matched_findings": 38,
+      "unmatched_findings": 11,
+      "usable": {
+        "items": 36,
+        "rate": 1.0
+      },
+      "wall_s": {
+        "median": 91.2485,
+        "p90": 154.548,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 20.917555555555555,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.2490185185185185,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.2359122807017544,
+      "plan": "prolite"
+    },
+    "astra-medium": {
+      "arm": "astra-medium",
+      "lane": "astra",
+      "effort": "medium",
+      "model": "gpt-6-astra",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.8947368421052632,
+      "lenient_false_alarms": 9,
+      "defects_found": 34,
+      "defects_total": 38,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "recall_bootstrap": [
+        0.8,
+        0.9761904761904762
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.3,
+          "completed_only_per_item": 0.3,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7906976744186046,
+      "matched_findings": 34,
+      "unmatched_findings": 9,
+      "usable": {
+        "items": 35,
+        "rate": 0.9722222222222222
+      },
+      "wall_s": {
+        "median": 30.78,
+        "p90": 39.1545,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 22836.777777777777,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 9.182733333333333,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.10931825396825397,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.11574873949579831,
+      "plan": "prolite"
+    },
+    "astra-medium-r2": {
+      "arm": "astra-medium-r2",
+      "lane": "astra",
+      "effort": "medium",
+      "model": "gpt-6-astra",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.8947368421052632,
+      "lenient_false_alarms": 9,
+      "defects_found": 34,
+      "defects_total": 38,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "recall_bootstrap": [
+        0.8,
+        0.9761904761904762
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.3,
+          "completed_only_per_item": 0.3,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7906976744186046,
+      "matched_findings": 34,
+      "unmatched_findings": 9,
+      "usable": {
+        "items": 35,
+        "rate": 0.9722222222222222
+      },
+      "wall_s": {
+        "median": 30.0835,
+        "p90": 38.188,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 23587.333333333332,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 9.49826111111111,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.11307453703703703,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.11972598039215683,
+      "plan": "prolite"
+    },
+    "astra-xhigh": {
+      "arm": "astra-xhigh",
+      "lane": "astra",
+      "effort": "xhigh",
+      "model": "gpt-6-astra",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9473684210526315,
+      "lenient_false_alarms": 12,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "recall_bootstrap": [
+        0.8717948717948718,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.4,
+          "completed_only_per_item": 0.4,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.75,
+      "matched_findings": 36,
+      "unmatched_findings": 12,
+      "usable": {
+        "items": 36,
+        "rate": 1.0
+      },
+      "wall_s": {
+        "median": 60.7745,
+        "p90": 106.434,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 38061.055555555555,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 15.567369444444445,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.1853258267195767,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.18532582671957668,
+      "plan": "prolite"
+    },
+    "astra-xhigh-r2": {
+      "arm": "astra-xhigh-r2",
+      "lane": "astra",
+      "effort": "xhigh",
+      "model": "gpt-6-astra",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9736842105263158,
+      "lenient_false_alarms": 12,
+      "defects_found": 37,
+      "defects_total": 38,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "recall_bootstrap": [
+        0.9142857142857143,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.4,
+          "completed_only_per_item": 0.4,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7551020408163265,
+      "matched_findings": 37,
+      "unmatched_findings": 12,
+      "usable": {
+        "items": 36,
+        "rate": 1.0
+      },
+      "wall_s": {
+        "median": 54.569500000000005,
+        "p90": 80.04249999999999,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 38501.63888888889,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 15.521704166666666,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.18478219246031746,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.17978807915057915,
+      "plan": "prolite"
+    },
+    "astra-xhigh-r3": {
+      "arm": "astra-xhigh-r3",
+      "lane": "astra",
+      "effort": "xhigh",
+      "model": "gpt-6-astra",
+      "rep": 3,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 35,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 1,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.8947368421052632,
+      "lenient_false_alarms": 14,
+      "defects_found": 34,
+      "defects_total": 38,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "recall_bootstrap": [
+        0.7631578947368421,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.4666666666666667,
+          "completed_only_per_item": 0.4827586206896552,
+          "items": 30,
+          "completed_items": 29
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7083333333333334,
+      "matched_findings": 34,
+      "unmatched_findings": 14,
+      "usable": {
+        "items": 35,
+        "rate": 0.9722222222222222
+      },
+      "wall_s": {
+        "median": 75.118,
+        "p90": 101.97,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 19.030926388888886,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.22655864748677246,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.2398856267507002,
+      "plan": "prolite"
+    },
+    "haiku-high": {
+      "arm": "haiku-high",
+      "lane": "haiku",
+      "effort": "high",
+      "model": "claude-haiku-5-5",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9473684210526315,
+      "lenient_false_alarms": 30,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "recall_bootstrap": [
+        0.8717948717948718,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.9333333333333333,
+          "completed_only_per_item": 0.9333333333333333,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.3333333333333333,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.5454545454545454,
+      "matched_findings": 36,
+      "unmatched_findings": 30,
+      "usable": {
+        "items": 32,
+        "rate": 0.8888888888888888
+      },
+      "wall_s": {
+        "median": 66.29599999999999,
+        "p90": 101.9285,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 279036.6666666667,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.01675675777777778,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0010988037887067397,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.011347095818022747,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.0010988037887067399,
+      "plan": null
+    },
+    "haiku-low": {
+      "arm": "haiku-low",
+      "lane": "haiku",
+      "effort": "low",
+      "model": "claude-haiku-5-5",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 34,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.8947368421052632,
+      "lenient_false_alarms": 9,
+      "defects_found": 34,
+      "defects_total": 38,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "recall_bootstrap": [
+        0.7726948051948052,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.23333333333333334,
+          "completed_only_per_item": 0.23333333333333334,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.3333333333333333,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7906976744186046,
+      "matched_findings": 34,
+      "unmatched_findings": 9,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 23.9875,
+        "p90": 37.44,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 160153.80555555556,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.008186592777777777,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0005368257559198544,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.00554367699912511,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.0005684037415621987,
+      "plan": null
+    },
+    "haiku-max": {
+      "arm": "haiku-max",
+      "lane": "haiku",
+      "effort": "max",
+      "model": "claude-haiku-5-5",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9736842105263158,
+      "lenient_false_alarms": 41,
+      "defects_found": 37,
+      "defects_total": 38,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "recall_bootstrap": [
+        0.9142857142857143,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 1.2,
+          "completed_only_per_item": 1.2,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.8333333333333334,
+          "completed_only_per_item": 0.8333333333333334,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.47435897435897434,
+      "matched_findings": 37,
+      "unmatched_findings": 41,
+      "usable": {
+        "items": 30,
+        "rate": 0.8333333333333334
+      },
+      "wall_s": {
+        "median": 336.985,
+        "p90": 480.1735,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 852734.1111111111,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.16130875666666666,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.010577623387978142,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.10923270136482939,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.010291741674789542,
+      "plan": null
+    },
+    "haiku-medium": {
+      "arm": "haiku-medium",
+      "lane": "haiku",
+      "effort": "medium",
+      "model": "claude-haiku-5-5",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 35,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 1,
+      "format_fail_items": [
+        "028"
+      ],
+      "lenient_recall": 0.9473684210526315,
+      "lenient_false_alarms": 14,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "recall_bootstrap": [
+        0.8620450191570881,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.4,
+          "completed_only_per_item": 0.41379310344827586,
+          "items": 30,
+          "completed_items": 29
+        },
+        "control": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.3333333333333333,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.72,
+      "matched_findings": 36,
+      "unmatched_findings": 14,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 34.638000000000005,
+        "p90": 61.0475,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 205779.77777777778,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.011243507222222223,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0007372791621129326,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.007613713552055994,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.0007372791621129326,
+      "plan": null
+    },
+    "haiku-xhigh": {
+      "arm": "haiku-xhigh",
+      "lane": "haiku",
+      "effort": "xhigh",
+      "model": "claude-haiku-5-5",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 1.0,
+      "lenient_false_alarms": 36,
+      "defects_found": 38,
+      "defects_total": 38,
+      "recall": 1.0,
+      "recall_wilson": [
+        0.908190131774416,
+        0.9999999999999999
+      ],
+      "recall_bootstrap": [
+        1.0,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 1.0333333333333334,
+          "completed_only_per_item": 1.0333333333333334,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.8333333333333334,
+          "completed_only_per_item": 0.8333333333333334,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.5135135135135135,
+      "matched_findings": 38,
+      "unmatched_findings": 36,
+      "usable": {
+        "items": 30,
+        "rate": 0.8333333333333334
+      },
+      "wall_s": {
+        "median": 140.308,
+        "p90": 222.2885,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 512823.8333333333,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.05061416305555556,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0033189615118397087,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.03427415765966754,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.0031442793270060397,
+      "plan": null
+    },
+    "luna-high": {
+      "arm": "luna-high",
+      "lane": "luna",
+      "effort": "high",
+      "model": "gpt-6-luna",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 30,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 5,
+      "format_fail_items": [
+        "005",
+        "010",
+        "014",
+        "019",
+        "021"
+      ],
+      "lenient_recall": 0.631578947368421,
+      "lenient_false_alarms": 10,
+      "defects_found": 23,
+      "defects_total": 38,
+      "recall": 0.6052631578947368,
+      "recall_wilson": [
+        0.4471786799604255,
+        0.744019242518399
+      ],
+      "recall_bootstrap": [
+        0.4523809523809524,
+        0.7666860465116279
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.3,
+          "completed_only_per_item": 0.36,
+          "items": 30,
+          "completed_items": 25
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 5
+        }
+      },
+      "precision": 0.71875,
+      "matched_findings": 23,
+      "unmatched_findings": 9,
+      "usable": {
+        "items": 26,
+        "rate": 0.7222222222222222
+      },
+      "wall_s": {
+        "median": 51.955,
+        "p90": 76.977,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 34287.444444444445,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.15166627777777777,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0018055509259259262,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.0028260797101449277,
+      "plan": "prolite"
+    },
+    "luna-high-r2": {
+      "arm": "luna-high-r2",
+      "lane": "luna",
+      "effort": "high",
+      "model": "gpt-6-luna",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 35,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 1,
+      "format_fail_items": [
+        "023"
+      ],
+      "lenient_recall": 0.7631578947368421,
+      "lenient_false_alarms": 7,
+      "defects_found": 29,
+      "defects_total": 38,
+      "recall": 0.7631578947368421,
+      "recall_wilson": [
+        0.607931876367602,
+        0.8700629298294591
+      ],
+      "recall_bootstrap": [
+        0.6190476190476191,
+        0.891916023166023
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.23333333333333334,
+          "completed_only_per_item": 0.2413793103448276,
+          "items": 30,
+          "completed_items": 29
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.8055555555555556,
+      "matched_findings": 29,
+      "unmatched_findings": 7,
+      "usable": {
+        "items": 32,
+        "rate": 0.8888888888888888
+      },
+      "wall_s": {
+        "median": 33.989999999999995,
+        "p90": 47.049499999999995,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 30992.13888888889,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.1382880138888889,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0016462858796296295,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.0020436652298850577,
+      "plan": "prolite"
+    },
+    "luna-high-r3": {
+      "arm": "luna-high-r3",
+      "lane": "luna",
+      "effort": "high",
+      "model": "gpt-6-luna",
+      "rep": 3,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 35,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 1,
+      "format_fail_items": [
+        "020"
+      ],
+      "lenient_recall": 0.7105263157894737,
+      "lenient_false_alarms": 6,
+      "defects_found": 27,
+      "defects_total": 38,
+      "recall": 0.7105263157894737,
+      "recall_wilson": [
+        0.5524286232424794,
+        0.8299672217151693
+      ],
+      "recall_bootstrap": [
+        0.5789473684210527,
+        0.848522727272727
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.2,
+          "completed_only_per_item": 0.20689655172413793,
+          "items": 30,
+          "completed_items": 29
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.8181818181818182,
+      "matched_findings": 27,
+      "unmatched_findings": 6,
+      "usable": {
+        "items": 32,
+        "rate": 0.8888888888888888
+      },
+      "wall_s": {
+        "median": 37.9965,
+        "p90": 53.5275,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 0.13470229166666667,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0016035987103174601,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.0021381316137566134,
+      "plan": "prolite"
+    },
+    "luna-high-r4": {
+      "arm": "luna-high-r4",
+      "lane": "luna",
+      "effort": "high",
+      "model": "gpt-6-luna",
+      "rep": 4,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.7894736842105263,
+      "lenient_false_alarms": 10,
+      "defects_found": 30,
+      "defects_total": 38,
+      "recall": 0.7894736842105263,
+      "recall_wilson": [
+        0.636542205246726,
+        0.8892520815700411
+      ],
+      "recall_bootstrap": [
+        0.65,
+        0.9142857142857143
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.3333333333333333,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.75,
+      "matched_findings": 30,
+      "unmatched_findings": 10,
+      "usable": {
+        "items": 33,
+        "rate": 0.9166666666666666
+      },
+      "wall_s": {
+        "median": 43.8965,
+        "p90": 60.4555,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 0.13983158333333334,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0016646617063492063,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.0019975940476190477,
+      "plan": "prolite"
+    },
+    "luna-low": {
+      "arm": "luna-low",
+      "lane": "luna",
+      "effort": "low",
+      "model": "gpt-6-luna",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 29,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 2,
+      "format_fail_items": [
+        "018",
+        "023"
+      ],
+      "lenient_recall": 0.4473684210526316,
+      "lenient_false_alarms": 5,
+      "defects_found": 17,
+      "defects_total": 38,
+      "recall": 0.4473684210526316,
+      "recall_wilson": [
+        0.3014640099805125,
+        0.6029370287800753
+      ],
+      "recall_bootstrap": [
+        0.3055555555555556,
+        0.5862576064908719
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.16666666666666666,
+          "completed_only_per_item": 0.21739130434782608,
+          "items": 30,
+          "completed_items": 23
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7727272727272727,
+      "matched_findings": 17,
+      "unmatched_findings": 5,
+      "usable": {
+        "items": 23,
+        "rate": 0.6388888888888888
+      },
+      "wall_s": {
+        "median": 28.5825,
+        "p90": 48.537499999999994,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 29429.583333333332,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.1279725138888889,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0015234823082010583,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.0032261978291316528,
+      "plan": "prolite"
+    },
+    "luna-low-r2": {
+      "arm": "luna-low-r2",
+      "lane": "luna",
+      "effort": "low",
+      "model": "gpt-6-luna",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 32,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 1,
+      "format_fail_items": [
+        "005"
+      ],
+      "lenient_recall": 0.34210526315789475,
+      "lenient_false_alarms": 4,
+      "defects_found": 13,
+      "defects_total": 38,
+      "recall": 0.34210526315789475,
+      "recall_wilson": [
+        0.21212415179959412,
+        0.5010789644821693
+      ],
+      "recall_bootstrap": [
+        0.1951219512195122,
+        0.4878048780487805
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.13333333333333333,
+          "completed_only_per_item": 0.14285714285714285,
+          "items": 30,
+          "completed_items": 28
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 4
+        }
+      },
+      "precision": 0.7647058823529411,
+      "matched_findings": 13,
+      "unmatched_findings": 4,
+      "usable": {
+        "items": 16,
+        "rate": 0.4444444444444444
+      },
+      "wall_s": {
+        "median": 24.3305,
+        "p90": 33.629999999999995,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 30961.555555555555,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.13127411111111112,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.001562787037037037,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.004327717948717949,
+      "plan": "prolite"
+    },
+    "luna-low-r3": {
+      "arm": "luna-low-r3",
+      "lane": "luna",
+      "effort": "low",
+      "model": "gpt-6-luna",
+      "rep": 3,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 29,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 3,
+      "format_fail_items": [
+        "019",
+        "027",
+        "030"
+      ],
+      "lenient_recall": 0.5,
+      "lenient_false_alarms": 5,
+      "defects_found": 19,
+      "defects_total": 38,
+      "recall": 0.5,
+      "recall_wilson": [
+        0.34849928364395105,
+        0.6515007163560489
+      ],
+      "recall_bootstrap": [
+        0.3333333333333333,
+        0.6666666666666666
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.16666666666666666,
+          "completed_only_per_item": 0.2,
+          "items": 30,
+          "completed_items": 25
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 4
+        }
+      },
+      "precision": 0.7916666666666666,
+      "matched_findings": 19,
+      "unmatched_findings": 5,
+      "usable": {
+        "items": 21,
+        "rate": 0.5833333333333334
+      },
+      "wall_s": {
+        "median": 32.9975,
+        "p90": 62.5895,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 0.121544625,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0014469598214285713,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.002741608082706767,
+      "plan": "prolite"
+    },
+    "luna-low-r4": {
+      "arm": "luna-low-r4",
+      "lane": "luna",
+      "effort": "low",
+      "model": "gpt-6-luna",
+      "rep": 4,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 28,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.2631578947368421,
+      "lenient_false_alarms": 6,
+      "defects_found": 10,
+      "defects_total": 38,
+      "recall": 0.2631578947368421,
+      "recall_wilson": [
+        0.14971621254798143,
+        0.42008846187466364
+      ],
+      "recall_bootstrap": [
+        0.1282051282051282,
+        0.4047779922779922
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.2,
+          "completed_only_per_item": 0.25,
+          "items": 30,
+          "completed_items": 24
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 4
+        }
+      },
+      "precision": 0.625,
+      "matched_findings": 10,
+      "unmatched_findings": 6,
+      "usable": {
+        "items": 14,
+        "rate": 0.3888888888888889
+      },
+      "wall_s": {
+        "median": 27.767,
+        "p90": 45.7605,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 0.12706684722222222,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0015127005621693123,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.005445722023809523,
+      "plan": "prolite"
+    },
+    "luna-max": {
+      "arm": "luna-max",
+      "lane": "luna",
+      "effort": "max",
+      "model": "gpt-6-luna",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 33,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 3,
+      "format_fail_items": [
+        "018",
+        "022",
+        "024"
+      ],
+      "lenient_recall": 0.7894736842105263,
+      "lenient_false_alarms": 14,
+      "defects_found": 30,
+      "defects_total": 38,
+      "recall": 0.7894736842105263,
+      "recall_wilson": [
+        0.636542205246726,
+        0.8892520815700411
+      ],
+      "recall_bootstrap": [
+        0.631578947368421,
+        0.9333870967741933
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.43333333333333335,
+          "completed_only_per_item": 0.48148148148148145,
+          "items": 30,
+          "completed_items": 27
+        },
+        "control": {
+          "per_item": 0.16666666666666666,
+          "completed_only_per_item": 0.16666666666666666,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.6818181818181818,
+      "matched_findings": 30,
+      "unmatched_findings": 14,
+      "usable": {
+        "items": 31,
+        "rate": 0.8611111111111112
+      },
+      "wall_s": {
+        "median": 69.804,
+        "p90": 110.533,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 44042.805555555555,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.21872729166666666,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0026038963293650796,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.003124675595238096,
+      "plan": "prolite"
+    },
+    "luna-max-r2": {
+      "arm": "luna-max-r2",
+      "lane": "luna",
+      "effort": "max",
+      "model": "gpt-6-luna",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 34,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 2,
+      "format_fail_items": [
+        "015",
+        "019"
+      ],
+      "lenient_recall": 0.7894736842105263,
+      "lenient_false_alarms": 13,
+      "defects_found": 30,
+      "defects_total": 38,
+      "recall": 0.7894736842105263,
+      "recall_wilson": [
+        0.636542205246726,
+        0.8892520815700411
+      ],
+      "recall_bootstrap": [
+        0.6363636363636364,
+        0.9230769230769231
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.43333333333333335,
+          "completed_only_per_item": 0.4642857142857143,
+          "items": 30,
+          "completed_items": 28
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.6976744186046512,
+      "matched_findings": 30,
+      "unmatched_findings": 13,
+      "usable": {
+        "items": 31,
+        "rate": 0.8611111111111112
+      },
+      "wall_s": {
+        "median": 55.097,
+        "p90": 101.372,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 41249.97222222222,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.20831859722222223,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.00247998330026455,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.0029759799603174602,
+      "plan": "prolite"
+    },
+    "luna-max-r3": {
+      "arm": "luna-max-r3",
+      "lane": "luna",
+      "effort": "max",
+      "model": "gpt-6-luna",
+      "rep": 3,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 33,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 3,
+      "format_fail_items": [
+        "003",
+        "010",
+        "012"
+      ],
+      "lenient_recall": 0.8421052631578947,
+      "lenient_false_alarms": 13,
+      "defects_found": 31,
+      "defects_total": 38,
+      "recall": 0.8157894736842105,
+      "recall_wilson": [
+        0.665811419288686,
+        0.9077823481477872
+      ],
+      "recall_bootstrap": [
+        0.6749854651162791,
+        0.9444444444444444
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.4,
+          "completed_only_per_item": 0.4444444444444444,
+          "items": 30,
+          "completed_items": 27
+        },
+        "control": {
+          "per_item": 0.16666666666666666,
+          "completed_only_per_item": 0.16666666666666666,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7045454545454546,
+      "matched_findings": 31,
+      "unmatched_findings": 13,
+      "usable": {
+        "items": 31,
+        "rate": 0.8611111111111112
+      },
+      "wall_s": {
+        "median": 61.403,
+        "p90": 90.8185,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 0.1975500138888889,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.00235178587962963,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.0027311061827956997,
+      "plan": "prolite"
+    },
+    "luna-max-r4": {
+      "arm": "luna-max-r4",
+      "lane": "luna",
+      "effort": "max",
+      "model": "gpt-6-luna",
+      "rep": 4,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.868421052631579,
+      "lenient_false_alarms": 17,
+      "defects_found": 33,
+      "defects_total": 38,
+      "recall": 0.868421052631579,
+      "recall_wilson": [
+        0.7267314055770869,
+        0.9424613230987987
+      ],
+      "recall_bootstrap": [
+        0.7631265664160402,
+        0.9677671370967741
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.5,
+          "completed_only_per_item": 0.5,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.3333333333333333,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.66,
+      "matched_findings": 33,
+      "unmatched_findings": 17,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 62.6225,
+        "p90": 91.5015,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 0.2010489027777778,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0023934393187830688,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.0026110247113997117,
+      "plan": "prolite"
+    },
+    "luna-medium": {
+      "arm": "luna-medium",
+      "lane": "luna",
+      "effort": "medium",
+      "model": "gpt-6-luna",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 31,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 5,
+      "format_fail_items": [
+        "002",
+        "006",
+        "008",
+        "014",
+        "021"
+      ],
+      "lenient_recall": 0.5263157894736842,
+      "lenient_false_alarms": 6,
+      "defects_found": 20,
+      "defects_total": 38,
+      "recall": 0.5263157894736842,
+      "recall_wilson": [
+        0.3725897138449667,
+        0.6752097667747392
+      ],
+      "recall_bootstrap": [
+        0.3684210526315789,
+        0.689675697865353
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.2,
+          "completed_only_per_item": 0.24,
+          "items": 30,
+          "completed_items": 25
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7692307692307693,
+      "matched_findings": 20,
+      "unmatched_findings": 6,
+      "usable": {
+        "items": 25,
+        "rate": 0.6944444444444444
+      },
+      "wall_s": {
+        "median": 31.683500000000002,
+        "p90": 42.699,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 23612.694444444445,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.09905218055555556,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0011791926256613757,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.0021225467261904757,
+      "plan": "prolite"
+    },
+    "luna-medium-r2": {
+      "arm": "luna-medium-r2",
+      "lane": "luna",
+      "effort": "medium",
+      "model": "gpt-6-luna",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 32,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 4,
+      "format_fail_items": [
+        "006",
+        "010",
+        "019",
+        "022"
+      ],
+      "lenient_recall": 0.5,
+      "lenient_false_alarms": 8,
+      "defects_found": 19,
+      "defects_total": 38,
+      "recall": 0.5,
+      "recall_wilson": [
+        0.34849928364395105,
+        0.6515007163560489
+      ],
+      "recall_bootstrap": [
+        0.3255668604651163,
+        0.6857589285714283
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.23333333333333334,
+          "completed_only_per_item": 0.2692307692307692,
+          "items": 30,
+          "completed_items": 26
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7307692307692307,
+      "matched_findings": 19,
+      "unmatched_findings": 7,
+      "usable": {
+        "items": 23,
+        "rate": 0.6388888888888888
+      },
+      "wall_s": {
+        "median": 20.9665,
+        "p90": 27.405,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 24858.833333333332,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.10010775,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0011917589285714285,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.002258069548872181,
+      "plan": "prolite"
+    },
+    "luna-medium-r3": {
+      "arm": "luna-medium-r3",
+      "lane": "luna",
+      "effort": "medium",
+      "model": "gpt-6-luna",
+      "rep": 3,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 32,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 2,
+      "format_fail_items": [
+        "018",
+        "026"
+      ],
+      "lenient_recall": 0.631578947368421,
+      "lenient_false_alarms": 7,
+      "defects_found": 24,
+      "defects_total": 38,
+      "recall": 0.631578947368421,
+      "recall_wilson": [
+        0.47283959557009003,
+        0.7661578075284404
+      ],
+      "recall_bootstrap": [
+        0.4722222222222222,
+        0.7931034482758621
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.23333333333333334,
+          "completed_only_per_item": 0.2692307692307692,
+          "items": 30,
+          "completed_items": 26
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7741935483870968,
+      "matched_findings": 24,
+      "unmatched_findings": 7,
+      "usable": {
+        "items": 28,
+        "rate": 0.7777777777777778
+      },
+      "wall_s": {
+        "median": 32.521499999999996,
+        "p90": 52.238,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 0.09661876388888889,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0011502233796296295,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.0017253350694444438,
+      "plan": "prolite"
+    },
+    "luna-medium-r4": {
+      "arm": "luna-medium-r4",
+      "lane": "luna",
+      "effort": "medium",
+      "model": "gpt-6-luna",
+      "rep": 4,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 34,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 2,
+      "format_fail_items": [
+        "019",
+        "028"
+      ],
+      "lenient_recall": 0.6578947368421053,
+      "lenient_false_alarms": 7,
+      "defects_found": 24,
+      "defects_total": 38,
+      "recall": 0.631578947368421,
+      "recall_wilson": [
+        0.47283959557009003,
+        0.7661578075284404
+      ],
+      "recall_bootstrap": [
+        0.4857142857142857,
+        0.7692307692307693
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.2,
+          "completed_only_per_item": 0.21428571428571427,
+          "items": 30,
+          "completed_items": 28
+        },
+        "control": {
+          "per_item": 0.16666666666666666,
+          "completed_only_per_item": 0.16666666666666666,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7741935483870968,
+      "matched_findings": 24,
+      "unmatched_findings": 7,
+      "usable": {
+        "items": 29,
+        "rate": 0.8055555555555556
+      },
+      "wall_s": {
+        "median": 29.835,
+        "p90": 43.6,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 0.10202052777777777,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0012145300925925926,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.0018217951388888886,
+      "plan": "prolite"
+    },
+    "luna-xhigh": {
+      "arm": "luna-xhigh",
+      "lane": "luna",
+      "effort": "xhigh",
+      "model": "gpt-6-luna",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 34,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 2,
+      "format_fail_items": [
+        "014",
+        "023"
+      ],
+      "lenient_recall": 0.7631578947368421,
+      "lenient_false_alarms": 14,
+      "defects_found": 29,
+      "defects_total": 38,
+      "recall": 0.7631578947368421,
+      "recall_wilson": [
+        0.607931876367602,
+        0.8700629298294591
+      ],
+      "recall_bootstrap": [
+        0.631578947368421,
+        0.8947822141560796
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.43333333333333335,
+          "completed_only_per_item": 0.4642857142857143,
+          "items": 30,
+          "completed_items": 28
+        },
+        "control": {
+          "per_item": 0.16666666666666666,
+          "completed_only_per_item": 0.16666666666666666,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.6744186046511628,
+      "matched_findings": 29,
+      "unmatched_findings": 14,
+      "usable": {
+        "items": 32,
+        "rate": 0.8888888888888888
+      },
+      "wall_s": {
+        "median": 60.449,
+        "p90": 95.60050000000001,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 39604.583333333336,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.1972162361111111,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0023478123346560844,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.0029145256568144486,
+      "plan": "prolite"
+    },
+    "luna-xhigh-r2": {
+      "arm": "luna-xhigh-r2",
+      "lane": "luna",
+      "effort": "xhigh",
+      "model": "gpt-6-luna",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 34,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 2,
+      "format_fail_items": [
+        "018",
+        "019"
+      ],
+      "lenient_recall": 0.8421052631578947,
+      "lenient_false_alarms": 10,
+      "defects_found": 32,
+      "defects_total": 38,
+      "recall": 0.8421052631578947,
+      "recall_wilson": [
+        0.6958318822077686,
+        0.9255613658484106
+      ],
+      "recall_bootstrap": [
+        0.7,
+        0.96875
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.35714285714285715,
+          "items": 30,
+          "completed_items": 28
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7619047619047619,
+      "matched_findings": 32,
+      "unmatched_findings": 10,
+      "usable": {
+        "items": 32,
+        "rate": 0.8888888888888888
+      },
+      "wall_s": {
+        "median": 48.275499999999994,
+        "p90": 72.661,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 38807.666666666664,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.1912497777777778,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0022767830687830688,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.0025613809523809526,
+      "plan": "prolite"
+    },
+    "luna-xhigh-r3": {
+      "arm": "luna-xhigh-r3",
+      "lane": "luna",
+      "effort": "xhigh",
+      "model": "gpt-6-luna",
+      "rep": 3,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 31,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 5,
+      "format_fail_items": [
+        "005",
+        "006",
+        "022",
+        "023",
+        "026"
+      ],
+      "lenient_recall": 0.7631578947368421,
+      "lenient_false_alarms": 13,
+      "defects_found": 29,
+      "defects_total": 38,
+      "recall": 0.7631578947368421,
+      "recall_wilson": [
+        0.607931876367602,
+        0.8700629298294591
+      ],
+      "recall_bootstrap": [
+        0.5833333333333334,
+        0.925
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.43333333333333335,
+          "completed_only_per_item": 0.52,
+          "items": 30,
+          "completed_items": 25
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.6904761904761905,
+      "matched_findings": 29,
+      "unmatched_findings": 13,
+      "usable": {
+        "items": 30,
+        "rate": 0.8333333333333334
+      },
+      "wall_s": {
+        "median": 56.11,
+        "p90": 84.84100000000001,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 0.19414175,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0023112113095238094,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.0028690899014778334,
+      "plan": "prolite"
+    },
+    "luna-xhigh-r4": {
+      "arm": "luna-xhigh-r4",
+      "lane": "luna",
+      "effort": "xhigh",
+      "model": "gpt-6-luna",
+      "rep": 4,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 32,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 4,
+      "format_fail_items": [
+        "006",
+        "022",
+        "026",
+        "027"
+      ],
+      "lenient_recall": 0.7631578947368421,
+      "lenient_false_alarms": 9,
+      "defects_found": 29,
+      "defects_total": 38,
+      "recall": 0.7631578947368421,
+      "recall_wilson": [
+        0.607931876367602,
+        0.8700629298294591
+      ],
+      "recall_bootstrap": [
+        0.6051315789473685,
+        0.9117966751918156
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.26666666666666666,
+          "completed_only_per_item": 0.3076923076923077,
+          "items": 30,
+          "completed_items": 26
+        },
+        "control": {
+          "per_item": 0.16666666666666666,
+          "completed_only_per_item": 0.16666666666666666,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7631578947368421,
+      "matched_findings": 29,
+      "unmatched_findings": 9,
+      "usable": {
+        "items": 31,
+        "rate": 0.8611111111111112
+      },
+      "wall_s": {
+        "median": 60.3505,
+        "p90": 82.2185,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 0.18707318055555555,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0022270616732804234,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.0027646282840722504,
+      "plan": "prolite"
+    },
+    "opus-high": {
+      "arm": "opus-high",
+      "lane": "opus",
+      "effort": "high",
+      "model": "claude-opus-5-5",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9473684210526315,
+      "lenient_false_alarms": 21,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "recall_bootstrap": [
+        0.8285714285714286,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.5666666666666667,
+          "completed_only_per_item": 0.5666666666666667,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.6666666666666666,
+          "completed_only_per_item": 0.6666666666666666,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.631578947368421,
+      "matched_findings": 36,
+      "unmatched_findings": 21,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 39.458,
+        "p90": 57.607,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 238164.25,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.3461048722222222,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.0226954014571949,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.1294486726815398,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.02269540145719491,
+      "plan": null
+    },
+    "opus-high-claude-fable-5-1": {
+      "arm": "opus-high-claude-fable-5-1",
+      "lane": "opus",
+      "effort": "high",
+      "model": "claude-fable-5-1",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9210526315789473,
+      "lenient_false_alarms": 16,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "recall_bootstrap": [
+        0.8292682926829268,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.43333333333333335,
+          "completed_only_per_item": 0.43333333333333335,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.5,
+          "completed_only_per_item": 0.5,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.6862745098039216,
+      "matched_findings": 35,
+      "unmatched_findings": 16,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 64.60849999999999,
+        "p90": 126.47399999999999,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 291171.6388888889,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 1.090705284722222,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.07152165801457194,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.8845877506014873,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.07356513395784543,
+      "plan": null
+    },
+    "opus-low": {
+      "arm": "opus-low",
+      "lane": "opus",
+      "effort": "low",
+      "model": "claude-opus-5-5",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9210526315789473,
+      "lenient_false_alarms": 9,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "recall_bootstrap": [
+        0.7894338118022328,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.26666666666666666,
+          "completed_only_per_item": 0.26666666666666666,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.16666666666666666,
+          "completed_only_per_item": 0.16666666666666666,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7954545454545454,
+      "matched_findings": 35,
+      "unmatched_findings": 9,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 19.817999999999998,
+        "p90": 27.6465,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 125812.5,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.2292263888888889,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.015031238615664846,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.0857342793088364,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.015460702576112416,
+      "plan": null
+    },
+    "opus-low-claude-fable-5-1": {
+      "arm": "opus-low-claude-fable-5-1",
+      "lane": "opus",
+      "effort": "low",
+      "model": "claude-fable-5-1",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9473684210526315,
+      "lenient_false_alarms": 8,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "recall_bootstrap": [
+        0.8717948717948718,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.2,
+          "completed_only_per_item": 0.2,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.3333333333333333,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.8181818181818182,
+      "matched_findings": 36,
+      "unmatched_findings": 8,
+      "usable": {
+        "items": 36,
+        "rate": 1.0
+      },
+      "wall_s": {
+        "median": 35.321,
+        "p90": 59.1465,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 206711.11111111112,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.7195181111111111,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.04718151548269581,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.5835461846019248,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.0471815154826958,
+      "plan": null
+    },
+    "opus-max": {
+      "arm": "opus-max",
+      "lane": "opus",
+      "effort": "max",
+      "model": "claude-opus-5-5",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 1.0,
+      "lenient_false_alarms": 26,
+      "defects_found": 38,
+      "defects_total": 38,
+      "recall": 1.0,
+      "recall_wilson": [
+        0.908190131774416,
+        0.9999999999999999
+      ],
+      "recall_bootstrap": [
+        1.0,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.8,
+          "completed_only_per_item": 0.8,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.3333333333333333,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.59375,
+      "matched_findings": 38,
+      "unmatched_findings": 26,
+      "usable": {
+        "items": 32,
+        "rate": 0.8888888888888888
+      },
+      "wall_s": {
+        "median": 312.9815,
+        "p90": 508.58050000000003,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 724639.3333333334,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 1.434614911111111,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.09407310892531877,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.5365685691163604,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.08912189266609147,
+      "plan": null
+    },
+    "opus-max-claude-fable-5-1": {
+      "arm": "opus-max-claude-fable-5-1",
+      "lane": "opus",
+      "effort": "max",
+      "model": "claude-fable-5-1",
+      "rep": 1,
+      "finished_items": 18,
+      "partial": true,
+      "provider": "claude",
+      "items_run": 18,
+      "completed": 18,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 18,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.5789473684210527,
+      "lenient_false_alarms": 10,
+      "defects_found": 22,
+      "defects_total": 38,
+      "recall": 0.5789473684210527,
+      "recall_wilson": [
+        0.42192345343670545,
+        0.7214749884224129
+      ],
+      "recall_bootstrap": [
+        0.41172699849170435,
+        0.7381912442396309
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.5555555555555556,
+          "items": 30,
+          "completed_items": 18
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": null,
+          "items": 6,
+          "completed_items": 0
+        }
+      },
+      "precision": 0.6875,
+      "matched_findings": 22,
+      "unmatched_findings": 10,
+      "usable": {
+        "items": 18,
+        "rate": 0.5
+      },
+      "wall_s": {
+        "median": 246.1515,
+        "p90": 319.8078,
+        "n": 18
+      },
+      "tokens_per_item": {
+        "mean": 473641.72222222225,
+        "n": 18
+      },
+      "cost_per_item": {
+        "mean": 2.5670501666666663,
+        "n": 18,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.16833115846994534,
+        "n": 18
+      },
+      "pct_5h_per_item": {
+        "mean": 2.0819383241469813,
+        "n": 18
+      },
+      "pct_week_per_defect": 0.13772549329359163,
+      "plan": null
+    },
+    "opus-medium": {
+      "arm": "opus-medium",
+      "lane": "opus",
+      "effort": "medium",
+      "model": "claude-opus-5-5",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9473684210526315,
+      "lenient_false_alarms": 16,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "recall_bootstrap": [
+        0.8717948717948718,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.43333333333333335,
+          "completed_only_per_item": 0.43333333333333335,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.5,
+          "completed_only_per_item": 0.5,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.6923076923076923,
+      "matched_findings": 36,
+      "unmatched_findings": 16,
+      "usable": {
+        "items": 35,
+        "rate": 0.9722222222222222
+      },
+      "wall_s": {
+        "median": 30.703,
+        "p90": 40.1565,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 178979.22222222222,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.2880900722222222,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.01889115227686703,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.10775022386264216,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.018891152276867038,
+      "plan": null
+    },
+    "opus-medium-claude-fable-5-1": {
+      "arm": "opus-medium-claude-fable-5-1",
+      "lane": "opus",
+      "effort": "medium",
+      "model": "claude-fable-5-1",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9736842105263158,
+      "lenient_false_alarms": 17,
+      "defects_found": 37,
+      "defects_total": 38,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "recall_bootstrap": [
+        0.9142857142857143,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.4,
+          "completed_only_per_item": 0.4,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.8333333333333334,
+          "completed_only_per_item": 0.8333333333333334,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.6851851851851852,
+      "matched_findings": 37,
+      "unmatched_findings": 17,
+      "usable": {
+        "items": 33,
+        "rate": 0.9166666666666666
+      },
+      "wall_s": {
+        "median": 48.717,
+        "p90": 91.1895,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 242383.44444444444,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.8105316597222223,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.05314961703096539,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.6573603224518811,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.05171314089499336,
+      "plan": null
+    },
+    "opus-xhigh": {
+      "arm": "opus-xhigh",
+      "lane": "opus",
+      "effort": "xhigh",
+      "model": "claude-opus-5-5",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9473684210526315,
+      "lenient_false_alarms": 24,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "recall_bootstrap": [
+        0.8285714285714286,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.6666666666666666,
+          "completed_only_per_item": 0.6666666666666666,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.6666666666666666,
+          "completed_only_per_item": 0.6666666666666666,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.6,
+      "matched_findings": 36,
+      "unmatched_findings": 24,
+      "usable": {
+        "items": 33,
+        "rate": 0.9166666666666666
+      },
+      "wall_s": {
+        "median": 72.32900000000001,
+        "p90": 114.8435,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 370258.75,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.564278438888889,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.037001864845173045,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.21104902241907258,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.037001864845173045,
+      "plan": null
+    },
+    "opus-xhigh-claude-fable-5-1": {
+      "arm": "opus-xhigh-claude-fable-5-1",
+      "lane": "opus",
+      "effort": "xhigh",
+      "model": "claude-fable-5-1",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9473684210526315,
+      "lenient_false_alarms": 16,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "recall_bootstrap": [
+        0.8717948717948718,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.5,
+          "completed_only_per_item": 0.5,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.16666666666666666,
+          "completed_only_per_item": 0.16666666666666666,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.6923076923076923,
+      "matched_findings": 36,
+      "unmatched_findings": 16,
+      "usable": {
+        "items": 36,
+        "rate": 1.0
+      },
+      "wall_s": {
+        "median": 150.9875,
+        "p90": 217.9325,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 335070.8888888889,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 1.7045191458333333,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.11177174726775957,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 1.3824052915026246,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.11177174726775954,
+      "plan": null
+    },
+    "sol-high": {
+      "arm": "sol-high",
+      "lane": "sol",
+      "effort": "high",
+      "model": "gpt-6.1-sol",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9210526315789473,
+      "lenient_false_alarms": 13,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "recall_bootstrap": [
+        0.8292682926829268,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.43333333333333335,
+          "completed_only_per_item": 0.43333333333333335,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7291666666666666,
+      "matched_findings": 35,
+      "unmatched_findings": 13,
+      "usable": {
+        "items": 35,
+        "rate": 0.9722222222222222
+      },
+      "wall_s": {
+        "median": 52.0055,
+        "p90": 90.231,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 37058.0,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 2.5159788888888888,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.029952129629629634,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.030807904761904766,
+      "plan": "prolite"
+    },
+    "sol-high-r2": {
+      "arm": "sol-high-r2",
+      "lane": "sol",
+      "effort": "high",
+      "model": "gpt-6.1-sol",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.8947368421052632,
+      "lenient_false_alarms": 13,
+      "defects_found": 34,
+      "defects_total": 38,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "recall_bootstrap": [
+        0.8,
+        0.9761904761904762
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.43333333333333335,
+          "completed_only_per_item": 0.43333333333333335,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.723404255319149,
+      "matched_findings": 34,
+      "unmatched_findings": 13,
+      "usable": {
+        "items": 35,
+        "rate": 0.9722222222222222
+      },
+      "wall_s": {
+        "median": 35.510000000000005,
+        "p90": 49.299499999999995,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 33927.416666666664,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 2.3104430555555555,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.02750527447089947,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.02912323179271709,
+      "plan": "prolite"
+    },
+    "sol-high-r3": {
+      "arm": "sol-high-r3",
+      "lane": "sol",
+      "effort": "high",
+      "model": "gpt-6.1-sol",
+      "rep": 3,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.8947368421052632,
+      "lenient_false_alarms": 13,
+      "defects_found": 34,
+      "defects_total": 38,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "recall_bootstrap": [
+        0.8,
+        0.9761904761904762
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.43333333333333335,
+          "completed_only_per_item": 0.43333333333333335,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.723404255319149,
+      "matched_findings": 34,
+      "unmatched_findings": 13,
+      "usable": {
+        "items": 35,
+        "rate": 0.9722222222222222
+      },
+      "wall_s": {
+        "median": 47.81,
+        "p90": 77.521,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 2.438980277777778,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.029035479497354497,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.03074344887955182,
+      "plan": "prolite"
+    },
+    "sol-low": {
+      "arm": "sol-low",
+      "lane": "sol",
+      "effort": "low",
+      "model": "gpt-6.1-sol",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.8157894736842105,
+      "lenient_false_alarms": 10,
+      "defects_found": 31,
+      "defects_total": 38,
+      "recall": 0.8157894736842105,
+      "recall_wilson": [
+        0.665811419288686,
+        0.9077823481477872
+      ],
+      "recall_bootstrap": [
+        0.6829268292682927,
+        0.9411764705882353
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.3333333333333333,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7560975609756098,
+      "matched_findings": 31,
+      "unmatched_findings": 10,
+      "usable": {
+        "items": 33,
+        "rate": 0.9166666666666666
+      },
+      "wall_s": {
+        "median": 28.4875,
+        "p90": 40.251000000000005,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 23967.222222222223,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 1.6006422222222223,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.01905526455026455,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.022128694316436253,
+      "plan": "prolite"
+    },
+    "sol-low-r2": {
+      "arm": "sol-low-r2",
+      "lane": "sol",
+      "effort": "low",
+      "model": "gpt-6.1-sol",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.868421052631579,
+      "lenient_false_alarms": 8,
+      "defects_found": 33,
+      "defects_total": 38,
+      "recall": 0.868421052631579,
+      "recall_wilson": [
+        0.7267314055770869,
+        0.9424613230987987
+      ],
+      "recall_bootstrap": [
+        0.7619047619047619,
+        0.9714285714285714
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.26666666666666666,
+          "completed_only_per_item": 0.26666666666666666,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.8048780487804879,
+      "matched_findings": 33,
+      "unmatched_findings": 8,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 25.595,
+        "p90": 32.134,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 22420.61111111111,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 1.514647222222222,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.01803151455026455,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.019670743145743148,
+      "plan": "prolite"
+    },
+    "sol-low-r3": {
+      "arm": "sol-low-r3",
+      "lane": "sol",
+      "effort": "low",
+      "model": "gpt-6.1-sol",
+      "rep": 3,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.8421052631578947,
+      "lenient_false_alarms": 11,
+      "defects_found": 32,
+      "defects_total": 38,
+      "recall": 0.8421052631578947,
+      "recall_wilson": [
+        0.6958318822077686,
+        0.9255613658484106
+      ],
+      "recall_bootstrap": [
+        0.7333333333333333,
+        0.9473684210526315
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.36666666666666664,
+          "completed_only_per_item": 0.36666666666666664,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7441860465116279,
+      "matched_findings": 32,
+      "unmatched_findings": 11,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 40.8795,
+        "p90": 50.339,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 1.7258355555555556,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.020545661375661373,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.023113869047619046,
+      "plan": "prolite"
+    },
+    "sol-max": {
+      "arm": "sol-max",
+      "lane": "sol",
+      "effort": "max",
+      "model": "gpt-6.1-sol",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9473684210526315,
+      "lenient_false_alarms": 12,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "recall_bootstrap": [
+        0.868421052631579,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.4,
+          "completed_only_per_item": 0.4,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.75,
+      "matched_findings": 36,
+      "unmatched_findings": 12,
+      "usable": {
+        "items": 35,
+        "rate": 0.9722222222222222
+      },
+      "wall_s": {
+        "median": 68.16300000000001,
+        "p90": 101.83449999999999,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 43066.52777777778,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 3.0936097222222223,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.036828687169312174,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.036828687169312174,
+      "plan": "prolite"
+    },
+    "sol-max-r2": {
+      "arm": "sol-max-r2",
+      "lane": "sol",
+      "effort": "max",
+      "model": "gpt-6.1-sol",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9473684210526315,
+      "lenient_false_alarms": 11,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "recall_bootstrap": [
+        0.8695652173913043,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.36666666666666664,
+          "completed_only_per_item": 0.36666666666666664,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7659574468085106,
+      "matched_findings": 36,
+      "unmatched_findings": 11,
+      "usable": {
+        "items": 36,
+        "rate": 1.0
+      },
+      "wall_s": {
+        "median": 63.284499999999994,
+        "p90": 94.5095,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 43050.0,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 3.0969266666666666,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.036868174603174604,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.03686817460317459,
+      "plan": "prolite"
+    },
+    "sol-max-r3": {
+      "arm": "sol-max-r3",
+      "lane": "sol",
+      "effort": "max",
+      "model": "gpt-6.1-sol",
+      "rep": 3,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9473684210526315,
+      "lenient_false_alarms": 11,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "recall_bootstrap": [
+        0.8695652173913043,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.36666666666666664,
+          "completed_only_per_item": 0.36666666666666664,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7659574468085106,
+      "matched_findings": 36,
+      "unmatched_findings": 11,
+      "usable": {
+        "items": 36,
+        "rate": 1.0
+      },
+      "wall_s": {
+        "median": 89.1905,
+        "p90": 134.6885,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 3.347462777777778,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.039850747354497354,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.03985074735449737,
+      "plan": "prolite"
+    },
+    "sol-medium": {
+      "arm": "sol-medium",
+      "lane": "sol",
+      "effort": "medium",
+      "model": "gpt-6.1-sol",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.8947368421052632,
+      "lenient_false_alarms": 9,
+      "defects_found": 34,
+      "defects_total": 38,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "recall_bootstrap": [
+        0.8,
+        0.9761904761904762
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.3,
+          "completed_only_per_item": 0.3,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7906976744186046,
+      "matched_findings": 34,
+      "unmatched_findings": 9,
+      "usable": {
+        "items": 35,
+        "rate": 0.9722222222222222
+      },
+      "wall_s": {
+        "median": 33.3655,
+        "p90": 50.9035,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 30991.333333333332,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 2.0090555555555554,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.023917328042328042,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.025324229691876747,
+      "plan": "prolite"
+    },
+    "sol-medium-r2": {
+      "arm": "sol-medium-r2",
+      "lane": "sol",
+      "effort": "medium",
+      "model": "gpt-6.1-sol",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.868421052631579,
+      "lenient_false_alarms": 10,
+      "defects_found": 33,
+      "defects_total": 38,
+      "recall": 0.868421052631579,
+      "recall_wilson": [
+        0.7267314055770869,
+        0.9424613230987987
+      ],
+      "recall_bootstrap": [
+        0.7619047619047619,
+        0.9714285714285714
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.3333333333333333,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7674418604651163,
+      "matched_findings": 33,
+      "unmatched_findings": 10,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 29.0075,
+        "p90": 38.1995,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 27795.0,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 1.8410344444444446,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.021917076719576722,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.02390953823953823,
+      "plan": "prolite"
+    },
+    "sol-medium-r3": {
+      "arm": "sol-medium-r3",
+      "lane": "sol",
+      "effort": "medium",
+      "model": "gpt-6.1-sol",
+      "rep": 3,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.868421052631579,
+      "lenient_false_alarms": 10,
+      "defects_found": 33,
+      "defects_total": 38,
+      "recall": 0.868421052631579,
+      "recall_wilson": [
+        0.7267314055770869,
+        0.9424613230987987
+      ],
+      "recall_bootstrap": [
+        0.7368034055727554,
+        0.9761904761904762
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.3333333333333333,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7674418604651163,
+      "matched_findings": 33,
+      "unmatched_findings": 10,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 36.820499999999996,
+        "p90": 48.338,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 1.9613424999999998,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.023349315476190475,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.02547198051948052,
+      "plan": "prolite"
+    },
+    "sol-xhigh": {
+      "arm": "sol-xhigh",
+      "lane": "sol",
+      "effort": "xhigh",
+      "model": "gpt-6.1-sol",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9473684210526315,
+      "lenient_false_alarms": 13,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "recall_bootstrap": [
+        0.8717948717948718,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.43333333333333335,
+          "completed_only_per_item": 0.43333333333333335,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7346938775510204,
+      "matched_findings": 36,
+      "unmatched_findings": 13,
+      "usable": {
+        "items": 36,
+        "rate": 1.0
+      },
+      "wall_s": {
+        "median": 59.667,
+        "p90": 93.027,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 40854.13888888889,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 2.8675858333333335,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.03413792658730159,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.03413792658730159,
+      "plan": "prolite"
+    },
+    "sol-xhigh-r2": {
+      "arm": "sol-xhigh-r2",
+      "lane": "sol",
+      "effort": "xhigh",
+      "model": "gpt-6.1-sol",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9210526315789473,
+      "lenient_false_alarms": 12,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "recall_bootstrap": [
+        0.8378378378378378,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.4,
+          "completed_only_per_item": 0.4,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7446808510638298,
+      "matched_findings": 35,
+      "unmatched_findings": 12,
+      "usable": {
+        "items": 36,
+        "rate": 1.0
+      },
+      "wall_s": {
+        "median": 57.275999999999996,
+        "p90": 66.89949999999999,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 42382.444444444445,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 2.9348866666666664,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.03493912698412698,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.03593738775510204,
+      "plan": "prolite"
+    },
+    "sol-xhigh-r3": {
+      "arm": "sol-xhigh-r3",
+      "lane": "sol",
+      "effort": "xhigh",
+      "model": "gpt-6.1-sol",
+      "rep": 3,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 34,
+      "skipped": 0,
+      "infra_failures": 1,
+      "failed_runs": 2,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.8947368421052632,
+      "lenient_false_alarms": 12,
+      "defects_found": 34,
+      "defects_total": 38,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "recall_bootstrap": [
+        0.7692307692307693,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.4,
+          "completed_only_per_item": 0.41379310344827586,
+          "items": 30,
+          "completed_items": 29
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 5
+        }
+      },
+      "precision": 0.7391304347826086,
+      "matched_findings": 34,
+      "unmatched_findings": 12,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 76.8305,
+        "p90": 108.2915,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": null,
+        "n": 0
+      },
+      "cost_per_item": {
+        "mean": 2.938296111111111,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.034979715608465606,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.03703734593837535,
+      "plan": "prolite"
+    },
+    "sonnet-high": {
+      "arm": "sonnet-high",
+      "lane": "sonnet",
+      "effort": "high",
+      "model": "claude-sonnet-5-5",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9210526315789473,
+      "lenient_false_alarms": 6,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "recall_bootstrap": [
+        0.7894338118022328,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.2,
+          "completed_only_per_item": 0.2,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.8536585365853658,
+      "matched_findings": 35,
+      "unmatched_findings": 6,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 20.985999999999997,
+        "p90": 36.084,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 160208.86111111112,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.13834547777777778,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.00907183460837887,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.054466723534558184,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.009331029882903982,
+      "plan": null
+    },
+    "sonnet-high-r2": {
+      "arm": "sonnet-high-r2",
+      "lane": "sonnet",
+      "effort": "high",
+      "model": "claude-sonnet-5-5",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.868421052631579,
+      "lenient_false_alarms": 5,
+      "defects_found": 33,
+      "defects_total": 38,
+      "recall": 0.868421052631579,
+      "recall_wilson": [
+        0.7267314055770869,
+        0.9424613230987987
+      ],
+      "recall_bootstrap": [
+        0.7352941176470589,
+        0.9743589743589743
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.16666666666666666,
+          "completed_only_per_item": 0.16666666666666666,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.868421052631579,
+      "matched_findings": 33,
+      "unmatched_findings": 5,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 24.5215,
+        "p90": 37.4445,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 166291.58333333334,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.13948488333333334,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.009146549726775956,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.05491530839895013,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.009978054247391954,
+      "plan": null
+    },
+    "sonnet-low": {
+      "arm": "sonnet-low",
+      "lane": "sonnet",
+      "effort": "low",
+      "model": "claude-sonnet-5-5",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.8421052631578947,
+      "lenient_false_alarms": 1,
+      "defects_found": 32,
+      "defects_total": 38,
+      "recall": 0.8421052631578947,
+      "recall_wilson": [
+        0.6958318822077686,
+        0.9255613658484106
+      ],
+      "recall_bootstrap": [
+        0.6829268292682927,
+        0.972972972972973
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.03333333333333333,
+          "completed_only_per_item": 0.03333333333333333,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.9696969696969697,
+      "matched_findings": 32,
+      "unmatched_findings": 1,
+      "usable": {
+        "items": 33,
+        "rate": 0.9166666666666666
+      },
+      "wall_s": {
+        "median": 21.756999999999998,
+        "p90": 30.6805,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 130108.69444444444,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.11338194166666667,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.007434881420765028,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.04463855971128609,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.008364241598360656,
+      "plan": null
+    },
+    "sonnet-max": {
+      "arm": "sonnet-max",
+      "lane": "sonnet",
+      "effort": "max",
+      "model": "claude-sonnet-5-5",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9736842105263158,
+      "lenient_false_alarms": 10,
+      "defects_found": 37,
+      "defects_total": 38,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "recall_bootstrap": [
+        0.9142857142857143,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.3333333333333333,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.7872340425531915,
+      "matched_findings": 37,
+      "unmatched_findings": 10,
+      "usable": {
+        "items": 36,
+        "rate": 1.0
+      },
+      "wall_s": {
+        "median": 322.496,
+        "p90": 482.13149999999996,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 940683.4722222222,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.9434675944444445,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.061866727504553735,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.3714439348206474,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.06019465378821446,
+      "plan": null
+    },
+    "sonnet-max-r2": {
+      "arm": "sonnet-max-r2",
+      "lane": "sonnet",
+      "effort": "max",
+      "model": "claude-sonnet-5-5",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9736842105263158,
+      "lenient_false_alarms": 6,
+      "defects_found": 37,
+      "defects_total": 38,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "recall_bootstrap": [
+        0.9142857142857143,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.2,
+          "completed_only_per_item": 0.2,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.8604651162790697,
+      "matched_findings": 37,
+      "unmatched_findings": 6,
+      "usable": {
+        "items": 36,
+        "rate": 1.0
+      },
+      "wall_s": {
+        "median": 298.227,
+        "p90": 478.935,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 864191.25,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.8868190805555556,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.058152070856102,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.3491413702974628,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.056580393265396545,
+      "plan": null
+    },
+    "sonnet-medium": {
+      "arm": "sonnet-medium",
+      "lane": "sonnet",
+      "effort": "medium",
+      "model": "claude-sonnet-5-5",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.868421052631579,
+      "lenient_false_alarms": 3,
+      "defects_found": 33,
+      "defects_total": 38,
+      "recall": 0.868421052631579,
+      "recall_wilson": [
+        0.7267314055770869,
+        0.9424613230987987
+      ],
+      "recall_bootstrap": [
+        0.7352941176470589,
+        0.9743589743589743
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.1,
+          "completed_only_per_item": 0.1,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.9166666666666666,
+      "matched_findings": 33,
+      "unmatched_findings": 3,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 22.5565,
+        "p90": 36.3655,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 133600.27777777778,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.11794817777777777,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.007734306739526412,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.04643629046369204,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.008437425534028813,
+      "plan": null
+    },
+    "sonnet-xhigh": {
+      "arm": "sonnet-xhigh",
+      "lane": "sonnet",
+      "effort": "xhigh",
+      "model": "claude-sonnet-5-5",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 36,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9473684210526315,
+      "lenient_false_alarms": 16,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "recall_bootstrap": [
+        0.8285714285714286,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.4666666666666667,
+          "completed_only_per_item": 0.4666666666666667,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.3333333333333333,
+          "completed_only_per_item": 0.3333333333333333,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.6923076923076923,
+      "matched_findings": 36,
+      "unmatched_findings": 16,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 52.393,
+        "p90": 99.05850000000001,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 300143.1111111111,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.23658024999999996,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.015513459016393442,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.09314183070866142,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.015513459016393442,
+      "plan": null
+    },
+    "sonnet-xhigh-r2": {
+      "arm": "sonnet-xhigh-r2",
+      "lane": "sonnet",
+      "effort": "xhigh",
+      "model": "claude-sonnet-5-5",
+      "rep": 2,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "claude",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9210526315789473,
+      "lenient_false_alarms": 17,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "recall_bootstrap": [
+        0.8,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.5333333333333333,
+          "completed_only_per_item": 0.5333333333333333,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.16666666666666666,
+          "completed_only_per_item": 0.16666666666666666,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.6730769230769231,
+      "matched_findings": 35,
+      "unmatched_findings": 17,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 49.040499999999994,
+        "p90": 99.469,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 292406.1388888889,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.23119050555555554,
+        "n": 36,
+        "unit": "list_usd"
+      },
+      "pct_week_per_item": {
+        "mean": 0.015160033151183971,
+        "n": 36
+      },
+      "pct_5h_per_item": {
+        "mean": 0.09101988407699038,
+        "n": 36
+      },
+      "pct_week_per_defect": 0.01559317695550351,
+      "plan": null
+    },
+    "terra-high": {
+      "arm": "terra-high",
+      "lane": "terra",
+      "effort": "high",
+      "model": "gpt-6.1-terra",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9210526315789473,
+      "lenient_false_alarms": 20,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "recall_bootstrap": [
+        0.8292682926829268,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.6333333333333333,
+          "completed_only_per_item": 0.6333333333333333,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.16666666666666666,
+          "completed_only_per_item": 0.16666666666666666,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.6363636363636364,
+      "matched_findings": 35,
+      "unmatched_findings": 20,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 71.1335,
+        "p90": 92.783,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 214127.91666666666,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.9142545833333333,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.010883983134920635,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.011194954081632652,
+      "plan": "prolite"
+    },
+    "terra-low": {
+      "arm": "terra-low",
+      "lane": "terra",
+      "effort": "low",
+      "model": "gpt-6.1-terra",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 35,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9210526315789473,
+      "lenient_false_alarms": 13,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "recall_bootstrap": [
+        0.8297742605085625,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.43333333333333335,
+          "completed_only_per_item": 0.43333333333333335,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 5
+        }
+      },
+      "precision": 0.7291666666666666,
+      "matched_findings": 35,
+      "unmatched_findings": 13,
+      "usable": {
+        "items": 33,
+        "rate": 0.9166666666666666
+      },
+      "wall_s": {
+        "median": 67.487,
+        "p90": 94.607,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 160799.86111111112,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.6962498611111111,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.008288688822751323,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.008525508503401362,
+      "plan": "prolite"
+    },
+    "terra-medium": {
+      "arm": "terra-medium",
+      "lane": "terra",
+      "effort": "medium",
+      "model": "gpt-6.1-terra",
+      "rep": 1,
+      "finished_items": 36,
+      "partial": false,
+      "provider": "codex",
+      "items_run": 36,
+      "completed": 36,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 0,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.9210526315789473,
+      "lenient_false_alarms": 17,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "recall_bootstrap": [
+        0.8292682926829268,
+        1.0
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.5666666666666667,
+          "completed_only_per_item": 0.5666666666666667,
+          "items": 30,
+          "completed_items": 30
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": 0.0,
+          "items": 6,
+          "completed_items": 6
+        }
+      },
+      "precision": 0.6730769230769231,
+      "matched_findings": 35,
+      "unmatched_findings": 17,
+      "usable": {
+        "items": 34,
+        "rate": 0.9444444444444444
+      },
+      "wall_s": {
+        "median": 64.96799999999999,
+        "p90": 85.37450000000001,
+        "n": 36
+      },
+      "tokens_per_item": {
+        "mean": 172209.61111111112,
+        "n": 36
+      },
+      "cost_per_item": {
+        "mean": 0.8044780555555556,
+        "n": 36,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.009577119708994709,
+        "n": 36
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.009850751700680272,
+      "plan": "prolite"
+    },
+    "terra-xhigh": {
+      "arm": "terra-xhigh",
+      "lane": "terra",
+      "effort": "xhigh",
+      "model": "gpt-6.1-terra",
+      "rep": 1,
+      "finished_items": 23,
+      "partial": true,
+      "provider": "codex",
+      "items_run": 23,
+      "completed": 22,
+      "skipped": 0,
+      "infra_failures": 0,
+      "failed_runs": 1,
+      "format_fail": 0,
+      "format_fail_items": [],
+      "lenient_recall": 0.7368421052631579,
+      "lenient_false_alarms": 21,
+      "defects_found": 28,
+      "defects_total": 38,
+      "recall": 0.7368421052631579,
+      "recall_wilson": [
+        0.5799115381253364,
+        0.8502837874520186
+      ],
+      "recall_bootstrap": [
+        0.5789473684210527,
+        0.8857142857142857
+      ],
+      "false_alarms": {
+        "planted": {
+          "per_item": 0.7,
+          "completed_only_per_item": 0.9545454545454546,
+          "items": 30,
+          "completed_items": 22
+        },
+        "control": {
+          "per_item": 0.0,
+          "completed_only_per_item": null,
+          "items": 6,
+          "completed_items": 0
+        }
+      },
+      "precision": 0.5714285714285714,
+      "matched_findings": 28,
+      "unmatched_findings": 21,
+      "usable": {
+        "items": 22,
+        "rate": 0.6111111111111112
+      },
+      "wall_s": {
+        "median": 104.249,
+        "p90": 160.0088,
+        "n": 23
+      },
+      "tokens_per_item": {
+        "mean": 303479.3181818182,
+        "n": 22
+      },
+      "cost_per_item": {
+        "mean": 1.3233347727272728,
+        "n": 22,
+        "unit": "credits"
+      },
+      "pct_week_per_item": {
+        "mean": 0.01575398538961039,
+        "n": 22
+      },
+      "pct_5h_per_item": null,
+      "pct_week_per_defect": 0.01237813137755102,
+      "plan": "prolite"
+    }
+  },
+  "pooled": [
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "effort": "high",
+      "provider": "codex",
+      "arms": [
+        "astra-high",
+        "astra-high-r2"
+      ],
+      "reps": 2,
+      "rep_numbers": [
+        1,
+        2
+      ],
+      "items": 72,
+      "defects_found": 69,
+      "defects_total": 76,
+      "recall": 0.9078947368421053,
+      "recall_wilson": [
+        0.8218729215106378,
+        0.9546659959362239
+      ],
+      "usable_items": 70,
+      "usable": 0.9722222222222222,
+      "matched_findings": 69,
+      "unmatched_findings": 22,
+      "precision": 0.7582417582417582,
+      "format_fail": 0,
+      "cost_per_item": 11.977248611111113,
+      "pct_week_per_item": 0.142586292989418,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 72
+    },
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "effort": "low",
+      "provider": "codex",
+      "arms": [
+        "astra-low",
+        "astra-low-r2"
+      ],
+      "reps": 2,
+      "rep_numbers": [
+        1,
+        2
+      ],
+      "items": 72,
+      "defects_found": 70,
+      "defects_total": 76,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.8382725651786193,
+        0.9633159947665283
+      ],
+      "usable_items": 70,
+      "usable": 0.9722222222222222,
+      "matched_findings": 70,
+      "unmatched_findings": 22,
+      "precision": 0.7608695652173914,
+      "format_fail": 0,
+      "cost_per_item": 9.019104166666668,
+      "pct_week_per_item": 0.10737028769841268,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 72
+    },
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "effort": "max",
+      "provider": "codex",
+      "arms": [
+        "astra-max",
+        "astra-max-r2",
+        "astra-max-r3"
+      ],
+      "reps": 3,
+      "rep_numbers": [
+        1,
+        2,
+        3
+      ],
+      "items": 108,
+      "defects_found": 112,
+      "defects_total": 114,
+      "recall": 0.9824561403508771,
+      "recall_wilson": [
+        0.9382819735400814,
+        0.9951755812189311
+      ],
+      "usable_items": 108,
+      "usable": 1.0,
+      "matched_findings": 112,
+      "unmatched_findings": 34,
+      "precision": 0.7671232876712328,
+      "format_fail": 0,
+      "cost_per_item": 18.710202314814815,
+      "pct_week_per_item": 0.22274050374779542,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 108
+    },
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "effort": "medium",
+      "provider": "codex",
+      "arms": [
+        "astra-medium",
+        "astra-medium-r2"
+      ],
+      "reps": 2,
+      "rep_numbers": [
+        1,
+        2
+      ],
+      "items": 72,
+      "defects_found": 68,
+      "defects_total": 76,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.805800536776795,
+        0.945688738171781
+      ],
+      "usable_items": 70,
+      "usable": 0.9722222222222222,
+      "matched_findings": 68,
+      "unmatched_findings": 18,
+      "precision": 0.7906976744186046,
+      "format_fail": 0,
+      "cost_per_item": 9.34049722222222,
+      "pct_week_per_item": 0.1111963955026455,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 72
+    },
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "effort": "xhigh",
+      "provider": "codex",
+      "arms": [
+        "astra-xhigh",
+        "astra-xhigh-r2",
+        "astra-xhigh-r3"
+      ],
+      "reps": 3,
+      "rep_numbers": [
+        1,
+        2,
+        3
+      ],
+      "items": 108,
+      "defects_found": 107,
+      "defects_total": 114,
+      "recall": 0.9385964912280702,
+      "recall_wilson": [
+        0.8786570589735132,
+        0.9699407180801347
+      ],
+      "usable_items": 107,
+      "usable": 0.9907407407407407,
+      "matched_findings": 107,
+      "unmatched_findings": 38,
+      "precision": 0.7379310344827587,
+      "format_fail": 0,
+      "cost_per_item": 16.706666666666663,
+      "pct_week_per_item": 0.19888888888888887,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 107
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "effort": "high",
+      "provider": "claude",
+      "arms": [
+        "haiku-high"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "usable_items": 32,
+      "usable": 0.8888888888888888,
+      "matched_findings": 36,
+      "unmatched_findings": 30,
+      "precision": 0.5454545454545454,
+      "format_fail": 0,
+      "cost_per_item": 0.01675675777777778,
+      "pct_week_per_item": 0.0010988037887067397,
+      "pct_5h_per_item": 0.011347095818022747,
+      "plan": null,
+      "completed": 36
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "effort": "low",
+      "provider": "claude",
+      "arms": [
+        "haiku-low"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 34,
+      "defects_total": 38,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.7586947827711269,
+        0.9582974265244647
+      ],
+      "usable_items": 34,
+      "usable": 0.9444444444444444,
+      "matched_findings": 34,
+      "unmatched_findings": 9,
+      "precision": 0.7906976744186046,
+      "format_fail": 0,
+      "cost_per_item": 0.008186592777777777,
+      "pct_week_per_item": 0.0005368257559198544,
+      "pct_5h_per_item": 0.00554367699912511,
+      "plan": null,
+      "completed": 36
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "effort": "max",
+      "provider": "claude",
+      "arms": [
+        "haiku-max"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 37,
+      "defects_total": 38,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "usable_items": 30,
+      "usable": 0.8333333333333334,
+      "matched_findings": 37,
+      "unmatched_findings": 41,
+      "precision": 0.47435897435897434,
+      "format_fail": 0,
+      "cost_per_item": 0.16130875666666666,
+      "pct_week_per_item": 0.010577623387978142,
+      "pct_5h_per_item": 0.10923270136482939,
+      "plan": null,
+      "completed": 36
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "effort": "medium",
+      "provider": "claude",
+      "arms": [
+        "haiku-medium"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "usable_items": 34,
+      "usable": 0.9444444444444444,
+      "matched_findings": 36,
+      "unmatched_findings": 14,
+      "precision": 0.72,
+      "format_fail": 1,
+      "cost_per_item": 0.011243507222222223,
+      "pct_week_per_item": 0.0007372791621129326,
+      "pct_5h_per_item": 0.007613713552055994,
+      "plan": null,
+      "completed": 35
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "effort": "xhigh",
+      "provider": "claude",
+      "arms": [
+        "haiku-xhigh"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 38,
+      "defects_total": 38,
+      "recall": 1.0,
+      "recall_wilson": [
+        0.908190131774416,
+        0.9999999999999999
+      ],
+      "usable_items": 30,
+      "usable": 0.8333333333333334,
+      "matched_findings": 38,
+      "unmatched_findings": 36,
+      "precision": 0.5135135135135135,
+      "format_fail": 0,
+      "cost_per_item": 0.05061416305555556,
+      "pct_week_per_item": 0.0033189615118397087,
+      "pct_5h_per_item": 0.03427415765966754,
+      "plan": null,
+      "completed": 36
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "effort": "high",
+      "provider": "codex",
+      "arms": [
+        "luna-high",
+        "luna-high-r2",
+        "luna-high-r3",
+        "luna-high-r4"
+      ],
+      "reps": 4,
+      "rep_numbers": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "items": 144,
+      "defects_found": 109,
+      "defects_total": 152,
+      "recall": 0.7171052631578947,
+      "recall_wilson": [
+        0.6408366269338925,
+        0.7826707022418267
+      ],
+      "usable_items": 123,
+      "usable": 0.8541666666666666,
+      "matched_findings": 109,
+      "unmatched_findings": 32,
+      "precision": 0.7730496453900709,
+      "format_fail": 7,
+      "cost_per_item": 0.14112204166666664,
+      "pct_week_per_item": 0.0016800243055555557,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 136
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "effort": "low",
+      "provider": "codex",
+      "arms": [
+        "luna-low",
+        "luna-low-r2",
+        "luna-low-r3",
+        "luna-low-r4"
+      ],
+      "reps": 4,
+      "rep_numbers": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "items": 144,
+      "defects_found": 59,
+      "defects_total": 152,
+      "recall": 0.3881578947368421,
+      "recall_wilson": [
+        0.31435296378925043,
+        0.4674765939081062
+      ],
+      "usable_items": 74,
+      "usable": 0.5138888888888888,
+      "matched_findings": 59,
+      "unmatched_findings": 20,
+      "precision": 0.7468354430379747,
+      "format_fail": 6,
+      "cost_per_item": 0.12696452430555558,
+      "pct_week_per_item": 0.0015114824322089947,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 118
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "effort": "max",
+      "provider": "codex",
+      "arms": [
+        "luna-max",
+        "luna-max-r2",
+        "luna-max-r3",
+        "luna-max-r4"
+      ],
+      "reps": 4,
+      "rep_numbers": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "items": 144,
+      "defects_found": 124,
+      "defects_total": 152,
+      "recall": 0.8157894736842105,
+      "recall_wilson": [
+        0.7466466374702757,
+        0.8693640231489522
+      ],
+      "usable_items": 127,
+      "usable": 0.8819444444444444,
+      "matched_findings": 124,
+      "unmatched_findings": 57,
+      "precision": 0.6850828729281768,
+      "format_fail": 8,
+      "cost_per_item": 0.2064112013888889,
+      "pct_week_per_item": 0.002457276207010582,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 136
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "effort": "medium",
+      "provider": "codex",
+      "arms": [
+        "luna-medium",
+        "luna-medium-r2",
+        "luna-medium-r3",
+        "luna-medium-r4"
+      ],
+      "reps": 4,
+      "rep_numbers": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "items": 144,
+      "defects_found": 87,
+      "defects_total": 152,
+      "recall": 0.5723684210526315,
+      "recall_wilson": [
+        0.4928894235012159,
+        0.6482796862240238
+      ],
+      "usable_items": 105,
+      "usable": 0.7291666666666666,
+      "matched_findings": 87,
+      "unmatched_findings": 27,
+      "precision": 0.7631578947368421,
+      "format_fail": 13,
+      "cost_per_item": 0.09944980555555555,
+      "pct_week_per_item": 0.0011839262566137566,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 129
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "effort": "xhigh",
+      "provider": "codex",
+      "arms": [
+        "luna-xhigh",
+        "luna-xhigh-r2",
+        "luna-xhigh-r3",
+        "luna-xhigh-r4"
+      ],
+      "reps": 4,
+      "rep_numbers": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "items": 144,
+      "defects_found": 119,
+      "defects_total": 152,
+      "recall": 0.7828947368421053,
+      "recall_wilson": [
+        0.7108187136913712,
+        0.8410241697800206
+      ],
+      "usable_items": 125,
+      "usable": 0.8680555555555556,
+      "matched_findings": 119,
+      "unmatched_findings": 46,
+      "precision": 0.7212121212121212,
+      "format_fail": 13,
+      "cost_per_item": 0.19242023611111111,
+      "pct_week_per_item": 0.0022907170965608464,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 131
+    },
+    {
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "effort": "high",
+      "provider": "claude",
+      "arms": [
+        "opus-high-claude-fable-5-1"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "usable_items": 34,
+      "usable": 0.9444444444444444,
+      "matched_findings": 35,
+      "unmatched_findings": 16,
+      "precision": 0.6862745098039216,
+      "format_fail": 0,
+      "cost_per_item": 1.090705284722222,
+      "pct_week_per_item": 0.07152165801457194,
+      "pct_5h_per_item": 0.8845877506014873,
+      "plan": null,
+      "completed": 36
+    },
+    {
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "effort": "low",
+      "provider": "claude",
+      "arms": [
+        "opus-low-claude-fable-5-1"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "usable_items": 36,
+      "usable": 1.0,
+      "matched_findings": 36,
+      "unmatched_findings": 8,
+      "precision": 0.8181818181818182,
+      "format_fail": 0,
+      "cost_per_item": 0.7195181111111111,
+      "pct_week_per_item": 0.04718151548269581,
+      "pct_5h_per_item": 0.5835461846019248,
+      "plan": null,
+      "completed": 36
+    },
+    {
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "effort": "medium",
+      "provider": "claude",
+      "arms": [
+        "opus-medium-claude-fable-5-1"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 37,
+      "defects_total": 38,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.8650512388404787,
+        0.9953394123142312
+      ],
+      "usable_items": 33,
+      "usable": 0.9166666666666666,
+      "matched_findings": 37,
+      "unmatched_findings": 17,
+      "precision": 0.6851851851851852,
+      "format_fail": 0,
+      "cost_per_item": 0.8105316597222223,
+      "pct_week_per_item": 0.05314961703096539,
+      "pct_5h_per_item": 0.6573603224518811,
+      "plan": null,
+      "completed": 36
+    },
+    {
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "effort": "xhigh",
+      "provider": "claude",
+      "arms": [
+        "opus-xhigh-claude-fable-5-1"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "usable_items": 36,
+      "usable": 1.0,
+      "matched_findings": 36,
+      "unmatched_findings": 16,
+      "precision": 0.6923076923076923,
+      "format_fail": 0,
+      "cost_per_item": 1.7045191458333333,
+      "pct_week_per_item": 0.11177174726775957,
+      "pct_5h_per_item": 1.3824052915026246,
+      "plan": null,
+      "completed": 36
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "high",
+      "provider": "claude",
+      "arms": [
+        "opus-high"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "usable_items": 34,
+      "usable": 0.9444444444444444,
+      "matched_findings": 36,
+      "unmatched_findings": 21,
+      "precision": 0.631578947368421,
+      "format_fail": 0,
+      "cost_per_item": 0.3461048722222222,
+      "pct_week_per_item": 0.0226954014571949,
+      "pct_5h_per_item": 0.1294486726815398,
+      "plan": null,
+      "completed": 36
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "low",
+      "provider": "claude",
+      "arms": [
+        "opus-low"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "usable_items": 34,
+      "usable": 0.9444444444444444,
+      "matched_findings": 35,
+      "unmatched_findings": 9,
+      "precision": 0.7954545454545454,
+      "format_fail": 0,
+      "cost_per_item": 0.2292263888888889,
+      "pct_week_per_item": 0.015031238615664846,
+      "pct_5h_per_item": 0.0857342793088364,
+      "plan": null,
+      "completed": 36
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "max",
+      "provider": "claude",
+      "arms": [
+        "opus-max"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 38,
+      "defects_total": 38,
+      "recall": 1.0,
+      "recall_wilson": [
+        0.908190131774416,
+        0.9999999999999999
+      ],
+      "usable_items": 32,
+      "usable": 0.8888888888888888,
+      "matched_findings": 38,
+      "unmatched_findings": 26,
+      "precision": 0.59375,
+      "format_fail": 0,
+      "cost_per_item": 1.434614911111111,
+      "pct_week_per_item": 0.09407310892531877,
+      "pct_5h_per_item": 0.5365685691163604,
+      "plan": null,
+      "completed": 36
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "medium",
+      "provider": "claude",
+      "arms": [
+        "opus-medium"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "usable_items": 35,
+      "usable": 0.9722222222222222,
+      "matched_findings": 36,
+      "unmatched_findings": 16,
+      "precision": 0.6923076923076923,
+      "format_fail": 0,
+      "cost_per_item": 0.2880900722222222,
+      "pct_week_per_item": 0.01889115227686703,
+      "pct_5h_per_item": 0.10775022386264216,
+      "plan": null,
+      "completed": 36
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "effort": "xhigh",
+      "provider": "claude",
+      "arms": [
+        "opus-xhigh"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 36,
+      "defects_total": 38,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8271453786822962,
+        0.9854457918527075
+      ],
+      "usable_items": 33,
+      "usable": 0.9166666666666666,
+      "matched_findings": 36,
+      "unmatched_findings": 24,
+      "precision": 0.6,
+      "format_fail": 0,
+      "cost_per_item": 0.564278438888889,
+      "pct_week_per_item": 0.037001864845173045,
+      "pct_5h_per_item": 0.21104902241907258,
+      "plan": null,
+      "completed": 36
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "high",
+      "provider": "codex",
+      "arms": [
+        "sol-high",
+        "sol-high-r2",
+        "sol-high-r3"
+      ],
+      "reps": 3,
+      "rep_numbers": [
+        1,
+        2,
+        3
+      ],
+      "items": 108,
+      "defects_found": 103,
+      "defects_total": 114,
+      "recall": 0.9035087719298246,
+      "recall_wilson": [
+        0.8354461039345698,
+        0.9452638509547862
+      ],
+      "usable_items": 105,
+      "usable": 0.9722222222222222,
+      "matched_findings": 103,
+      "unmatched_findings": 39,
+      "precision": 0.7253521126760564,
+      "format_fail": 0,
+      "cost_per_item": 2.421800740740741,
+      "pct_week_per_item": 0.02883096119929453,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 108
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "low",
+      "provider": "codex",
+      "arms": [
+        "sol-low",
+        "sol-low-r2",
+        "sol-low-r3"
+      ],
+      "reps": 3,
+      "rep_numbers": [
+        1,
+        2,
+        3
+      ],
+      "items": 108,
+      "defects_found": 96,
+      "defects_total": 114,
+      "recall": 0.8421052631578947,
+      "recall_wilson": [
+        0.7641788779774553,
+        0.8977273881243898
+      ],
+      "usable_items": 101,
+      "usable": 0.9351851851851852,
+      "matched_findings": 96,
+      "unmatched_findings": 29,
+      "precision": 0.768,
+      "format_fail": 0,
+      "cost_per_item": 1.6137083333333333,
+      "pct_week_per_item": 0.01921081349206349,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 108
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "max",
+      "provider": "codex",
+      "arms": [
+        "sol-max",
+        "sol-max-r2",
+        "sol-max-r3"
+      ],
+      "reps": 3,
+      "rep_numbers": [
+        1,
+        2,
+        3
+      ],
+      "items": 108,
+      "defects_found": 108,
+      "defects_total": 114,
+      "recall": 0.9473684210526315,
+      "recall_wilson": [
+        0.8899118941026302,
+        0.9756578384920905
+      ],
+      "usable_items": 107,
+      "usable": 0.9907407407407407,
+      "matched_findings": 108,
+      "unmatched_findings": 34,
+      "precision": 0.7605633802816901,
+      "format_fail": 0,
+      "cost_per_item": 3.179333055555556,
+      "pct_week_per_item": 0.03784920304232804,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 108
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "medium",
+      "provider": "codex",
+      "arms": [
+        "sol-medium",
+        "sol-medium-r2",
+        "sol-medium-r3"
+      ],
+      "reps": 3,
+      "rep_numbers": [
+        1,
+        2,
+        3
+      ],
+      "items": 108,
+      "defects_found": 100,
+      "defects_total": 114,
+      "recall": 0.8771929824561403,
+      "recall_wilson": [
+        0.8043752960520771,
+        0.9254187922140598
+      ],
+      "usable_items": 103,
+      "usable": 0.9537037037037037,
+      "matched_findings": 100,
+      "unmatched_findings": 29,
+      "precision": 0.7751937984496124,
+      "format_fail": 0,
+      "cost_per_item": 1.9371441666666667,
+      "pct_week_per_item": 0.023061240079365077,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 108
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "effort": "xhigh",
+      "provider": "codex",
+      "arms": [
+        "sol-xhigh",
+        "sol-xhigh-r2",
+        "sol-xhigh-r3"
+      ],
+      "reps": 3,
+      "rep_numbers": [
+        1,
+        2,
+        3
+      ],
+      "items": 108,
+      "defects_found": 105,
+      "defects_total": 114,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.8567424805457289,
+        0.957911385425773
+      ],
+      "usable_items": 106,
+      "usable": 0.9814814814814815,
+      "matched_findings": 105,
+      "unmatched_findings": 37,
+      "precision": 0.7394366197183099,
+      "format_fail": 0,
+      "cost_per_item": 2.913589537037037,
+      "pct_week_per_item": 0.03468558972663139,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 106
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "effort": "high",
+      "provider": "claude",
+      "arms": [
+        "sonnet-high",
+        "sonnet-high-r2"
+      ],
+      "reps": 2,
+      "rep_numbers": [
+        1,
+        2
+      ],
+      "items": 72,
+      "defects_found": 68,
+      "defects_total": 76,
+      "recall": 0.8947368421052632,
+      "recall_wilson": [
+        0.805800536776795,
+        0.945688738171781
+      ],
+      "usable_items": 68,
+      "usable": 0.9444444444444444,
+      "matched_findings": 68,
+      "unmatched_findings": 11,
+      "precision": 0.8607594936708861,
+      "format_fail": 0,
+      "cost_per_item": 0.13891518055555555,
+      "pct_week_per_item": 0.009109192167577412,
+      "pct_5h_per_item": 0.05469101596675416,
+      "plan": null,
+      "completed": 72
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "effort": "low",
+      "provider": "claude",
+      "arms": [
+        "sonnet-low"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 32,
+      "defects_total": 38,
+      "recall": 0.8421052631578947,
+      "recall_wilson": [
+        0.6958318822077686,
+        0.9255613658484106
+      ],
+      "usable_items": 33,
+      "usable": 0.9166666666666666,
+      "matched_findings": 32,
+      "unmatched_findings": 1,
+      "precision": 0.9696969696969697,
+      "format_fail": 0,
+      "cost_per_item": 0.11338194166666667,
+      "pct_week_per_item": 0.007434881420765028,
+      "pct_5h_per_item": 0.04463855971128609,
+      "plan": null,
+      "completed": 36
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "effort": "max",
+      "provider": "claude",
+      "arms": [
+        "sonnet-max",
+        "sonnet-max-r2"
+      ],
+      "reps": 2,
+      "rep_numbers": [
+        1,
+        2
+      ],
+      "items": 72,
+      "defects_found": 74,
+      "defects_total": 76,
+      "recall": 0.9736842105263158,
+      "recall_wilson": [
+        0.9090337890134194,
+        0.9927533409248718
+      ],
+      "usable_items": 72,
+      "usable": 1.0,
+      "matched_findings": 74,
+      "unmatched_findings": 16,
+      "precision": 0.8222222222222222,
+      "format_fail": 0,
+      "cost_per_item": 0.9151433375000002,
+      "pct_week_per_item": 0.06000939918032787,
+      "pct_5h_per_item": 0.36029265255905507,
+      "plan": null,
+      "completed": 72
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "effort": "medium",
+      "provider": "claude",
+      "arms": [
+        "sonnet-medium"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 33,
+      "defects_total": 38,
+      "recall": 0.868421052631579,
+      "recall_wilson": [
+        0.7267314055770869,
+        0.9424613230987987
+      ],
+      "usable_items": 34,
+      "usable": 0.9444444444444444,
+      "matched_findings": 33,
+      "unmatched_findings": 3,
+      "precision": 0.9166666666666666,
+      "format_fail": 0,
+      "cost_per_item": 0.11794817777777777,
+      "pct_week_per_item": 0.007734306739526412,
+      "pct_5h_per_item": 0.04643629046369204,
+      "plan": null,
+      "completed": 36
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "effort": "xhigh",
+      "provider": "claude",
+      "arms": [
+        "sonnet-xhigh",
+        "sonnet-xhigh-r2"
+      ],
+      "reps": 2,
+      "rep_numbers": [
+        1,
+        2
+      ],
+      "items": 72,
+      "defects_found": 71,
+      "defects_total": 76,
+      "recall": 0.9342105263157895,
+      "recall_wilson": [
+        0.8550647346629656,
+        0.9715734677804679
+      ],
+      "usable_items": 68,
+      "usable": 0.9444444444444444,
+      "matched_findings": 71,
+      "unmatched_findings": 33,
+      "precision": 0.6826923076923077,
+      "format_fail": 0,
+      "cost_per_item": 0.23388537777777774,
+      "pct_week_per_item": 0.015336746083788707,
+      "pct_5h_per_item": 0.0920808573928259,
+      "plan": null,
+      "completed": 72
+    },
+    {
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "effort": "high",
+      "provider": "codex",
+      "arms": [
+        "terra-high"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "usable_items": 34,
+      "usable": 0.9444444444444444,
+      "matched_findings": 35,
+      "unmatched_findings": 20,
+      "precision": 0.6363636363636364,
+      "format_fail": 0,
+      "cost_per_item": 0.9142545833333333,
+      "pct_week_per_item": 0.010883983134920635,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 36
+    },
+    {
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "effort": "low",
+      "provider": "codex",
+      "arms": [
+        "terra-low"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "usable_items": 33,
+      "usable": 0.9166666666666666,
+      "matched_findings": 35,
+      "unmatched_findings": 13,
+      "precision": 0.7291666666666666,
+      "format_fail": 0,
+      "cost_per_item": 0.6962498611111111,
+      "pct_week_per_item": 0.008288688822751323,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 35
+    },
+    {
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "effort": "medium",
+      "provider": "codex",
+      "arms": [
+        "terra-medium"
+      ],
+      "reps": 1,
+      "rep_numbers": [
+        1
+      ],
+      "items": 36,
+      "defects_found": 35,
+      "defects_total": 38,
+      "recall": 0.9210526315789473,
+      "recall_wilson": [
+        0.7920062854222853,
+        0.9727854044930122
+      ],
+      "usable_items": 34,
+      "usable": 0.9444444444444444,
+      "matched_findings": 35,
+      "unmatched_findings": 17,
+      "precision": 0.6730769230769231,
+      "format_fail": 0,
+      "cost_per_item": 0.8044780555555556,
+      "pct_week_per_item": 0.009577119708994709,
+      "pct_5h_per_item": null,
+      "plan": "prolite",
+      "completed": 36
+    }
+  ],
+  "pareto": {
+    "by_provider": {
+      "claude": [
+        "haiku-low",
+        "haiku-medium",
+        "haiku-xhigh"
+      ],
+      "codex": [
+        "luna-medium, luna-medium-r2, luna-medium-r3, luna-medium-r4",
+        "luna-high, luna-high-r2, luna-high-r3, luna-high-r4",
+        "luna-xhigh, luna-xhigh-r2, luna-xhigh-r3, luna-xhigh-r4",
+        "luna-max, luna-max-r2, luna-max-r3, luna-max-r4",
+        "terra-low",
+        "sol-max, sol-max-r2, sol-max-r3",
+        "astra-max, astra-max-r2, astra-max-r3"
+      ]
+    },
+    "cost_points": [
+      "luna-medium, luna-medium-r2, luna-medium-r3, luna-medium-r4",
+      "luna-high, luna-high-r2, luna-high-r3, luna-high-r4",
+      "haiku-low",
+      "haiku-medium",
+      "haiku-xhigh"
+    ],
+    "basis": "Pooled recall against provider %week/item; combined cost points multiply %week/item by provider scarcity."
+  },
+  "effort_curves": [
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "efforts": [
+        {
+          "effort": "low",
+          "arm": "astra-low, astra-low-r2",
+          "recall": 0.9210526315789473,
+          "reps": 2,
+          "reps_list": [
+            1,
+            2
+          ]
+        },
+        {
+          "effort": "medium",
+          "arm": "astra-medium, astra-medium-r2",
+          "recall": 0.8947368421052632,
+          "reps": 2,
+          "reps_list": [
+            1,
+            2
+          ]
+        },
+        {
+          "effort": "high",
+          "arm": "astra-high, astra-high-r2",
+          "recall": 0.9078947368421053,
+          "reps": 2,
+          "reps_list": [
+            1,
+            2
+          ]
+        },
+        {
+          "effort": "xhigh",
+          "arm": "astra-xhigh, astra-xhigh-r2, astra-xhigh-r3",
+          "recall": 0.9385964912280702,
+          "reps": 3,
+          "reps_list": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "effort": "max",
+          "arm": "astra-max, astra-max-r2, astra-max-r3",
+          "recall": 0.9824561403508771,
+          "reps": 3,
+          "reps_list": [
+            1,
+            2,
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "efforts": [
+        {
+          "effort": "low",
+          "arm": "haiku-low",
+          "recall": 0.8947368421052632,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "medium",
+          "arm": "haiku-medium",
+          "recall": 0.9473684210526315,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "high",
+          "arm": "haiku-high",
+          "recall": 0.9473684210526315,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "xhigh",
+          "arm": "haiku-xhigh",
+          "recall": 1.0,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "max",
+          "arm": "haiku-max",
+          "recall": 0.9736842105263158,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "efforts": [
+        {
+          "effort": "low",
+          "arm": "luna-low, luna-low-r2, luna-low-r3, luna-low-r4",
+          "recall": 0.3881578947368421,
+          "reps": 4,
+          "reps_list": [
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "effort": "medium",
+          "arm": "luna-medium, luna-medium-r2, luna-medium-r3, luna-medium-r4",
+          "recall": 0.5723684210526315,
+          "reps": 4,
+          "reps_list": [
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "effort": "high",
+          "arm": "luna-high, luna-high-r2, luna-high-r3, luna-high-r4",
+          "recall": 0.7171052631578947,
+          "reps": 4,
+          "reps_list": [
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "effort": "xhigh",
+          "arm": "luna-xhigh, luna-xhigh-r2, luna-xhigh-r3, luna-xhigh-r4",
+          "recall": 0.7828947368421053,
+          "reps": 4,
+          "reps_list": [
+            1,
+            2,
+            3,
+            4
+          ]
+        },
+        {
+          "effort": "max",
+          "arm": "luna-max, luna-max-r2, luna-max-r3, luna-max-r4",
+          "recall": 0.8157894736842105,
+          "reps": 4,
+          "reps_list": [
+            1,
+            2,
+            3,
+            4
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "efforts": [
+        {
+          "effort": "low",
+          "arm": "opus-low-claude-fable-5-1",
+          "recall": 0.9473684210526315,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "medium",
+          "arm": "opus-medium-claude-fable-5-1",
+          "recall": 0.9736842105263158,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "high",
+          "arm": "opus-high-claude-fable-5-1",
+          "recall": 0.9210526315789473,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "xhigh",
+          "arm": "opus-xhigh-claude-fable-5-1",
+          "recall": 0.9473684210526315,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "max",
+          "arm": null,
+          "recall": null,
+          "reps": 0,
+          "reps_list": []
+        }
+      ]
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "efforts": [
+        {
+          "effort": "low",
+          "arm": "opus-low",
+          "recall": 0.9210526315789473,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "medium",
+          "arm": "opus-medium",
+          "recall": 0.9473684210526315,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "high",
+          "arm": "opus-high",
+          "recall": 0.9473684210526315,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "xhigh",
+          "arm": "opus-xhigh",
+          "recall": 0.9473684210526315,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "max",
+          "arm": "opus-max",
+          "recall": 1.0,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "efforts": [
+        {
+          "effort": "low",
+          "arm": "sol-low, sol-low-r2, sol-low-r3",
+          "recall": 0.8421052631578947,
+          "reps": 3,
+          "reps_list": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "effort": "medium",
+          "arm": "sol-medium, sol-medium-r2, sol-medium-r3",
+          "recall": 0.8771929824561403,
+          "reps": 3,
+          "reps_list": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "effort": "high",
+          "arm": "sol-high, sol-high-r2, sol-high-r3",
+          "recall": 0.9035087719298246,
+          "reps": 3,
+          "reps_list": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "effort": "xhigh",
+          "arm": "sol-xhigh, sol-xhigh-r2, sol-xhigh-r3",
+          "recall": 0.9210526315789473,
+          "reps": 3,
+          "reps_list": [
+            1,
+            2,
+            3
+          ]
+        },
+        {
+          "effort": "max",
+          "arm": "sol-max, sol-max-r2, sol-max-r3",
+          "recall": 0.9473684210526315,
+          "reps": 3,
+          "reps_list": [
+            1,
+            2,
+            3
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "efforts": [
+        {
+          "effort": "low",
+          "arm": "sonnet-low",
+          "recall": 0.8421052631578947,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "medium",
+          "arm": "sonnet-medium",
+          "recall": 0.868421052631579,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "high",
+          "arm": "sonnet-high, sonnet-high-r2",
+          "recall": 0.8947368421052632,
+          "reps": 2,
+          "reps_list": [
+            1,
+            2
+          ]
+        },
+        {
+          "effort": "xhigh",
+          "arm": "sonnet-xhigh, sonnet-xhigh-r2",
+          "recall": 0.9342105263157895,
+          "reps": 2,
+          "reps_list": [
+            1,
+            2
+          ]
+        },
+        {
+          "effort": "max",
+          "arm": "sonnet-max, sonnet-max-r2",
+          "recall": 0.9736842105263158,
+          "reps": 2,
+          "reps_list": [
+            1,
+            2
+          ]
+        }
+      ]
+    },
+    {
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "efforts": [
+        {
+          "effort": "low",
+          "arm": "terra-low",
+          "recall": 0.9210526315789473,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "medium",
+          "arm": "terra-medium",
+          "recall": 0.9210526315789473,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "high",
+          "arm": "terra-high",
+          "recall": 0.9210526315789473,
+          "reps": 1,
+          "reps_list": [
+            1
+          ]
+        },
+        {
+          "effort": "xhigh",
+          "arm": null,
+          "recall": null,
+          "reps": 0,
+          "reps_list": []
+        },
+        {
+          "effort": "max",
+          "arm": null,
+          "recall": null,
+          "reps": 0,
+          "reps_list": []
+        }
+      ]
+    }
+  ],
+  "mcnemar": [
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "from": "low",
+      "to": "medium",
+      "from_arm": "astra-low",
+      "to_arm": "astra-medium",
+      "only_from": 1,
+      "only_to": 0,
+      "p_value": 1.0
+    },
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "from": "medium",
+      "to": "high",
+      "from_arm": "astra-medium",
+      "to_arm": "astra-high",
+      "only_from": 0,
+      "only_to": 0,
+      "p_value": 1.0
+    },
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "from": "high",
+      "to": "xhigh",
+      "from_arm": "astra-high",
+      "to_arm": "astra-xhigh",
+      "only_from": 0,
+      "only_to": 2,
+      "p_value": 0.5
+    },
+    {
+      "lane": "astra",
+      "model": "gpt-6-astra",
+      "from": "xhigh",
+      "to": "max",
+      "from_arm": "astra-xhigh",
+      "to_arm": "astra-max",
+      "only_from": 0,
+      "only_to": 1,
+      "p_value": 1.0
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "from": "low",
+      "to": "medium",
+      "from_arm": "haiku-low",
+      "to_arm": "haiku-medium",
+      "only_from": 1,
+      "only_to": 3,
+      "p_value": 0.625
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "from": "medium",
+      "to": "high",
+      "from_arm": "haiku-medium",
+      "to_arm": "haiku-high",
+      "only_from": 2,
+      "only_to": 2,
+      "p_value": 1.0
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "from": "high",
+      "to": "xhigh",
+      "from_arm": "haiku-high",
+      "to_arm": "haiku-xhigh",
+      "only_from": 0,
+      "only_to": 2,
+      "p_value": 0.5
+    },
+    {
+      "lane": "haiku",
+      "model": "claude-haiku-5-5",
+      "from": "xhigh",
+      "to": "max",
+      "from_arm": "haiku-xhigh",
+      "to_arm": "haiku-max",
+      "only_from": 1,
+      "only_to": 0,
+      "p_value": 1.0
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "from": "low",
+      "to": "medium",
+      "from_arm": "luna-low",
+      "to_arm": "luna-medium",
+      "only_from": 7,
+      "only_to": 10,
+      "p_value": 0.629058837890625
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "from": "medium",
+      "to": "high",
+      "from_arm": "luna-medium",
+      "to_arm": "luna-high",
+      "only_from": 3,
+      "only_to": 6,
+      "p_value": 0.5078125
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "from": "high",
+      "to": "xhigh",
+      "from_arm": "luna-high",
+      "to_arm": "luna-xhigh",
+      "only_from": 1,
+      "only_to": 7,
+      "p_value": 0.0703125
+    },
+    {
+      "lane": "luna",
+      "model": "gpt-6-luna",
+      "from": "xhigh",
+      "to": "max",
+      "from_arm": "luna-xhigh",
+      "to_arm": "luna-max",
+      "only_from": 4,
+      "only_to": 5,
+      "p_value": 1.0
+    },
+    {
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "from": "low",
+      "to": "medium",
+      "from_arm": "opus-low-claude-fable-5-1",
+      "to_arm": "opus-medium-claude-fable-5-1",
+      "only_from": 0,
+      "only_to": 1,
+      "p_value": 1.0
+    },
+    {
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "from": "medium",
+      "to": "high",
+      "from_arm": "opus-medium-claude-fable-5-1",
+      "to_arm": "opus-high-claude-fable-5-1",
+      "only_from": 2,
+      "only_to": 0,
+      "p_value": 0.5
+    },
+    {
+      "lane": "opus",
+      "model": "claude-fable-5-1",
+      "from": "high",
+      "to": "xhigh",
+      "from_arm": "opus-high-claude-fable-5-1",
+      "to_arm": "opus-xhigh-claude-fable-5-1",
+      "only_from": 0,
+      "only_to": 1,
+      "p_value": 1.0
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "from": "low",
+      "to": "medium",
+      "from_arm": "opus-low",
+      "to_arm": "opus-medium",
+      "only_from": 1,
+      "only_to": 2,
+      "p_value": 1.0
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "from": "medium",
+      "to": "high",
+      "from_arm": "opus-medium",
+      "to_arm": "opus-high",
+      "only_from": 1,
+      "only_to": 1,
+      "p_value": 1.0
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "from": "high",
+      "to": "xhigh",
+      "from_arm": "opus-high",
+      "to_arm": "opus-xhigh",
+      "only_from": 0,
+      "only_to": 0,
+      "p_value": 1.0
+    },
+    {
+      "lane": "opus",
+      "model": "claude-opus-5-5",
+      "from": "xhigh",
+      "to": "max",
+      "from_arm": "opus-xhigh",
+      "to_arm": "opus-max",
+      "only_from": 0,
+      "only_to": 2,
+      "p_value": 0.5
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "from": "low",
+      "to": "medium",
+      "from_arm": "sol-low",
+      "to_arm": "sol-medium",
+      "only_from": 0,
+      "only_to": 3,
+      "p_value": 0.25
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "from": "medium",
+      "to": "high",
+      "from_arm": "sol-medium",
+      "to_arm": "sol-high",
+      "only_from": 0,
+      "only_to": 1,
+      "p_value": 1.0
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "from": "high",
+      "to": "xhigh",
+      "from_arm": "sol-high",
+      "to_arm": "sol-xhigh",
+      "only_from": 0,
+      "only_to": 1,
+      "p_value": 1.0
+    },
+    {
+      "lane": "sol",
+      "model": "gpt-6.1-sol",
+      "from": "xhigh",
+      "to": "max",
+      "from_arm": "sol-xhigh",
+      "to_arm": "sol-max",
+      "only_from": 1,
+      "only_to": 1,
+      "p_value": 1.0
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "from": "low",
+      "to": "medium",
+      "from_arm": "sonnet-low",
+      "to_arm": "sonnet-medium",
+      "only_from": 0,
+      "only_to": 1,
+      "p_value": 1.0
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "from": "medium",
+      "to": "high",
+      "from_arm": "sonnet-medium",
+      "to_arm": "sonnet-high",
+      "only_from": 0,
+      "only_to": 2,
+      "p_value": 0.5
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "from": "high",
+      "to": "xhigh",
+      "from_arm": "sonnet-high",
+      "to_arm": "sonnet-xhigh",
+      "only_from": 0,
+      "only_to": 1,
+      "p_value": 1.0
+    },
+    {
+      "lane": "sonnet",
+      "model": "claude-sonnet-5-5",
+      "from": "xhigh",
+      "to": "max",
+      "from_arm": "sonnet-xhigh",
+      "to_arm": "sonnet-max",
+      "only_from": 0,
+      "only_to": 1,
+      "p_value": 1.0
+    },
+    {
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "from": "low",
+      "to": "medium",
+      "from_arm": "terra-low",
+      "to_arm": "terra-medium",
+      "only_from": 1,
+      "only_to": 1,
+      "p_value": 1.0
+    },
+    {
+      "lane": "terra",
+      "model": "gpt-6.1-terra",
+      "from": "medium",
+      "to": "high",
+      "from_arm": "terra-medium",
+      "to_arm": "terra-high",
+      "only_from": 0,
+      "only_to": 0,
+      "p_value": 1.0
+    }
+  ],
+  "replicates": [
+    {
+      "arm": "astra-high",
+      "replicate": "astra-high-r2",
+      "recall_difference": 0.02631578947368418,
+      "kappa": 0.5289256198347104
+    },
+    {
+      "arm": "astra-low",
+      "replicate": "astra-low-r2",
+      "recall_difference": 0.0,
+      "kappa": 1.0
+    },
+    {
+      "arm": "astra-max",
+      "replicate": "astra-max-r2",
+      "recall_difference": 0.0,
+      "kappa": 1.0
+    },
+    {
+      "arm": "astra-max",
+      "replicate": "astra-max-r3",
+      "recall_difference": 0.02631578947368418,
+      "kappa": 0.0
+    },
+    {
+      "arm": "astra-medium",
+      "replicate": "astra-medium-r2",
+      "recall_difference": 0.0,
+      "kappa": 1.0
+    },
+    {
+      "arm": "astra-xhigh",
+      "replicate": "astra-xhigh-r2",
+      "recall_difference": 0.026315789473684292,
+      "kappa": 0.6545454545454552
+    },
+    {
+      "arm": "astra-xhigh",
+      "replicate": "astra-xhigh-r3",
+      "recall_difference": -0.05263157894736836,
+      "kappa": 0.6415094339622637
+    },
+    {
+      "arm": "luna-high",
+      "replicate": "luna-high-r2",
+      "recall_difference": 0.1578947368421053,
+      "kappa": 0.40809968847352013
+    },
+    {
+      "arm": "luna-high",
+      "replicate": "luna-high-r3",
+      "recall_difference": 0.10526315789473684,
+      "kappa": 0.5379939209726444
+    },
+    {
+      "arm": "luna-high",
+      "replicate": "luna-high-r4",
+      "recall_difference": 0.1842105263157895,
+      "kappa": 0.5804416403785488
+    },
+    {
+      "arm": "luna-low",
+      "replicate": "luna-low-r2",
+      "recall_difference": -0.10526315789473684,
+      "kappa": 0.020057306590257916
+    },
+    {
+      "arm": "luna-low",
+      "replicate": "luna-low-r3",
+      "recall_difference": 0.05263157894736842,
+      "kappa": 0.26315789473684204
+    },
+    {
+      "arm": "luna-low",
+      "replicate": "luna-low-r4",
+      "recall_difference": -0.1842105263157895,
+      "kappa": 0.16909620991253646
+    },
+    {
+      "arm": "luna-max",
+      "replicate": "luna-max-r2",
+      "recall_difference": 0.0,
+      "kappa": 0.3666666666666666
+    },
+    {
+      "arm": "luna-max",
+      "replicate": "luna-max-r3",
+      "recall_difference": 0.02631578947368418,
+      "kappa": 0.253275109170306
+    },
+    {
+      "arm": "luna-max",
+      "replicate": "luna-max-r4",
+      "recall_difference": 0.07894736842105265,
+      "kappa": 0.5410628019323673
+    },
+    {
+      "arm": "luna-medium",
+      "replicate": "luna-medium-r2",
+      "recall_difference": -0.02631578947368418,
+      "kappa": 0.21052631578947367
+    },
+    {
+      "arm": "luna-medium",
+      "replicate": "luna-medium-r3",
+      "recall_difference": 0.10526315789473684,
+      "kappa": 0.2528089887640448
+    },
+    {
+      "arm": "luna-medium",
+      "replicate": "luna-medium-r4",
+      "recall_difference": 0.10526315789473684,
+      "kappa": 0.3595505617977528
+    },
+    {
+      "arm": "luna-xhigh",
+      "replicate": "luna-xhigh-r2",
+      "recall_difference": 0.07894736842105254,
+      "kappa": 0.4242424242424243
+    },
+    {
+      "arm": "luna-xhigh",
+      "replicate": "luna-xhigh-r3",
+      "recall_difference": 0.0,
+      "kappa": 0.12643678160919541
+    },
+    {
+      "arm": "luna-xhigh",
+      "replicate": "luna-xhigh-r4",
+      "recall_difference": 0.0,
+      "kappa": 0.272030651340996
+    },
+    {
+      "arm": "sol-high",
+      "replicate": "sol-high-r2",
+      "recall_difference": -0.02631578947368418,
+      "kappa": 0.8429752066115703
+    },
+    {
+      "arm": "sol-high",
+      "replicate": "sol-high-r3",
+      "recall_difference": -0.02631578947368418,
+      "kappa": 0.8429752066115703
+    },
+    {
+      "arm": "sol-low",
+      "replicate": "sol-low-r2",
+      "recall_difference": 0.052631578947368474,
+      "kappa": 0.8031088082901552
+    },
+    {
+      "arm": "sol-low",
+      "replicate": "sol-low-r3",
+      "recall_difference": 0.02631578947368418,
+      "kappa": 0.721951219512195
+    },
+    {
+      "arm": "sol-max",
+      "replicate": "sol-max-r2",
+      "recall_difference": 0.0,
+      "kappa": 0.47222222222222254
+    },
+    {
+      "arm": "sol-max",
+      "replicate": "sol-max-r3",
+      "recall_difference": 0.0,
+      "kappa": 0.47222222222222254
+    },
+    {
+      "arm": "sol-medium",
+      "replicate": "sol-medium-r2",
+      "recall_difference": -0.02631578947368418,
+      "kappa": 0.8741721854304637
+    },
+    {
+      "arm": "sol-medium",
+      "replicate": "sol-medium-r3",
+      "recall_difference": -0.02631578947368418,
+      "kappa": 0.8741721854304637
+    },
+    {
+      "arm": "sol-xhigh",
+      "replicate": "sol-xhigh-r2",
+      "recall_difference": -0.02631578947368418,
+      "kappa": 0.7865168539325847
+    },
+    {
+      "arm": "sol-xhigh",
+      "replicate": "sol-xhigh-r3",
+      "recall_difference": -0.05263157894736836,
+      "kappa": 0.6415094339622637
+    },
+    {
+      "arm": "sonnet-high",
+      "replicate": "sonnet-high-r2",
+      "recall_difference": -0.05263157894736836,
+      "kappa": 0.7226277372262772
+    },
+    {
+      "arm": "sonnet-max",
+      "replicate": "sonnet-max-r2",
+      "recall_difference": 0.0,
+      "kappa": 1.0
+    },
+    {
+      "arm": "sonnet-xhigh",
+      "replicate": "sonnet-xhigh-r2",
+      "recall_difference": -0.02631578947368418,
+      "kappa": 0.7865168539325847
+    }
+  ]
+}

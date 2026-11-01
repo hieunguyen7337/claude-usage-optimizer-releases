@@ -1,0 +1,557 @@
+#!/usr/bin/env bash
+# cloud-setup: the setup script for a Claude Code cloud environment, which installs the Claude Usage Optimizer kit.
+#
+# Setup mode (no arguments) is what the environment's Setup script box runs, as root, in a fresh Ubuntu VM, before
+# Claude Code starts. It fetches the kit from its repository, a matching project clone, a lane-main/kit branch of a
+# project clone, or the public releases repository (in that order), and runs install.sh --no-view. It always
+# exits 0 in setup mode: a non-zero exit would fail the session start. Each line it prints is also appended to the
+# setup log.
+#
+# Print mode: cloud-setup --print [--repo OWNER/NAME] [--ref BRANCH] [--android] [--android-packages "PACKAGES"]
+#   Prints this file with the config lines below filled in and every other line unchanged. Paste that output into the
+#   Setup script box. The repository is --repo; else the checkout recorded in ../source.json and its origin; else the
+#   origin of the git checkout holding this file. A bad value, or no repository, prints nothing and exits 2.
+#
+# A rerun inside a running session updates the kit the same way: bash ~/.claude/usage-optimizer/bin/cloud-setup
+
+# Filled in by --print: the kit repository on GitHub (owner/name) and its branch (empty = the default branch).
+KIT_REPO_DEFAULT=""
+KIT_REF_DEFAULT=""
+KIT_PUBLIC_REPO_DEFAULT="hieunguyen7337/claude-usage-optimizer-releases"
+ANDROID_DEFAULT=""
+ANDROID_PACKAGES_DEFAULT=""
+
+ANDROID_TOOLS_VERSION="15859902"
+ANDROID_TOOLS_SHA256="4e4c464f145a7512b57d088ac6c278c03c9eea610886b35a5e0804e74eedf583"
+
+export HOME="${HOME:-/root}"
+export GIT_TERMINAL_PROMPT=0 GIT_ASKPASS= SSH_ASKPASS= GCM_INTERACTIVE=never
+
+KIT_REPO="${USAGE_OPTIMIZER_KIT_REPO:-$KIT_REPO_DEFAULT}"
+KIT_REF="${USAGE_OPTIMIZER_KIT_REF:-$KIT_REF_DEFAULT}"
+KIT_PUBLIC_REPO="${USAGE_OPTIMIZER_KIT_PUBLIC_REPO-$KIT_PUBLIC_REPO_DEFAULT}"
+ANDROID="${USAGE_OPTIMIZER_ANDROID:-$ANDROID_DEFAULT}"
+ANDROID_PACKAGES="${USAGE_OPTIMIZER_ANDROID_PACKAGES:-$ANDROID_PACKAGES_DEFAULT}"
+SETUP_BUDGET="${USAGE_OPTIMIZER_SETUP_BUDGET:-270}"
+[[ "$SETUP_BUDGET" =~ ^[1-9][0-9]*$ ]] || SETUP_BUDGET=270
+SETUP_STARTED=$SECONDS
+ANDROID_SDK="${USAGE_OPTIMIZER_ANDROID_SDK:-/opt/android-sdk}"
+ANDROID_PROFILE_DIR="${USAGE_OPTIMIZER_ANDROID_PROFILE_DIR:-/etc/profile.d}"
+ANDROID_BIN_DIR="${USAGE_OPTIMIZER_ANDROID_BIN_DIR:-/usr/local/bin}"
+SETUP_DIR="${USAGE_OPTIMIZER_SETUP_DIR:-/opt/usage-optimizer/kit}"
+SETUP_LOG="${USAGE_OPTIMIZER_SETUP_LOG:-/var/log/usage-optimizer-setup.log}"
+SETUP_REPOS="${USAGE_OPTIMIZER_SETUP_REPOS:-/home/user}"
+SCRIPT_PATH="${BASH_SOURCE[0]:-$0}"
+SCRIPT_PATH="$(readlink -f "$SCRIPT_PATH" 2>/dev/null || printf '%s' "$SCRIPT_PATH")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" 2>/dev/null && pwd)"
+OUT_SINK=/dev/null
+exec 3>&1
+KIT_SOURCE=""
+
+help_text() {
+  printf 'Usage: cloud-setup                              setup mode (the Setup script box runs it with no arguments)\n'
+  printf '       cloud-setup --print [--repo OWNER/NAME] [--ref BRANCH] [--android]\n'
+  printf '                 [--android-packages "SDKMANAGER PACKAGES"]\n'
+  printf '                                                print this script for the Setup script box\n'
+}
+
+usage() {
+  help_text >&2
+}
+
+valid_repo() {
+  [[ "$1" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
+}
+
+valid_ref() {
+  [[ "$1" =~ ^[A-Za-z0-9._/][A-Za-z0-9._/-]*$ ]]
+}
+
+valid_packages() {
+  local package pattern='^[A-Za-z0-9._;-]+$' packages=()
+  read -r -a packages <<<"$1"
+  for package in "${packages[@]}"; do
+    [[ "$package" =~ $pattern ]] || return 1
+  done
+}
+
+# owner/name of a GitHub remote URL (https, ssh or scp form, with or without .git), or nothing.
+repo_from_url() {
+  local url="$1" path=""
+  if [[ "$url" =~ ^(https?|ssh|git)://([^/@]*@)?github\.com(:[0-9]+)?/(.+)$ ]]; then
+    path="${BASH_REMATCH[4]}"
+  elif [[ "$url" =~ ^[^/@:]+@github\.com:(.+)$ ]]; then
+    path="${BASH_REMATCH[1]}"
+  fi
+  path="$(normal_repo "$path")"
+  if valid_repo "$path"; then
+    printf '%s\n' "$path"
+  fi
+}
+
+# owner/name without a trailing slash or .git, so "owner/name.git" names the same repository.
+normal_repo() {
+  local path="${1%/}"
+  printf '%s' "${path%.git}"
+}
+
+# Git's output, with the user:password part of every URL removed, appended to the log.
+scrub_to_log() {
+  sed -E 's#://[^@[:space:]]*@#://#g' >>"$OUT_SINK" 2>/dev/null
+}
+
+# A URL with its user:password part removed, for anything that is printed or logged.
+redact_url() {
+  local value="$1" scheme rest
+  if [[ "$value" == *://* ]]; then
+    scheme="${value%%://*}"
+    rest="${value#*://}"
+    if [[ "$rest" == *@* ]]; then
+      value="$scheme://${rest##*@}"
+    fi
+  fi
+  printf '%s' "$value"
+}
+
+# Runs a command under timeout when this system has it, else without a limit.
+run_timeout() {
+  local seconds="$1"
+  shift
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$seconds" "$@"
+  else
+    "$@"
+  fi
+}
+
+log() {
+  printf 'usage-optimizer setup: %s\n' "$*"
+  printf 'usage-optimizer setup: %s\n' "$*" >>"$OUT_SINK" 2>/dev/null
+}
+
+setup_seconds_left() {
+  local left=$((SETUP_BUDGET - (SECONDS - SETUP_STARTED)))
+  ((left > 0)) || left=0
+  printf '%s\n' "$left"
+}
+
+android_part() {
+  local part="$1" cap="$2" left limit
+  shift 2
+  left="$(setup_seconds_left)"
+  if ((left < 20)); then
+    log "Android $part skipped: setup is near the five-minute cache limit; run bash /opt/usage-optimizer/kit/bin/cloud-setup in a session to finish it" >&3
+    return 125
+  fi
+  limit=$((left - 10))
+  ((limit > cap)) && limit=$cap
+  run_timeout "$limit" "$@"
+}
+
+# The checkout recorded by the install in ../source.json (an absolute path), or nothing.
+recorded_checkout() {
+  local record="$SCRIPT_DIR/../source.json" value=""
+  [[ -f "$record" ]] || return 0
+  command -v python3 >/dev/null 2>&1 || return 0
+  value="$(run_timeout 20 python3 -I -c '
+import json, sys
+try:
+    value = json.load(open(sys.argv[1], encoding="utf-8")).get("checkout", "")
+except Exception:
+    value = ""
+print(value if isinstance(value, str) else "")
+' "$record" 2>/dev/null)"
+  if [[ "$value" == /* ]]; then
+    printf '%s\n' "$value"
+  fi
+  return 0
+}
+
+# owner/name of the origin of a git checkout, or nothing.
+origin_repo() {
+  local origin=""
+  [[ -n "$1" ]] || return 0
+  command -v git >/dev/null 2>&1 || return 0
+  origin="$(run_timeout 20 git -C "$1" remote get-url origin 2>/dev/null)" || return 0
+  repo_from_url "$origin"
+}
+
+print_script() {
+  local repo="$1" repo_given="$2" ref="$3" android="$4" packages="$5" line
+  if ((repo_given)); then
+    repo="$(normal_repo "$repo")"
+    if ! valid_repo "$repo"; then
+      printf 'cloud-setup: --repo must be OWNER/NAME on GitHub (for example owner/name)\n' >&2
+      exit 2
+    fi
+  else
+    repo="$(origin_repo "$(recorded_checkout)")"
+    if [[ -z "$repo" ]]; then
+      repo="$(origin_repo "$SCRIPT_DIR")"
+    fi
+    if [[ -z "$repo" ]]; then
+      printf 'cloud-setup: no kit repository found; pass --repo OWNER/NAME\n' >&2
+      exit 2
+    fi
+  fi
+  if [[ -n "$ref" ]] && ! valid_ref "$ref"; then
+    printf 'cloud-setup: --ref is not a valid branch name\n' >&2
+    exit 2
+  fi
+  if ! valid_packages "$packages"; then
+    printf 'cloud-setup: --android-packages contains an invalid package\n' >&2
+    exit 2
+  fi
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    case "$line" in
+      'KIT_REPO_DEFAULT=""') line="KIT_REPO_DEFAULT=\"$repo\"" ;;
+      'KIT_REF_DEFAULT=""') line="KIT_REF_DEFAULT=\"$ref\"" ;;
+      'ANDROID_DEFAULT=""') line="ANDROID_DEFAULT=\"$android\"" ;;
+      'ANDROID_PACKAGES_DEFAULT=""') line="ANDROID_PACKAGES_DEFAULT=\"$packages\"" ;;
+    esac
+    printf '%s\n' "$line"
+  done <"$SCRIPT_PATH"
+}
+
+android_setup() {
+  local java_major="" java_home="" archive="" tool gradlew settings_code=0 gradle_pid="" part_code=0
+  local packages=()
+  [[ "$ANDROID" == 1 ]] || return 0
+  [[ -n "$ANDROID_PACKAGES" ]] || ANDROID_PACKAGES="platform-tools platforms;android-35 build-tools;35.0.0"
+  if ! valid_packages "$ANDROID_PACKAGES"; then
+    log "Android packages setting is invalid; Android setup is skipped"
+    return 0
+  fi
+  read -r -a packages <<<"$ANDROID_PACKAGES"
+
+  java_major="$(java -version 2>&1 | sed -n '1{s/.*version "\([0-9][0-9]*\).*/\1/p;q;}')"
+  if [[ "$java_major" =~ ^[0-9]+$ ]] && ((java_major >= 17)); then
+    log "Android JDK: Java $java_major is already installed"
+  else
+    log "Android JDK: installing OpenJDK 17 and unzip"
+    android_part apt 600 apt-get update >>"$OUT_SINK" 2>&1 || true
+    android_part apt 900 env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      openjdk-17-jdk-headless unzip >>"$OUT_SINK" 2>&1 || true
+  fi
+  java_home="$(java -XshowSettings:properties -version 2>&1 | sed -n 's/^[[:space:]]*java.home = //p' | head -n 1)"
+
+  log "Android environment: writing shell and Claude Code settings"
+  mkdir -p "$ANDROID_PROFILE_DIR" "$ANDROID_BIN_DIR" "$HOME/.claude" 2>/dev/null
+  {
+    printf 'export ANDROID_HOME="%s"\n' "$ANDROID_SDK"
+    printf 'export ANDROID_SDK_ROOT="%s"\n' "$ANDROID_SDK"
+    [[ -n "$java_home" ]] && printf 'export JAVA_HOME="%s"\n' "$java_home"
+    printf 'export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"\n'
+  } >"$ANDROID_PROFILE_DIR/android-sdk.sh"
+  run_timeout 20 python3 - "$HOME/.claude/settings.json" "$ANDROID_SDK" "$java_home" <<'PYSETTINGS' || settings_code=$?
+import json, os, sys
+path, sdk, java = sys.argv[1:]
+try:
+    with open(path, encoding="utf-8") as stream:
+        data = json.load(stream)
+except FileNotFoundError:
+    data = {}
+except (json.JSONDecodeError, OSError):
+    sys.exit(3)
+env = data.get("env")
+if not isinstance(env, dict):
+    env = {}
+data["env"] = env
+env.update(ANDROID_HOME=sdk, ANDROID_SDK_ROOT=sdk)
+if java:
+    env["JAVA_HOME"] = java
+temporary = path + ".tmp"
+with open(temporary, "w", encoding="utf-8") as stream:
+    json.dump(data, stream, indent=2, sort_keys=True)
+    stream.write("\n")
+os.replace(temporary, path)
+PYSETTINGS
+  ((settings_code == 3)) && log "Android settings: existing settings.json does not parse; it is left unchanged"
+
+  log "Gradle wrapper pre-fetch: scanning project clones"
+  (
+    while IFS= read -r -d '' gradlew; do
+      part_code=0
+      (cd "$(dirname "$gradlew")" && android_part "Gradle wrapper" 900 ./gradlew --version --no-daemon) \
+        >>"$OUT_SINK" 2>&1 || part_code=$?
+      if ((part_code != 0 && part_code != 125)); then
+        log "Gradle download failed; allow services.gradle.org, maven.google.com, repo.maven.apache.org and plugins.gradle.org"
+      fi
+    done < <(find "$SETUP_REPOS" -maxdepth 4 -type f -name gradlew -print0 2>/dev/null)
+  ) &
+  gradle_pid=$!
+
+  if [[ -x "$ANDROID_SDK/cmdline-tools/latest/bin/sdkmanager" ]]; then
+    log "Android command-line tools: already installed"
+  else
+    log "Android command-line tools: downloading pinned version $ANDROID_TOOLS_VERSION"
+    archive="$(mktemp)" || archive=""
+    part_code=0
+    if [[ -n "$archive" ]]; then
+      android_part "tools download" 600 curl --fail --location --retry 3 --output "$archive" \
+        "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_TOOLS_VERSION}_latest.zip" \
+        >>"$OUT_SINK" 2>&1 || part_code=$?
+    else
+      part_code=1
+    fi
+    if ((part_code == 0)); then
+      if printf '%s  %s\n' "$ANDROID_TOOLS_SHA256" "$archive" | sha256sum -c - >>"$OUT_SINK" 2>&1; then
+        rm -rf "$ANDROID_SDK/cmdline-tools/.new"
+        mkdir -p "$ANDROID_SDK/cmdline-tools/.new" "$ANDROID_SDK/cmdline-tools"
+        if android_part unzip 300 unzip -q "$archive" -d "$ANDROID_SDK/cmdline-tools/.new" >>"$OUT_SINK" 2>&1; then
+          rm -rf "$ANDROID_SDK/cmdline-tools/latest"
+          if [[ -d "$ANDROID_SDK/cmdline-tools/.new/cmdline-tools" ]]; then
+            mv "$ANDROID_SDK/cmdline-tools/.new/cmdline-tools" "$ANDROID_SDK/cmdline-tools/latest"
+          else
+            mv "$ANDROID_SDK/cmdline-tools/.new" "$ANDROID_SDK/cmdline-tools/latest"
+          fi
+        fi
+        rm -rf "$ANDROID_SDK/cmdline-tools/.new"
+      else
+        log "Android command-line tools checksum mismatch; the archive was not unpacked"
+      fi
+    elif ((part_code != 125)); then
+      log "Android download failed; dl.google.com is not in the Trusted network list: set the environment's network access to Custom, keep the default list, and add dl.google.com"
+    fi
+    [[ -n "$archive" ]] && rm -f "$archive"
+  fi
+
+  if [[ -x "$ANDROID_SDK/cmdline-tools/latest/bin/sdkmanager" ]]; then
+    log "Android SDK licenses and packages: installing ${packages[*]}"
+    yes | android_part licenses 600 "$ANDROID_SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK" --licenses \
+      >>"$OUT_SINK" 2>&1 || true
+    part_code=0
+    android_part "package install" 1800 "$ANDROID_SDK/cmdline-tools/latest/bin/sdkmanager" --sdk_root="$ANDROID_SDK" --install \
+      "${packages[@]}" >>"$OUT_SINK" 2>&1 || part_code=$?
+    if ((part_code != 0 && part_code != 125)); then
+      log "Android packages failed; dl.google.com is not in the Trusted network list: set the environment's network access to Custom, keep the default list, and add dl.google.com"
+    fi
+  else
+    log "Android SDK packages: sdkmanager is unavailable; skipping"
+  fi
+
+  for tool in sdkmanager avdmanager; do
+    [[ -e "$ANDROID_SDK/cmdline-tools/latest/bin/$tool" ]] && ln -sfn "$ANDROID_SDK/cmdline-tools/latest/bin/$tool" "$ANDROID_BIN_DIR/$tool"
+  done
+  [[ -e "$ANDROID_SDK/platform-tools/adb" ]] && ln -sfn "$ANDROID_SDK/platform-tools/adb" "$ANDROID_BIN_DIR/adb"
+  wait "$gradle_pid" 2>/dev/null || true
+  log "Android SDK disk use: $(du -sh "$ANDROID_SDK" 2>/dev/null | awk '{print $1}' || printf unknown); setup took $((SECONDS - SETUP_STARTED)) s (the environment is cached only when setup ends within about 300 s)"
+  return 0
+}
+
+# Puts the folder $1 in place of the kit folder.
+swap_in() {
+  rm -rf "$SETUP_DIR.old"
+  if [[ -e "$SETUP_DIR" ]] && ! mv "$SETUP_DIR" "$SETUP_DIR.old"; then
+    return 1
+  fi
+  if mv "$1" "$SETUP_DIR"; then
+    rm -rf "$SETUP_DIR.old"
+    return 0
+  fi
+  [[ -e "$SETUP_DIR.old" ]] && mv "$SETUP_DIR.old" "$SETUP_DIR"
+  return 1
+}
+
+setup_mode() {
+  local url="" public_url="" origin="" origin_safe="" code=0 install_code=0 version="unknown" found=""
+  local source_ok=0 tried=0 repo_dir base label fetch_ref local_ref candidate match_path kit_path
+  local candidates=() args=()
+  mkdir -p "$(dirname "$SETUP_LOG")" 2>/dev/null
+  if { : >>"$SETUP_LOG"; } 2>/dev/null; then OUT_SINK="$SETUP_LOG"; fi
+
+  if ! mkdir -p "$(dirname "$SETUP_DIR")" 2>/dev/null || [[ ! -w "$(dirname "$SETUP_DIR")" ]]; then
+    log "cannot write $(dirname "$SETUP_DIR"); the kit is not installed"; android_setup; exit 0
+  fi
+  if ! command -v git >/dev/null 2>&1; then
+    log "git is missing from PATH, so the kit cannot be fetched; the kit is not installed"; android_setup; exit 0
+  fi
+
+  KIT_REPO="$(normal_repo "$KIT_REPO")"
+  if [[ -n "$KIT_REPO" ]] && ! valid_repo "$KIT_REPO"; then
+    log "the kit repository setting is not OWNER/NAME; it is ignored"; KIT_REPO=""
+  fi
+  if [[ -n "$KIT_REF" ]] && ! valid_ref "$KIT_REF"; then
+    log "the kit branch setting is not a valid branch name; the default branch is used"; KIT_REF=""
+  fi
+  if [[ "$KIT_PUBLIC_REPO" == off || -z "$KIT_PUBLIC_REPO" ]]; then
+    KIT_PUBLIC_REPO=""
+  elif ! valid_repo "$KIT_PUBLIC_REPO"; then
+    log "the public releases repository setting is not OWNER/NAME; it is ignored"; KIT_PUBLIC_REPO=""
+  fi
+
+  # Source 1: the private kit repository itself.
+  if [[ -n "${USAGE_OPTIMIZER_KIT_URL:-}" ]]; then url="$USAGE_OPTIMIZER_KIT_URL"
+  elif [[ -n "$KIT_REPO" ]]; then url="https://github.com/$KIT_REPO.git"
+  elif [[ -e "$SETUP_DIR/.git" ]]; then
+    url="$(run_timeout 10 git -C "$SETUP_DIR" remote get-url origin 2>/dev/null)" || url=""
+  fi
+  if [[ -n "$url" ]]; then
+    if [[ -d "$url" ]]; then url="file://$(cd "$url" && pwd)"; fi
+    label="kit repository $(redact_url "$url")"; args=(--quiet --depth 1)
+    [[ -n "$KIT_REF" ]] && args+=(--branch "$KIT_REF")
+    rm -rf "$SETUP_DIR.new"
+    run_timeout 40 git clone "${args[@]}" -- "$url" "$SETUP_DIR.new" 2>&1 | scrub_to_log
+    code=${PIPESTATUS[0]}
+    if ((code == 0)) && [[ -f "$SETUP_DIR.new/install.sh" ]] && swap_in "$SETUP_DIR.new"; then
+      source_ok=1; KIT_SOURCE="$label"
+    else
+      rm -rf "$SETUP_DIR.new"
+      if ((code == 0)); then log "$label failed (exit 0): no install.sh at its root"
+      else log "$label failed (exit $code): a private kit repository is reachable only from a session it is attached to"; fi
+    fi
+  else
+    log "kit repository source failed (exit 1): no repository URL is configured"
+  fi
+
+  # Sources 2 and 3 share one pass over at most two project clones. A matching origin uses the requested/default
+  # branch, first by fetch and then from selected remote-tracking refs. Other clones try only lane-main/kit.
+  if ((!source_ok)); then
+    shopt -s nullglob
+    for repo_dir in "$SETUP_REPOS"/*/; do
+      [[ -e "$repo_dir.git" ]] || continue
+      ((tried >= 2)) && break
+      tried=$((tried + 1)); base="$(basename "$repo_dir")"
+      origin="$(run_timeout 10 git -C "$repo_dir" remote get-url origin 2>/dev/null)" || origin=""
+      origin_safe="$(redact_url "$origin")"
+      match_path="$(printf '%s' "$origin" | tr '[:upper:]' '[:lower:]')"
+      kit_path="$(printf '%s' "$KIT_REPO" | tr '[:upper:]' '[:lower:]')"
+      match_path="${match_path%/}"; match_path="${match_path%.git}"
+      if [[ -n "$KIT_REPO" && "$match_path" == */"$kit_path" ]]; then
+        label="project clone $base (origin is the kit repository)"; fetch_ref="${KIT_REF:-HEAD}"
+        rm -rf "$SETUP_DIR.new"; mkdir -p "$SETUP_DIR.new" 2>/dev/null
+        run_timeout 20 git -C "$repo_dir" fetch --quiet origin "$fetch_ref" 2>&1 | scrub_to_log
+        code=${PIPESTATUS[0]}
+        if ((code == 0)) && run_timeout 10 git -C "$repo_dir" archive FETCH_HEAD | tar -x -C "$SETUP_DIR.new" >>"$OUT_SINK" 2>&1 \
+            && [[ -f "$SETUP_DIR.new/install.sh" ]] && swap_in "$SETUP_DIR.new"; then
+          source_ok=1; KIT_SOURCE="$label"; break
+        fi
+        if ((code == 0)); then
+          log "$label fetched from $origin_safe but extraction failed (exit 1)"
+          rm -rf "$SETUP_DIR.new"
+          continue
+        else
+          log "$label fetch from $origin_safe failed (exit $code); trying the clone's local copy"
+        fi
+        rm -rf "$SETUP_DIR.new"; local_ref=""; candidates=()
+        [[ -n "$KIT_REF" ]] && candidates+=("refs/remotes/origin/$KIT_REF")
+        candidates+=(refs/remotes/origin/HEAD refs/remotes/origin/master refs/remotes/origin/main)
+        for candidate in "${candidates[@]}"; do
+          if git -C "$repo_dir" rev-parse --verify --quiet "$candidate^{commit}" >/dev/null; then local_ref="$candidate"; break; fi
+        done
+        if [[ -n "$local_ref" ]]; then
+          mkdir -p "$SETUP_DIR.new" 2>/dev/null
+          if run_timeout 10 git -C "$repo_dir" archive "$local_ref" | tar -x -C "$SETUP_DIR.new" >>"$OUT_SINK" 2>&1 \
+              && [[ -f "$SETUP_DIR.new/install.sh" ]] && swap_in "$SETUP_DIR.new"; then
+            source_ok=1; KIT_SOURCE="$label"; log "$label local copy $local_ref used after fetch failure (exit $code)"; break
+          fi
+          log "$label local copy $local_ref failed (exit 1)"
+        else
+          log "$label has no allowed local remote-tracking ref (exit 1)"
+        fi
+        rm -rf "$SETUP_DIR.new"; continue
+      fi
+
+      rm -rf "$SETUP_DIR.new"; mkdir -p "$SETUP_DIR.new" 2>/dev/null
+      run_timeout 20 git -C "$repo_dir" fetch --quiet origin lane-main/kit 2>&1 | scrub_to_log
+      code=${PIPESTATUS[0]}
+      if ((code == 0)) && run_timeout 10 git -C "$repo_dir" archive FETCH_HEAD | tar -x -C "$SETUP_DIR.new" >>"$OUT_SINK" 2>&1 \
+          && [[ -f "$SETUP_DIR.new/install.sh" ]] && swap_in "$SETUP_DIR.new"; then
+        source_ok=1; KIT_SOURCE="lane-main/kit of $base"; break
+      fi
+      ((code == 0)) && code=1
+      log "lane-main/kit of $base failed (exit $code)"; rm -rf "$SETUP_DIR.new"
+    done
+    shopt -u nullglob
+  fi
+
+  # Source 4: public releases, only when its clone plus install fit in the setup budget.
+  if ((!source_ok)) && [[ -n "$KIT_PUBLIC_REPO" ]]; then
+    public_url="${USAGE_OPTIMIZER_KIT_PUBLIC_URL:-https://github.com/$KIT_PUBLIC_REPO.git}"
+    if (( $(setup_seconds_left) >= 160 )); then
+      rm -rf "$SETUP_DIR.new"
+      run_timeout 40 git clone --quiet --depth 1 -- "$public_url" "$SETUP_DIR.new" 2>&1 | scrub_to_log
+      code=${PIPESTATUS[0]}
+      if ((code == 0)) && [[ -f "$SETUP_DIR.new/install.sh" ]] && swap_in "$SETUP_DIR.new"; then
+        source_ok=1; KIT_SOURCE="public releases repository $KIT_PUBLIC_REPO"
+      else
+        rm -rf "$SETUP_DIR.new"; log "public releases repository $KIT_PUBLIC_REPO at $(redact_url "$public_url") failed (exit $code)"
+      fi
+    else
+      log "public releases repository $KIT_PUBLIC_REPO skipped (exit 125): too little setup budget remains"
+    fi
+  fi
+
+  if ((!source_ok)); then log "no kit source was reachable; the kit is not installed"; android_setup; exit 0; fi
+
+  # The limits total at most 280 s (40 + 2 x 40 + 40 + 120), including each origin lookup. Source 4 is skipped
+  # unless its 40 + 120 s remain in SETUP_BUDGET.
+  (cd "$SETUP_DIR" && USAGE_OPTIMIZER_SKIP_CLI_CHECK=1 run_timeout 120 bash ./install.sh --no-view) >>"$OUT_SINK" 2>&1
+  install_code=$?
+  if [[ -f "$SETUP_DIR/POLICY.md" ]]; then
+    found="$(sed -n 's/^Claude Usage Optimizer version: \([^ ]*\)\..*/\1/p' "$SETUP_DIR/POLICY.md" | head -n 1)"
+    [[ -n "$found" ]] && version="$found"
+  fi
+  if ((install_code == 0)); then log "kit version $version from $KIT_SOURCE; install.sh exit 0"
+  else log "kit version $version from $KIT_SOURCE; install.sh exit $install_code; its output is in $SETUP_LOG"; fi
+  android_setup; exit 0
+}
+
+main() {
+  local print=0 repo="" repo_given=0 ref="" android="" packages=""
+  if (($# == 0)); then
+    setup_mode
+    exit 0
+  fi
+  while (($#)); do
+    case "$1" in
+      --print)
+        print=1
+        shift
+        ;;
+      --android)
+        android=1
+        shift
+        ;;
+      --android-packages)
+        if (($# < 2)); then
+          usage
+          exit 2
+        fi
+        packages="$2"
+        android=1
+        shift 2
+        ;;
+      --repo|--ref)
+        if (($# < 2)); then
+          usage
+          exit 2
+        fi
+        if [[ "$1" == --repo ]]; then
+          repo="$2"
+          repo_given=1
+        else
+          ref="$2"
+        fi
+        shift 2
+        ;;
+      -h|--help)
+        help_text
+        exit 0
+        ;;
+      *)
+        printf 'cloud-setup: unknown option: %s\n' "$1" >&2
+        usage
+        exit 2
+        ;;
+    esac
+  done
+  if ((!print)); then
+    usage
+    exit 2
+  fi
+  print_script "$repo" "$repo_given" "$ref" "$android" "$packages"
+  exit 0
+}
+
+main "$@"

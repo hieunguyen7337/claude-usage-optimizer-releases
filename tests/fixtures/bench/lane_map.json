@@ -1,0 +1,40 @@
+{
+  "luna-high/001": {
+    "exit": 0, "verdict": "OK", "duration_s": 42.0, "started_at": "2026-10-19T10:00:00Z",
+    "session_id": "sid-luna-001", "usage": {"tokens": {"input": null, "cached": null, "output": null, "total": 16459}},
+    "findings": [
+      {"file": "src/app.py", "line": 4, "severity": "high", "description": "the loop bound drops the last value"},
+      {"file": "src/app.py", "line": 40, "severity": "low", "description": "a stray comment about nothing in this file"}
+    ]
+  },
+  "luna-high/002": {
+    "exit": 0, "verdict": "OK", "duration_s": 55.0, "started_at": "2026-10-19T10:05:00Z",
+    "session_id": "sid-luna-002", "usage": {"tokens": {"input": null, "cached": null, "output": null, "total": 9000}},
+    "findings": []
+  },
+  "luna-high/003": {
+    "exit": 0, "verdict": "OK", "duration_s": 30.0, "started_at": "2026-10-19T10:10:00Z",
+    "session_id": "sid-luna-003", "usage": {"tokens": {"input": null, "cached": null, "output": null, "total": 5000}},
+    "findings": [
+      {"file": "src/app.py", "line": 12, "severity": "medium", "description": "reported on the control item"}
+    ]
+  },
+  "haiku-low/001": {
+    "exit": 0, "verdict": "OK", "duration_s": 20.0, "started_at": "2026-10-19T11:00:00Z",
+    "session_id": "sid-haiku-001",
+    "usage": {"list_usd": 0.5, "tokens": {"input": 100, "cached": 50, "output": 20, "total": 170}},
+    "findings": [
+      {"file": "src/app.py", "line": 12, "severity": "high", "description": "the debug output is on the hot path"}
+    ]
+  },
+  "haiku-low/002": {
+    "exit": 1, "verdict": "FAILED", "duration_s": 5.0, "started_at": "2026-10-19T11:05:00Z",
+    "session_id": null, "usage": {}, "findings": null
+  },
+  "haiku-low/003": {
+    "exit": 0, "verdict": "OK", "duration_s": 25.0, "started_at": "2026-10-19T11:10:00Z",
+    "session_id": "sid-haiku-003",
+    "usage": {"list_usd": 0.1, "tokens": {"input": 60, "cached": 0, "output": 40, "total": 100}},
+    "findings": []
+  }
+}

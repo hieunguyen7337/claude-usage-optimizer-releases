@@ -1,0 +1,374 @@
+#!/usr/bin/env python3
+"""Run one command in a fresh pseudo-terminal, type scripted answers, and save what the terminal showed.
+
+Usage: lane-term --out PREFIX [--cwd DIR] [--max SECONDS] [--cols N] [--rows N]
+                 [--answer TEXT=KEYS]... [--until TEXT] [--grace SECONDS] -- ARGV...
+
+Writes PREFIX.raw (every byte the terminal produced) and PREFIX.txt (the same without escape sequences), then
+prints one JSON line. KEYS is a comma list of enter, down, up, left, right, tab, esc, space or text:<characters>.
+Windows runs the command under a ConPTY (Windows 10 1809 or later); Linux and macOS use a pty.
+Exit 2 for a usage error, 1 when the terminal or the command cannot start, and 0 otherwise.
+"""
+
+import argparse
+import collections
+import json
+import os
+import queue
+import re
+import shutil
+import subprocess
+import sys
+import threading
+import time
+
+
+ANSI = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[ -/]*[@-~]")
+KEY_NAMES = {"enter": b"\r", "down": b"\x1b[B", "up": b"\x1b[A", "right": b"\x1b[C", "left": b"\x1b[D",
+             "tab": b"\t", "esc": b"\x1b", "space": b" "}
+READ_BYTES = 1 << 16
+# The matcher looks at the newest chunk plus this many bytes before it, enough for the escape codes inside a prompt.
+SCAN_EXTRA = 1 << 14
+KEY_GAP = 0.3
+KILL_AFTER = 3.0
+# read(timeout) gives bytes, b"" when nothing came in time, or None when the output has closed.
+Pty = collections.namedtuple("Pty", "read write poll stop close")
+
+if sys.platform == "win32":
+    import ctypes
+    import ctypes.wintypes as wt
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    EXTENDED_STARTUPINFO_PRESENT = 0x00080000
+    PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x00020016
+    STARTF_USESTDHANDLES = 0x00000100
+    INVALID_HANDLE_VALUE = wt.HANDLE(-1).value
+
+    class COORD(ctypes.Structure):
+        _fields_ = [("X", ctypes.c_short), ("Y", ctypes.c_short)]
+
+    class STARTUPINFOW(ctypes.Structure):
+        _fields_ = [("cb", wt.DWORD), ("lpReserved", wt.LPWSTR), ("lpDesktop", wt.LPWSTR), ("lpTitle", wt.LPWSTR),
+                    ("dwX", wt.DWORD), ("dwY", wt.DWORD), ("dwXSize", wt.DWORD), ("dwYSize", wt.DWORD),
+                    ("dwXCountChars", wt.DWORD), ("dwYCountChars", wt.DWORD), ("dwFillAttribute", wt.DWORD),
+                    ("dwFlags", wt.DWORD), ("wShowWindow", wt.WORD), ("cbReserved2", wt.WORD),
+                    ("lpReserved2", ctypes.c_void_p), ("hStdInput", wt.HANDLE), ("hStdOutput", wt.HANDLE),
+                    ("hStdError", wt.HANDLE)]
+
+    class STARTUPINFOEXW(ctypes.Structure):
+        _fields_ = [("StartupInfo", STARTUPINFOW), ("lpAttributeList", ctypes.c_void_p)]
+
+    class PROCESS_INFORMATION(ctypes.Structure):
+        _fields_ = [("hProcess", wt.HANDLE), ("hThread", wt.HANDLE), ("dwProcessId", wt.DWORD),
+                    ("dwThreadId", wt.DWORD)]
+
+    kernel32.CreatePipe.argtypes = [ctypes.POINTER(wt.HANDLE), ctypes.POINTER(wt.HANDLE), ctypes.c_void_p, wt.DWORD]
+    kernel32.ClosePseudoConsole.argtypes = [ctypes.c_void_p]
+    kernel32.InitializeProcThreadAttributeList.argtypes = [ctypes.c_void_p, wt.DWORD, wt.DWORD,
+                                                           ctypes.POINTER(ctypes.c_size_t)]
+    kernel32.UpdateProcThreadAttribute.argtypes = [ctypes.c_void_p, wt.DWORD, ctypes.c_size_t, ctypes.c_void_p,
+                                                   ctypes.c_size_t, ctypes.c_void_p, ctypes.c_void_p]
+    kernel32.CreateProcessW.argtypes = [wt.LPCWSTR, wt.LPWSTR, ctypes.c_void_p, ctypes.c_void_p, wt.BOOL, wt.DWORD,
+                                        ctypes.c_void_p, wt.LPCWSTR, ctypes.c_void_p,
+                                        ctypes.POINTER(PROCESS_INFORMATION)]
+    kernel32.ReadFile.argtypes = [wt.HANDLE, ctypes.c_void_p, wt.DWORD, ctypes.POINTER(wt.DWORD), ctypes.c_void_p]
+    kernel32.WriteFile.argtypes = [wt.HANDLE, ctypes.c_void_p, wt.DWORD, ctypes.POINTER(wt.DWORD), ctypes.c_void_p]
+    kernel32.WaitForSingleObject.argtypes = [wt.HANDLE, wt.DWORD]
+    kernel32.GetExitCodeProcess.argtypes = [wt.HANDLE, ctypes.POINTER(wt.DWORD)]
+    kernel32.TerminateProcess.argtypes = [wt.HANDLE, wt.UINT]
+    kernel32.CloseHandle.argtypes = [wt.HANDLE]
+else:
+    import fcntl
+    import pty
+    import select
+    import signal
+    import struct
+    import termios
+
+
+def fail(message, status):
+    print(message, file=sys.stderr)
+    sys.exit(status)
+
+
+def squash(data):
+    """Terminal output as one run of text: escape sequences and all whitespace removed."""
+    if isinstance(data, (bytes, bytearray)):
+        data = data.decode("utf-8", "replace")
+    return re.sub(r"\s", "", ANSI.sub("", data))
+
+
+def visible_text(value):
+    if not squash(value):
+        raise argparse.ArgumentTypeError("needs text that is not blank: %r" % value)
+    return value
+
+
+def answer_arg(value):
+    text, sep, keys = value.rpartition("=")
+    if not sep or not squash(text) or not keys:
+        raise argparse.ArgumentTypeError("expected TEXT=KEYS, got %r" % value)
+    typed = []
+    for item in keys.split(","):
+        if item in KEY_NAMES:
+            typed.append(KEY_NAMES[item])
+        elif item.startswith("text:") and len(item) > len("text:"):
+            typed.append(item[len("text:"):].encode("utf-8"))
+        else:
+            raise argparse.ArgumentTypeError("unknown key %r in %r" % (item, value))
+    return text, typed
+
+
+if sys.platform == "win32":
+    def win_check(ok, what):
+        if not ok:
+            fail("lane-term: %s: %s" % (what, ctypes.WinError()), 1)
+
+    def start_windows(argv, cwd, cols, rows):
+        if not hasattr(kernel32, "CreatePseudoConsole"):
+            fail("lane-term: this Windows has no CreatePseudoConsole, so no ConPTY; it needs Windows 10 1809", 1)
+        kernel32.CreatePseudoConsole.argtypes = [COORD, wt.HANDLE, wt.HANDLE, wt.DWORD,
+                                                 ctypes.POINTER(ctypes.c_void_p)]
+        kernel32.CreatePseudoConsole.restype = ctypes.c_long
+        exe = shutil.which(argv[0])
+        if exe is None:
+            fail("lane-term: cannot start %s: not found" % argv[0], 1)
+        in_read, in_write, out_read, out_write = wt.HANDLE(), wt.HANDLE(), wt.HANDLE(), wt.HANDLE()
+        win_check(kernel32.CreatePipe(ctypes.byref(in_read), ctypes.byref(in_write), None, 0), "CreatePipe")
+        win_check(kernel32.CreatePipe(ctypes.byref(out_read), ctypes.byref(out_write), None, 0), "CreatePipe")
+        console = ctypes.c_void_p()
+        hresult = kernel32.CreatePseudoConsole(COORD(cols, rows), in_read, out_write, 0, ctypes.byref(console))
+        if hresult != 0:
+            fail("lane-term: CreatePseudoConsole failed with HRESULT 0x%08x" % (hresult & 0xFFFFFFFF), 1)
+        # The pseudo-console holds its own copies of these two ends.
+        kernel32.CloseHandle(in_read)
+        kernel32.CloseHandle(out_write)
+
+        size = ctypes.c_size_t()
+        kernel32.InitializeProcThreadAttributeList(None, 1, 0, ctypes.byref(size))
+        attributes = ctypes.create_string_buffer(size.value)
+        win_check(kernel32.InitializeProcThreadAttributeList(attributes, 1, 0, ctypes.byref(size)),
+                  "InitializeProcThreadAttributeList")
+        win_check(kernel32.UpdateProcThreadAttribute(attributes, 0, PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE, console,
+                                                     ctypes.sizeof(ctypes.c_void_p), None, None),
+                  "UpdateProcThreadAttribute")
+        startup = STARTUPINFOEXW()
+        startup.StartupInfo.cb = ctypes.sizeof(STARTUPINFOEXW)
+        # Invalid std handles make the child take the pseudo-console's handles, not this process's redirected pipes.
+        startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES
+        startup.StartupInfo.hStdInput = startup.StartupInfo.hStdOutput = startup.StartupInfo.hStdError = \
+            INVALID_HANDLE_VALUE
+        startup.lpAttributeList = ctypes.cast(attributes, ctypes.c_void_p)
+        info = PROCESS_INFORMATION()
+        command = ctypes.create_unicode_buffer(subprocess.list2cmdline([exe] + argv[1:]))
+        win_check(kernel32.CreateProcessW(None, command, None, None, False, EXTENDED_STARTUPINFO_PRESENT, None, cwd,
+                                          ctypes.byref(startup), ctypes.byref(info)),
+                  "cannot start %s" % argv[0])
+        process = info.hProcess
+        chunks = queue.Queue()
+
+        def pump():
+            buffer = ctypes.create_string_buffer(READ_BYTES)
+            count = wt.DWORD()
+            while kernel32.ReadFile(out_read, buffer, READ_BYTES, ctypes.byref(count), None) and count.value:
+                chunks.put(ctypes.string_at(buffer, count.value))
+            chunks.put(None)  # ReadFile fails with a broken pipe once the pseudo-console has closed
+
+        reader = threading.Thread(target=pump, daemon=True)
+        reader.start()
+
+        def read(timeout):
+            try:
+                return chunks.get(timeout=timeout)
+            except queue.Empty:
+                return b""
+
+        def write(data):
+            kernel32.WriteFile(in_write, data, len(data), ctypes.byref(wt.DWORD()), None)
+
+        def poll():
+            if kernel32.WaitForSingleObject(process, 0) != 0:
+                return None
+            code = wt.DWORD()
+            kernel32.GetExitCodeProcess(process, ctypes.byref(code))
+            return code.value
+
+        def stop():
+            kernel32.TerminateProcess(process, 1)
+            kernel32.WaitForSingleObject(process, 3000)
+
+        def close():
+            kernel32.ClosePseudoConsole(console)
+            reader.join(5)
+
+        return Pty(read, write, poll, stop, close)
+else:
+    def take_terminal():
+        # Make the pty the child's controlling terminal, as a real terminal would be, so /dev/tty works.
+        try:
+            fcntl.ioctl(0, termios.TIOCSCTTY, 0)
+        except OSError:
+            pass
+
+    def group_exists(pgid):
+        try:
+            os.killpg(pgid, 0)
+        except ProcessLookupError:
+            return False
+        return True
+
+    def start_posix(argv, cwd, cols, rows):
+        master, slave = pty.openpty()
+        fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", rows, cols, 0, 0))
+        try:
+            proc = subprocess.Popen(argv, cwd=cwd, stdin=slave, stdout=slave, stderr=slave, start_new_session=True,
+                                    preexec_fn=take_terminal)
+        except OSError as error:
+            fail("lane-term: cannot start %s: %s" % (argv[0], error.strerror or error), 1)
+        os.close(slave)
+        closed = []
+
+        def signal_group(sig):
+            try:
+                os.killpg(proc.pid, sig)
+            except ProcessLookupError:
+                pass
+
+        def running():
+            return proc.poll() is None or group_exists(proc.pid)
+
+        def read(timeout):
+            if closed:
+                return None
+            if not select.select([master], [], [], timeout)[0]:
+                return b""
+            try:
+                data = os.read(master, READ_BYTES)
+            except OSError:  # EIO: every process on the terminal has closed it
+                return None
+            return data or None
+
+        def write(data):
+            try:
+                os.write(master, data)
+            except OSError:  # the child has gone, so nothing reads the keys
+                pass
+
+        def stop():
+            # The child leads its own process group, so this reaches only what it started.
+            signal_group(signal.SIGTERM)
+            deadline = time.monotonic() + KILL_AFTER
+            while time.monotonic() < deadline and running():
+                time.sleep(0.05)
+            if running():
+                signal_group(signal.SIGKILL)
+            proc.wait()
+
+        def close():
+            closed.append(True)
+            os.close(master)
+
+        return Pty(read, write, proc.poll, stop, close)
+
+
+def drain(term, raw):
+    # Output can trail the child by a moment; stop at the first quiet spell or when the output closes.
+    end = time.monotonic() + 3
+    while time.monotonic() < end:
+        chunk = term.read(0.3)
+        if not chunk:
+            break
+        raw += chunk
+
+
+def run(args, term, started):
+    deadline = started + args.max
+    pending = [(text, keys, squash(text)) for text, keys in args.answer]
+    until = squash(args.until) if args.until is not None else ""
+    raw = bytearray()
+    answered, typing = [], collections.deque()
+    until_at, next_key, stopped, eof = None, 0.0, False, False
+    while True:
+        now = time.monotonic()
+        if term.poll() is not None:
+            break
+        if now >= deadline or (until_at is not None and now >= until_at + args.grace):
+            stopped = True
+            term.stop()
+            break
+        if eof:
+            time.sleep(0.05)
+        else:
+            chunk = term.read(0.05)
+            if chunk is None:
+                eof = True
+            elif chunk:
+                raw += chunk
+                if pending or (until and until_at is None):
+                    screen = squash(raw[-(len(chunk) + SCAN_EXTRA):])
+                    if until and until_at is None and until in screen:
+                        until_at = time.monotonic()
+                    for item in [p for p in pending if p[2] in screen]:
+                        pending.remove(item)
+                        answered.append(item[0])
+                        typing.extend(item[1])
+        if typing and now >= next_key:
+            term.write(typing.popleft())
+            next_key = now + KEY_GAP
+    exit_code = None if stopped else term.poll()
+    drain(term, raw)
+    term.close()
+    drain(term, raw)
+    return {"exit_code": exit_code, "stopped": stopped, "seconds": round(time.monotonic() - started, 1),
+            "answered": answered, "until_seen": until_at is not None, "bytes": len(raw)}, raw
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(
+        prog="lane-term",
+        usage="%(prog)s --out PREFIX [--cwd DIR] [--max SECONDS] [--cols N] [--rows N] "
+              "[--answer TEXT=KEYS]... [--until TEXT] [--grace SECONDS] -- ARGV...")
+    parser.add_argument("--out", required=True, metavar="PREFIX")
+    parser.add_argument("--cwd", metavar="DIR")
+    parser.add_argument("--max", type=float, default=120.0, metavar="SECONDS")
+    parser.add_argument("--cols", type=int, default=120)
+    parser.add_argument("--rows", type=int, default=40)
+    parser.add_argument("--answer", action="append", default=[], type=answer_arg, metavar="TEXT=KEYS")
+    parser.add_argument("--until", type=visible_text, metavar="TEXT")
+    parser.add_argument("--grace", type=float, default=2.0, metavar="SECONDS")
+    return parser
+
+
+def write_outputs(prefix, raw):
+    try:
+        with open(prefix + ".raw", "wb") as handle:
+            handle.write(raw)
+        with open(prefix + ".txt", "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(ANSI.sub("", raw.decode("utf-8", "replace")))
+    except OSError as error:
+        fail("lane-term: cannot write %s: %s" % (prefix, error), 1)
+
+
+def main():
+    parser = build_parser()
+    argv = sys.argv[1:]
+    if "--" not in argv:
+        parser.error("expected -- followed by ARGV")
+    cut = argv.index("--")
+    args = parser.parse_args(argv[:cut])
+    command = argv[cut + 1:]
+    if not command:
+        parser.error("expected a command after --")
+    if args.max <= 0 or args.cols < 1 or args.rows < 1 or args.grace < 0:
+        parser.error("--max, --cols and --rows must be above zero, and --grace must not be negative")
+    started = time.monotonic()
+    cwd = os.path.abspath(args.cwd) if args.cwd else None
+    start = start_windows if sys.platform == "win32" else start_posix
+    term = start(command, cwd, args.cols, args.rows)
+    summary, raw = run(args, term, started)
+    write_outputs(args.out, raw)
+    print(json.dumps(summary))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,4 @@
+# Literal allowlist for knowledge scanner matches.
+# Add one exact matched value per line; keep this file data-only.
+# Go test name in the GO_PORT_GAPS register (S1 redirect review), not a credential.
++TestS1102BAdminPanelForwarderUsesMergedSecurityTab

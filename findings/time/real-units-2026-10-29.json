@@ -1,0 +1,376 @@
+{
+ "generated": "2026-10-29",
+ "source": "one machine's lane ledger, untagged real units 2026-10-17 to 2026-10-29; QUOTA and BUSY runs left out",
+ "tagged_runs": {
+  "runs": 2593,
+  "median_min": 0.2,
+  "p80_min": 0.4
+ },
+ "by_class": [
+  {
+   "class": "substantive",
+   "runs": 88,
+   "median_min": 15.5,
+   "p80_min": 29.7
+  },
+  {
+   "class": "review",
+   "runs": 40,
+   "median_min": 3.7,
+   "p80_min": 5.2
+  },
+  {
+   "class": "research",
+   "runs": 11,
+   "median_min": 9.1,
+   "p80_min": 17.4
+  },
+  {
+   "class": "mechanical",
+   "runs": 7,
+   "median_min": 3.9,
+   "p80_min": 6.9
+  },
+  {
+   "class": "hard",
+   "runs": 6,
+   "median_min": 28.6,
+   "p80_min": 63.4
+  }
+ ],
+ "by_lane_effort_class": [
+  {
+   "lane": "gemini",
+   "effort": "high",
+   "class": "review",
+   "runs": 2,
+   "median_min": 3.4,
+   "p80_min": 3.7,
+   "max_min": 3.9
+  },
+  {
+   "lane": "haiku",
+   "effort": "high",
+   "class": "research",
+   "runs": 4,
+   "median_min": 20.0,
+   "p80_min": 46.0,
+   "max_min": 54.9
+  },
+  {
+   "lane": "haiku",
+   "effort": "high",
+   "class": "substantive",
+   "runs": 21,
+   "median_min": 18.6,
+   "p80_min": 27.5,
+   "max_min": 31.7
+  },
+  {
+   "lane": "haiku",
+   "effort": "low",
+   "class": "mechanical",
+   "runs": 1,
+   "median_min": 3.3,
+   "p80_min": 3.3,
+   "max_min": 3.3
+  },
+  {
+   "lane": "haiku",
+   "effort": "low",
+   "class": "review",
+   "runs": 15,
+   "median_min": 3.4,
+   "p80_min": 6.6,
+   "max_min": 14.8
+  },
+  {
+   "lane": "haiku",
+   "effort": "medium",
+   "class": "mechanical",
+   "runs": 1,
+   "median_min": 1.8,
+   "p80_min": 1.8,
+   "max_min": 1.8
+  },
+  {
+   "lane": "haiku",
+   "effort": "medium",
+   "class": "research",
+   "runs": 4,
+   "median_min": 5.4,
+   "p80_min": 12.4,
+   "max_min": 17.4
+  },
+  {
+   "lane": "haiku",
+   "effort": "medium",
+   "class": "review",
+   "runs": 17,
+   "median_min": 4.0,
+   "p80_min": 6.1,
+   "max_min": 16.3
+  },
+  {
+   "lane": "haiku",
+   "effort": "xhigh",
+   "class": "hard",
+   "runs": 1,
+   "median_min": 15.3,
+   "p80_min": 15.3,
+   "max_min": 15.3
+  },
+  {
+   "lane": "haiku",
+   "effort": "xhigh",
+   "class": "substantive",
+   "runs": 13,
+   "median_min": 16.9,
+   "p80_min": 31.8,
+   "max_min": 36.6
+  },
+  {
+   "lane": "luna",
+   "effort": "high",
+   "class": "review",
+   "runs": 1,
+   "median_min": 1.2,
+   "p80_min": 1.2,
+   "max_min": 1.2
+  },
+  {
+   "lane": "luna",
+   "effort": "high",
+   "class": "substantive",
+   "runs": 2,
+   "median_min": 13.7,
+   "p80_min": 17.9,
+   "max_min": 20.7
+  },
+  {
+   "lane": "luna",
+   "effort": "max",
+   "class": "review",
+   "runs": 1,
+   "median_min": 2.4,
+   "p80_min": 2.4,
+   "max_min": 2.4
+  },
+  {
+   "lane": "luna",
+   "effort": "max",
+   "class": "substantive",
+   "runs": 4,
+   "median_min": 43.7,
+   "p80_min": 50.7,
+   "max_min": 54.8
+  },
+  {
+   "lane": "luna",
+   "effort": "medium",
+   "class": "research",
+   "runs": 1,
+   "median_min": 3.3,
+   "p80_min": 3.3,
+   "max_min": 3.3
+  },
+  {
+   "lane": "luna",
+   "effort": "medium",
+   "class": "substantive",
+   "runs": 2,
+   "median_min": 6.4,
+   "p80_min": 8.0,
+   "max_min": 9.1
+  },
+  {
+   "lane": "luna",
+   "effort": "xhigh",
+   "class": "research",
+   "runs": 1,
+   "median_min": 14.1,
+   "p80_min": 14.1,
+   "max_min": 14.1
+  },
+  {
+   "lane": "luna",
+   "effort": "xhigh",
+   "class": "substantive",
+   "runs": 2,
+   "median_min": 18.5,
+   "p80_min": 19.1,
+   "max_min": 19.6
+  },
+  {
+   "lane": "opus",
+   "effort": "max",
+   "class": "hard",
+   "runs": 3,
+   "median_min": 24.7,
+   "p80_min": 29.4,
+   "max_min": 32.5
+  },
+  {
+   "lane": "opus",
+   "effort": "medium",
+   "class": "substantive",
+   "runs": 2,
+   "median_min": 21.3,
+   "p80_min": 24.8,
+   "max_min": 27.2
+  },
+  {
+   "lane": "sol",
+   "effort": "high",
+   "class": "review",
+   "runs": 2,
+   "median_min": 3.6,
+   "p80_min": 3.8,
+   "max_min": 3.9
+  },
+  {
+   "lane": "sol",
+   "effort": "high",
+   "class": "substantive",
+   "runs": 2,
+   "median_min": 10.5,
+   "p80_min": 12.7,
+   "max_min": 14.2
+  },
+  {
+   "lane": "sol",
+   "effort": "low",
+   "class": "mechanical",
+   "runs": 3,
+   "median_min": 7.0,
+   "p80_min": 12.9,
+   "max_min": 16.9
+  },
+  {
+   "lane": "sol",
+   "effort": "low",
+   "class": "substantive",
+   "runs": 5,
+   "median_min": 20.0,
+   "p80_min": 25.5,
+   "max_min": 45.6
+  },
+  {
+   "lane": "sol",
+   "effort": "medium",
+   "class": "review",
+   "runs": 1,
+   "median_min": 4.6,
+   "p80_min": 4.6,
+   "max_min": 4.6
+  },
+  {
+   "lane": "sol",
+   "effort": "medium",
+   "class": "substantive",
+   "runs": 11,
+   "median_min": 16.3,
+   "p80_min": 44.1,
+   "max_min": 790.5
+  },
+  {
+   "lane": "sol",
+   "effort": "xhigh",
+   "class": "substantive",
+   "runs": 4,
+   "median_min": 31.4,
+   "p80_min": 36.3,
+   "max_min": 42.1
+  },
+  {
+   "lane": "sonnet",
+   "effort": "high",
+   "class": "review",
+   "runs": 1,
+   "median_min": 2.9,
+   "p80_min": 2.9,
+   "max_min": 2.9
+  },
+  {
+   "lane": "sonnet",
+   "effort": "high",
+   "class": "substantive",
+   "runs": 6,
+   "median_min": 9.9,
+   "p80_min": 15.4,
+   "max_min": 19.4
+  },
+  {
+   "lane": "sonnet",
+   "effort": "max",
+   "class": "hard",
+   "runs": 2,
+   "median_min": 83.1,
+   "p80_min": 94.9,
+   "max_min": 102.8
+  },
+  {
+   "lane": "sonnet",
+   "effort": "medium",
+   "class": "research",
+   "runs": 1,
+   "median_min": 14.5,
+   "p80_min": 14.5,
+   "max_min": 14.5
+  },
+  {
+   "lane": "sonnet",
+   "effort": "medium",
+   "class": "substantive",
+   "runs": 6,
+   "median_min": 19.7,
+   "p80_min": 23.1,
+   "max_min": 29.4
+  },
+  {
+   "lane": "terra",
+   "effort": "high",
+   "class": "substantive",
+   "runs": 4,
+   "median_min": 5.0,
+   "p80_min": 6.5,
+   "max_min": 6.9
+  },
+  {
+   "lane": "terra",
+   "effort": "low",
+   "class": "mechanical",
+   "runs": 1,
+   "median_min": 3.9,
+   "p80_min": 3.9,
+   "max_min": 3.9
+  },
+  {
+   "lane": "terra",
+   "effort": "medium",
+   "class": "mechanical",
+   "runs": 1,
+   "median_min": 3.7,
+   "p80_min": 3.7,
+   "max_min": 3.7
+  },
+  {
+   "lane": "terra",
+   "effort": "medium",
+   "class": "substantive",
+   "runs": 2,
+   "median_min": 4.0,
+   "p80_min": 4.2,
+   "max_min": 4.3
+  },
+  {
+   "lane": "terra",
+   "effort": "xhigh",
+   "class": "substantive",
+   "runs": 2,
+   "median_min": 7.7,
+   "p80_min": 8.0,
+   "max_min": 8.2
+  }
+ ]
+}

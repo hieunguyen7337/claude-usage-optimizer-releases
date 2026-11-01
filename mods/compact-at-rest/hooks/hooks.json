@@ -1,0 +1,4 @@
+{
+  "description": "Compact between turns, right after an answer, when the context is near the compaction window",
+  "modules": ["./register.ts"]
+}

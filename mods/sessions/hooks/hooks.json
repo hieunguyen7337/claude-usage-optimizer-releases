@@ -1,0 +1,4 @@
+{
+  "description": "Sessions pane: local and cloud sessions grouped by repository, a session view with transcript, composer and actions",
+  "modules": ["./register.tsx"]
+}

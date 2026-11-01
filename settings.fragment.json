@@ -1,0 +1,35 @@
+{
+  "set_if_absent": {
+    "autoCompactWindow": 250000,
+    "cleanupPeriodDays": 30
+  },
+  "env_if_absent": {
+    "CLAUDE_CODE_SUBAGENT_MODEL": "sonnet"
+  },
+  "statusLine_if_absent": {
+    "type": "command",
+    "command": "__PREFIX__/bin/claude-statusline",
+    "padding": 0,
+    "refreshInterval": 10
+  },
+  "hooks_if_absent": {
+    "UserPromptSubmit": "__PREFIX__/bin/turn-meter hook",
+    "Stop": "__PREFIX__/bin/turn-meter hook"
+  },
+  "replace_kit_defaults": {
+    "autoCompactWindow": {"value": 250000, "previous": [450000]}
+  },
+  "command_hooks_if_absent": [
+    {"event": "PreCompact", "matcher": "auto", "tool": "turn-meter", "args": "compact-gate", "timeout": 10},
+    {"event": "SessionStart", "matcher": "compact", "tool": "turn-meter", "args": "resume-context", "timeout": 10},
+    {"event": "SessionStart", "matcher": "startup|resume|compact", "tool": "claude-statusline", "args": "session-start", "timeout": 10},
+    {"event": "PostCompact", "tool": "turn-meter", "args": "hook", "timeout": 10},
+    {"event": "SubagentStop", "matcher": "^lane-", "tool": "lane", "args": "hook subagent-stop", "timeout": 30}
+  ],
+  "view_overwrite": {
+    "verbose": false,
+    "viewMode": "default",
+    "tui": "fullscreen",
+    "outputStyle": "Mobile"
+  }
+}

@@ -1,0 +1,2794 @@
+#!/usr/bin/env python3
+"""Review lane runs, attribute usage, and explore catalog arms."""
+
+import argparse
+import datetime
+import hashlib
+import json
+import math
+import os
+import random
+import re
+import secrets
+import shlex
+import shutil
+import socket
+import statistics
+import subprocess
+import sys
+import tempfile
+
+
+FIELDS = ("lane", "model", "effort", "class", "tag", "provider", "place")
+# What report can group by: the exported fields plus the advisor role a fable run records ("-" when it has none).
+GROUP_FIELDS = FIELDS + ("role",)
+OUTCOMES = ("accepted", "fixed", "rework", "rejected")
+PROVIDERS = {
+    "luna": "codex", "terra": "codex", "sol": "codex", "astra": "codex",
+    "haiku": "claude", "sonnet": "claude", "opus": "claude", "fable": "claude", "gemini": "gemini",
+    "glm": "cline", "muse": "muse", "grok": "cursor",
+}
+# Used when arms.json has no explore.time block, and filled in key by key when the block is partial.
+TIME_DEFAULTS = {
+    "class_minutes": {"mechanical": 4, "substantive": 15, "hard": 25, "design": 20, "review": 4, "research": 9},
+    "effort_factor": {"low": 0.8, "medium": 0.9, "high": 1.0, "xhigh": 1.2, "max": 1.5},
+    "lane_factor": {"terra": 0.5},
+    "prior_runs": 2,
+    "log_sd": 1.0,
+    "brief_ref_bytes": 6000,
+    "brief_exponent": 0.8,
+}
+TIER_RUNS = (("measured", "arm_class"), ("arm", "arm"), ("class", "class"), ("machine", "machine"))
+USAGE_MODES = ("saving", "default", "utilization")
+# Used when arms.json has no explore.weeks_per_month: 365 / 7 / 12.
+WEEKS_PER_MONTH = 4.345
+# Where a lane runs: a local process, a subagent of this session, or a cloud session. Canonical order.
+PLACES = ("process", "subagent", "cloud")
+PLACE_FLAGS = {"process": None, "subagent": "--subagent", "cloud": "--cloud"}
+SHARE_REPO = "hieunguyen7337/claude-usage-optimizer-releases"
+SHARE_TOP_KEYS = {"schema", "week", "kit", "host", "install", "plans", "cells"}
+SHARE_CELL_KEYS = {"lane", "effort", "class", "runs", "reviewed", "usable", "med_min", "eta_ratio",
+                   "wk_pct_per_usable", "usd_per_usable"}
+PLAN_ID = re.compile(r"[a-z0-9_]{1,24}\Z")
+
+
+class CatalogError(ValueError):
+    """A catalog value that fails validation. Its message names catalog keys only, so it is safe to show."""
+
+
+def state_dir():
+    return os.path.abspath(os.path.expanduser(
+        os.environ.get("LANES_STATE", "~/.local/state/lanes")))
+
+
+def config_dir():
+    return os.path.abspath(os.path.expanduser(os.environ.get("LANES_CONFIG", "~/.config/lanes")))
+
+
+def mode_setting(explore):
+    """The usage mode setting: USAGE_OPTIMIZER_MODE, else the first word of ~/.config/lanes/mode, else explore.mode.
+
+    bin/lane resolves it the same way. An unknown value warns once and counts as default.
+    """
+    value = os.environ.get("USAGE_OPTIMIZER_MODE", "").strip()
+    if not value:
+        try:
+            with open(os.path.join(config_dir(), "mode"), "r", encoding="utf-8") as stream:
+                words = stream.read().split()
+            value = words[0] if words else ""
+        except (OSError, UnicodeDecodeError):
+            value = ""
+    if not value and isinstance(explore, dict) and isinstance(explore.get("mode"), str):
+        value = explore["mode"].strip()
+    if not value:
+        return "default"
+    if value.lower() not in USAGE_MODES + ("auto",):
+        print("warning: usage mode {!r} is not saving, default, utilization or auto; using default".format(value),
+              file=sys.stderr)
+        return "default"
+    return value.lower()
+
+
+def projected_mode(projected, explore):
+    # auto: a week heading past saving_pct of the window at reset saves, one at or under utilization_pct spends.
+    modes = explore.get("modes") if isinstance(explore, dict) else None
+    modes = modes if isinstance(modes, dict) else {}
+    saving_pct = number(modes.get("saving_pct"))
+    utilization_pct = number(modes.get("utilization_pct"))
+    if projected is None:
+        return "default"
+    if projected >= (110.0 if saving_pct is None else saving_pct):
+        return "saving"
+    if projected <= (90.0 if utilization_pct is None else utilization_pct):
+        return "utilization"
+    return "default"
+
+
+def parse_time(value):
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=datetime.timezone.utc)
+        return parsed.astimezone(datetime.timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def iso_now():
+    return datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def number(value):
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        result = float(value)
+        return result if math.isfinite(result) else None
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def canonical(path):
+    return os.path.normcase(os.path.realpath(os.path.abspath(os.path.expanduser(path))))
+
+
+def resolve_run_dir(value, state):
+    if not isinstance(value, str) or not value:
+        return None
+    path = os.path.expanduser(value)
+    if not os.path.isabs(path):
+        candidates = [os.path.abspath(path), os.path.join(state, path), os.path.join(state, "runs", path)]
+        if path.replace("\\", "/").startswith("runs/"):
+            candidates.append(os.path.join(state, path))
+        path = next((candidate for candidate in candidates if os.path.isdir(candidate)),
+                    os.path.join(state, "runs", path))
+    return os.path.abspath(path)
+
+
+def read_jsonl(path):
+    rows, malformed = [], 0
+    try:
+        with open(path, "r", encoding="utf-8") as stream:
+            for line in stream:
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                    if not isinstance(row, dict):
+                        raise ValueError("JSONL row is not an object")
+                    rows.append(row)
+                except (ValueError, json.JSONDecodeError):
+                    malformed += 1
+    except FileNotFoundError:
+        pass
+    return rows, malformed
+
+
+def load_ledger(state):
+    rows, malformed = read_jsonl(os.path.join(state, "ledger.jsonl"))
+    valid = []
+    for row in rows:
+        if not isinstance(row.get("run_dir"), str) or not row["run_dir"]:
+            malformed += 1
+        else:
+            valid.append(row)
+    return valid, malformed
+
+
+def normalize_record(row, run_dir=None):
+    record = dict(row)
+    record["run_dir"] = run_dir or record.get("run_dir")
+    lane = record.get("lane")
+    if not record.get("provider"):
+        record["provider"] = PROVIDERS.get(lane)
+    # Runs from before 2026-10-29.3 record no place: they ran as local processes.
+    record["place"] = record.get("place") or "local"
+    if lane == "gemini" and not record.get("effort") and record.get("model"):
+        record["effort"] = record["model"].rsplit("-", 1)[-1]
+    record["usage"] = record.get("usage") if isinstance(record.get("usage"), dict) else None
+    return record
+
+
+def load_runs(state):
+    ledger, malformed = load_ledger(state)
+    # A verify run (lane --cloud --verify) only runs tests and never gets an outcome; it is not a unit, so every
+    # listing and estimate leaves it out.
+    runs, ledger_order, verify_keys = {}, [], set()
+    for row in ledger:
+        run_dir = resolve_run_dir(row["run_dir"], state)
+        key = canonical(run_dir)
+        if row.get("verify") is True:
+            verify_keys.add(key)
+            continue
+        record = normalize_record(row, run_dir)
+        runs[key] = record
+        ledger_order.append(key)
+
+    runs_dir = os.path.join(state, "runs")
+    if os.path.isdir(runs_dir):
+        try:
+            entries = sorted(os.scandir(runs_dir), key=lambda item: item.name)
+        except OSError:
+            entries = []
+        for entry in entries:
+            if not entry.is_dir():
+                continue
+            meta_path = os.path.join(entry.path, "meta.json")
+            try:
+                with open(meta_path, "r", encoding="utf-8") as stream:
+                    meta = json.load(stream)
+            except FileNotFoundError:
+                continue
+            except (OSError, ValueError):
+                continue
+            if not isinstance(meta, dict):
+                continue
+            key = canonical(entry.path)
+            if key in runs or key in verify_keys or meta.get("verify") is True:
+                continue
+            meta["run_dir"] = entry.path
+            runs[key] = normalize_record(meta, entry.path)
+    return runs, ledger_order, malformed
+
+
+def window_reading(usage, side, label):
+    if not isinstance(usage, dict) or not isinstance(usage.get(side), dict):
+        return None
+    windows = usage[side].get("windows")
+    if not isinstance(windows, list):
+        return None
+    for window in windows:
+        if isinstance(window, dict) and window.get("label") == label:
+            percent = number(window.get("used_percent"))
+            if percent is not None:
+                return {"percent": percent, "resets_at": window.get("resets_at")}
+    return None
+
+
+def weight_for(run, provider):
+    usage = run.get("usage") or {}
+    if provider == "claude":
+        return number(usage.get("list_usd"))
+    tokens = usage.get("tokens") if isinstance(usage.get("tokens"), dict) else {}
+    total = number(tokens.get("total"))
+    if total is None:
+        return None
+    if provider == "codex":
+        lane = run.get("lane")
+        model = str(run.get("model") or "").lower()
+        rate = {"luna": 1, "terra": 10, "sol": 20, "astra": 100}.get(lane)
+        if rate is None:
+            rate = next((value for name, value in (("terra", 10), ("sol", 20), ("astra", 100)) if name in model), 1)
+        return total * rate
+    return total
+
+
+def same_window(before, after):
+    # Codex reports the same reset a second apart between reads; a real reset moves it by hours or days.
+    first, second = parse_time(before), parse_time(after)
+    if first is None or second is None:
+        return before == after
+    return abs((second - first).total_seconds()) <= 600
+
+
+def reading_time(run, side):
+    """When a run's before or after meter reading was taken; without one, when the run started or ended."""
+    usage = run.get("usage") if isinstance(run.get("usage"), dict) else {}
+    reading = usage.get(side)
+    observed = parse_time(reading.get("observed_at")) if isinstance(reading, dict) else None
+    if observed is not None:
+        return observed
+    return parse_time(run.get("started_at" if side == "before" else "ended_at")) or parse_time(run.get("started_at"))
+
+
+def run_time(run):
+    """The time a run's weekly % belongs to: its before reading, else its after reading, else its start."""
+    for side in ("before", "after"):
+        if window_reading(run.get("usage"), side, "weekly") is not None:
+            observed = reading_time(run, side)
+            if observed is not None:
+                return observed
+    return parse_time(run.get("started_at")) or parse_time(run.get("ended_at"))
+
+
+def allocate_wave(runs, label, provider, window_of=None):
+    """Split each wave's meter delta across its runs.
+
+    window_of(run, time), when given, names the window size a reading at that time was taken on. A wave whose
+    readings fall on two window sizes (a window epoch inside it) is skipped, as a wave with a reset is: its
+    before and after percentages are of different windows.
+    """
+    readings = []
+    for run in runs:
+        before = window_reading(run.get("usage"), "before", label)
+        after = window_reading(run.get("usage"), "after", label)
+        if before is None or after is None:
+            continue
+        start, end = parse_time(run.get("started_at")), parse_time(run.get("ended_at"))
+        if start is not None and end is not None and end >= start:
+            readings.append((run, before, after, start, end))
+    readings.sort(key=lambda item: (item[3], item[4]))
+
+    waves, current = [], []
+    current_end = None
+    for reading in readings:
+        if current and reading[3] > current_end:
+            waves.append(current)
+            current = []
+        current.append(reading)
+        current_end = reading[4] if current_end is None else max(current_end, reading[4])
+    if current:
+        waves.append(current)
+
+    attribution, wave_members = {}, {}
+    for wave in waves:
+        if any(not same_window(before["resets_at"], after["resets_at"])
+               for _, before, after, _, _ in wave):
+            continue
+        if window_of is not None and len({window_of(item[0], reading_time(item[0], side))
+                                          for item in wave for side in ("before", "after")}) > 1:
+            continue
+        delta = max(item[2]["percent"] for item in wave) - min(item[1]["percent"] for item in wave)
+        if delta < 0:
+            continue
+        weights = [weight_for(item[0], provider) for item in wave]
+        if any(value is None for value in weights) or sum(weights) <= 0:
+            weights = [number(item[0].get("duration_s")) for item in wave]
+            if any(value is None or value < 0 for value in weights) or sum(weights) <= 0:
+                weights = [1.0] * len(wave)
+        total_weight = sum(weights)
+        wave_id = (provider, tuple(sorted(canonical(item[0]["run_dir"]) for item in wave)))
+        for item, weight in zip(wave, weights):
+            key = canonical(item[0]["run_dir"])
+            attribution[key] = attribution.get(key, 0.0) + delta * weight / total_weight
+            wave_members[key] = wave_id
+    return attribution, wave_members
+
+
+def attribute_usage(runs, catalog=None, plans=None):
+    """Split account-window deltas across overlapping provider waves.
+
+    Shares stay in the units the meter read them in (a % of the window at that time); window_epochs, when the
+    catalog is given, only drop weekly waves that straddle one. Callers convert shares with current_share.
+    """
+    by_provider = {}
+    for key, run in runs.items():
+        provider = run.get("provider")
+        if provider:
+            by_provider.setdefault(provider, []).append((key, run))
+    attributed = {key: {} for key in runs}
+    waves = {key: set() for key in runs}
+    for provider, entries in by_provider.items():
+        provider_runs = [run for _, run in entries]
+        for label in ("weekly", "5h"):
+            window_of = window_keyer(catalog, provider, plans) if label == "weekly" else None
+            shares, wave_members = allocate_wave(provider_runs, label, provider, window_of)
+            for key, _ in entries:
+                if key in shares:
+                    attributed[key][label] = shares[key]
+                    waves[key].add(wave_members[key])
+    return attributed, waves
+
+
+def latest_reviews(state, runs):
+    reviews, malformed, sequence = {}, 0, 0
+
+    def add(review, run_value):
+        nonlocal sequence
+        sequence += 1
+        if not isinstance(run_value, str) or not run_value:
+            return
+        path = resolve_run_dir(run_value, state)
+        key = canonical(path)
+        if key not in runs:
+            by_name = {os.path.basename(record["run_dir"]): run_key for run_key, record in runs.items()}
+            key = by_name.get(os.path.basename(run_value.rstrip("/\\")), key)
+        if key not in runs or review.get("outcome") not in OUTCOMES:
+            return
+        reviewed_at = parse_time(review.get("reviewed_at"))
+        existing = reviews.get(key)
+        if existing is None or (reviewed_at or datetime.datetime.min.replace(tzinfo=datetime.timezone.utc), sequence) >= existing[0]:
+            reviews[key] = ((reviewed_at or datetime.datetime.min.replace(tzinfo=datetime.timezone.utc), sequence), review)
+
+    review_rows, malformed = read_jsonl(os.path.join(state, "reviews.jsonl"))
+    for row in review_rows:
+        add(row, row.get("run_dir"))
+    runs_dir = os.path.join(state, "runs")
+    if os.path.isdir(runs_dir):
+        try:
+            dirs = sorted(os.scandir(runs_dir), key=lambda item: item.name)
+        except OSError:
+            dirs = []
+        for entry in dirs:
+            if not entry.is_dir():
+                continue
+            path = os.path.join(entry.path, "review.json")
+            try:
+                with open(path, "r", encoding="utf-8") as stream:
+                    review = json.load(stream)
+            except (OSError, ValueError):
+                continue
+            if isinstance(review, dict):
+                add(review, entry.path)
+    return {key: value[1] for key, value in reviews.items()}, malformed
+
+
+def median(values):
+    values = [value for value in values if value is not None]
+    return statistics.median(values) if values else None
+
+
+def display_number(value, places=1):
+    if value is None:
+        return ""
+    return ("{:0." + str(places) + "f}").format(value)
+
+
+def print_table(columns, rows):
+    widths = [max(len(column), max((len(row[index]) for row in rows), default=0))
+              for index, column in enumerate(columns)]
+    print("  ".join(column.ljust(widths[index]) for index, column in enumerate(columns)))
+    print("  ".join("-" * width for width in widths))
+    for row in rows:
+        print("  ".join(value.ljust(widths[index]) for index, value in enumerate(row)))
+
+
+def group_value(run, field):
+    value = run.get(field)
+    if field == "role":
+        return value if isinstance(value, str) and value else "-"
+    return value
+
+
+def make_groups(runs, reviews, attributed, waves, fields, convert=None):
+    """convert(run, weekly %) gives (% of today's window, plan $ or None, points) for one run's share.
+
+    Without convert, shares stay raw and the plan $ and points columns are empty.
+    """
+    buckets = {}
+    for key, run in runs.items():
+        values = tuple(group_value(run, field) for field in fields)
+        buckets.setdefault(values, []).append((key, run))
+    groups = []
+    for values in sorted(buckets, key=lambda row: tuple("" if item is None else str(item).casefold() for item in row)):
+        members = buckets[values]
+        group = dict(zip(fields, values))
+        reviewed = [reviews[key] for key, _ in members if key in reviews]
+        accepted = sum(review.get("outcome") == "accepted" for review in reviewed)
+        usable = sum(review.get("outcome") in ("accepted", "fixed") for review in reviewed)
+        verdicts = [str(run.get("verdict") or "").upper() for _, run in members]
+        durations = [number(run.get("duration_s")) for _, run in members]
+        token_counts = []
+        list_costs = []
+        weekly, plan_usd, point_values = [], [], []
+        attributed_sums = {"weekly": 0.0, "5h": 0.0}
+        wave_keys = set()
+        ratios = []
+        peaks = []
+        for key, run in members:
+            usage = run.get("usage") or {}
+            tokens = usage.get("tokens") if isinstance(usage.get("tokens"), dict) else {}
+            token_counts.append(number(tokens.get("total")))
+            list_costs.append(number(usage.get("list_usd")))
+            peaks.append(number(run.get("peak_mem_mb")))
+            duration, eta = number(run.get("duration_s")), number(run.get("eta_s"))
+            if duration is not None and eta is not None and duration > 0 and eta > 0:
+                ratios.append(duration / eta)
+            for label, amount in attributed.get(key, {}).items():
+                attributed_sums[label] += amount
+                if label == "weekly":
+                    # wk% and plan$ are of today's window on today's plan, so runs from before a window epoch
+                    # or on another plan add up; attributed_percent keeps what the meter read.
+                    share, dollars, points = convert(run, amount) if convert is not None else (amount, None, None)
+                    if share is not None:
+                        weekly.append(share)
+                    if dollars is not None:
+                        plan_usd.append(dollars)
+                    if points is not None:
+                        point_values.append(points)
+            wave_keys.update(waves.get(key, set()))
+        # Every run's time counts, reviewed or not; the fix time is the reviews' own.
+        minutes_spent = sum(value / 60.0 for value in durations if value is not None)
+        fix_minutes = sum(number(review.get("fix_minutes")) or 0.0 for review in reviewed)
+        group.update({
+            "runs": len(members),
+            "ok%": 100.0 * sum(verdict == "OK" for verdict in verdicts) / len(members) if members else None,
+            "reviewed": len(reviewed),
+            "accepted%": 100.0 * accepted / len(reviewed) if reviewed else None,
+            "usable%": 100.0 * usable / len(reviewed) if reviewed else None,
+            "med_min": median([value / 60.0 if value is not None else None for value in durations]),
+            "min/usable": (minutes_spent + fix_minutes) / usable if usable else None,
+            "eta_x": median(ratios),
+            "med_tokens": median(token_counts),
+            "mem_mb": median(peaks),
+            "wk%/run": statistics.mean(weekly) if weekly else None,
+            "wk%/usable": sum(weekly) / usable if usable else None,
+            "$list/usable": sum(value for value in list_costs if value is not None) / usable
+            if usable and any(value is not None for value in list_costs) else None,
+            # plan $ only when every weekly run in the group has a plan price; otherwise the row is points only.
+            "plan$/usable": sum(plan_usd) / usable if usable and plan_usd and len(plan_usd) == len(weekly) else None,
+            "pts/usable": sum(point_values) / usable if usable and point_values else None,
+            "wave_count": len(wave_keys),
+            "attributed_percent": {label: total for label, total in attributed_sums.items()
+                                   if total or any(label in attributed.get(key, {}) for key, _ in members)},
+        })
+        groups.append(group)
+    return groups
+
+
+def selected_runs(runs, since):
+    if since is None:
+        return runs
+    return {key: run for key, run in runs.items()
+            if (started := parse_time(run.get("started_at"))) is not None and started.date() >= since}
+
+
+def format_cell(value, key):
+    if value is None:
+        return ""
+    if key.startswith("wk%"):
+        # A luna unit is a few hundredths of a percent of the weekly window.
+        return display_number(value, 2) + "%"
+    if key.endswith("%"):
+        return display_number(value) + "%"
+    if key in ("med_min", "min/usable"):
+        return display_number(value)
+    if key == "eta×":
+        return display_number(value, 2) + "x"
+    if key in ("med_tokens", "mem_mb"):
+        return display_number(value, 0)
+    if key in ("$list/usable", "plan$/usable"):
+        return "${:0.4f}".format(value)
+    if key == "pts/usable":
+        # Points are plan dollars when Claude has a price, else Claude-% (see explore.points_basis): no $ sign.
+        return "{:0.4f}".format(value)
+    return str(value)
+
+
+def footer(runs, reviews, malformed):
+    no_review = sum(key not in reviews for key in runs)
+    no_usage = sum(not run.get("usage") for run in runs.values())
+    result = "runs without review: {} | runs without usage: {} | malformed lines skipped: {}".format(
+        no_review, no_usage, malformed)
+    unfinished = sum(not run.get("ended_at") and not run.get("recovered") for run in runs.values())
+    if unfinished:
+        result += " | unfinished runs: {} (finish with lane --recover)".format(unfinished)
+    return result
+
+
+def optional_catalog():
+    # report works without a catalog: shares then stay as the meter read them and plan$ is empty.
+    try:
+        return load_catalog()
+    except ValueError:
+        return None
+
+
+def report_converter(catalog, runs, now):
+    """(% of today's window on today's plan, plan $ or None, points) for one run's weekly share, as the picker
+    prices it.
+
+    plan $ is set only when the provider's current plan has its own price (and Claude's does, so points are dollars).
+    A provider on the scarcity fallback still has points, but no plan $.
+    """
+    plans = current_plans(catalog, runs, {})
+    rates, _, dollars = point_rates(catalog, plans)
+
+    def convert(run, pct):
+        provider = run.get("provider")
+        if provider not in catalog["providers"]:
+            return pct, None, None
+        share = current_share(run, pct, provider, catalog, plans, now)
+        if share is None:
+            return None, None, None
+        points = share * rates[provider]
+        priced = dollars and usd_per_pct(catalog, provider, plans.get(provider)) is not None
+        return share, points if priced else None, points
+    return convert
+
+
+def report(args):
+    state = state_dir()
+    catalog = optional_catalog()
+    runs, reviews, attributed, waves, malformed = load_data(state, catalog)
+    filtered = selected_runs(runs, args.since)
+    fields = tuple(part.strip() for part in args.by.split(",") if part.strip())
+    invalid = [field for field in fields if field not in GROUP_FIELDS]
+    if not fields or invalid:
+        raise ValueError("--by must be a comma list of {}".format(", ".join(GROUP_FIELDS)))
+    convert = report_converter(catalog, runs, datetime.datetime.now(datetime.timezone.utc)) if catalog else None
+    groups = make_groups(filtered, reviews, attributed, waves, fields, convert)
+    if args.json:
+        print(json.dumps(groups, ensure_ascii=False, allow_nan=False))
+        print(footer(filtered, reviews, malformed), file=sys.stderr)
+        return 0
+    columns = list(fields) + ["runs", "ok%", "reviewed", "accepted%", "usable%", "med_min", "min/usable", "eta×",
+                              "med_tokens", "mem_mb", "wk%/run", "wk%/usable", "$list/usable", "plan$/usable",
+                              "pts/usable"]
+    group_keys = {"eta×": "eta_x"}
+    rows = [[format_cell(group.get(group_keys.get(column, column)), column) for column in columns] for group in groups]
+    print_table(columns, rows)
+    print(footer(filtered, reviews, malformed))
+    return 0
+
+
+def locate_run(run_arg, state):
+    runs, ledger_order, _ = load_runs(state)
+    runs_dir = os.path.join(state, "runs")
+    if run_arg == "last":
+        for key in reversed(ledger_order):
+            if key in runs and os.path.isdir(runs[key]["run_dir"]):
+                return key, runs[key]["run_dir"]
+        return None, None
+
+    candidate = os.path.expanduser(run_arg)
+    path_candidate = os.path.abspath(candidate)
+    if os.path.isdir(path_candidate):
+        key = canonical(path_candidate)
+        if os.path.isfile(os.path.join(path_candidate, "meta.json")) or key in runs:
+            return key, path_candidate
+
+    name_path = os.path.join(runs_dir, run_arg)
+    if os.path.isdir(name_path):
+        return canonical(name_path), name_path
+
+    for key, run in reversed(list(runs.items())):
+        if run.get("session_id") == run_arg and os.path.isdir(run["run_dir"]):
+            return key, run["run_dir"]
+    return None, None
+
+
+def review(args):
+    state = state_dir()
+    key, run_dir = locate_run(args.run, state)
+    if run_dir is None:
+        print("lane-stats: unknown RUN: {}".format(args.run), file=sys.stderr)
+        return 2
+    review_data = {"outcome": args.outcome, "note": args.note or "", "fix_minutes": args.fix_minutes,
+                   "reviewed_at": iso_now()}
+    review_path = os.path.join(run_dir, "review.json")
+    os.makedirs(run_dir, exist_ok=True)
+    with open(review_path, "w", encoding="utf-8", newline="\n") as stream:
+        json.dump(review_data, stream, ensure_ascii=False)
+        stream.write("\n")
+    line = dict(review_data)
+    line["run_dir"] = run_dir
+    with open(os.path.join(state, "reviews.jsonl"), "a", encoding="utf-8", newline="\n") as stream:
+        json.dump(line, stream, ensure_ascii=False)
+        stream.write("\n")
+    print("reviewed {}: {}".format(os.path.basename(os.path.normpath(run_dir)), args.outcome))
+    return 0
+
+
+def arm_key(arm):
+    return arm.get("lane"), arm.get("model"), arm.get("effort")
+
+
+def arm_id(arm):
+    return "/".join(arm_key(arm))
+
+
+def arm_display(arm, catalog):
+    label = "{} {}".format(arm["lane"], arm["effort"])
+    if arm["model"] != catalog["lanes"][arm["lane"]]["model"]:
+        label += " ({})".format(arm["model"])
+    return label
+
+
+def merge_catalog(base, local):
+    if not isinstance(local, dict):
+        raise CatalogError("local catalog must be an object")
+    for key, value in local.items():
+        if key == "arms":
+            if not isinstance(value, list) or any(not isinstance(arm, dict) for arm in value):
+                raise CatalogError("catalog arms must be objects")
+            entries = {arm_key(arm): arm for arm in base.get("arms", [])}
+            for arm in value:
+                identity = arm_key(arm)
+                if identity in entries:
+                    entries[identity].update(arm)
+                else:
+                    base.setdefault("arms", []).append(dict(arm))
+                    entries[identity] = base["arms"][-1]
+        elif isinstance(value, dict) and isinstance(base.get(key), dict):
+            if key in ("providers", "lanes"):
+                for name, settings in value.items():
+                    if isinstance(settings, dict) and isinstance(base[key].get(name), dict):
+                        base[key][name].update(settings)
+                    else:
+                        base[key][name] = settings
+            else:
+                base[key].update(value)
+        else:
+            base[key] = value
+    return base
+
+
+def valid_places(value):
+    # The membership test runs first: it rejects unhashable items before set() would raise on them.
+    return (isinstance(value, list) and bool(value) and all(place in PLACES for place in value)
+            and len(set(value)) == len(value))
+
+
+def lane_places(catalog, lane):
+    # A lane with no places key runs in all three, as before places existed.
+    return catalog["lanes"][lane].get("places", list(PLACES))
+
+
+def allowed_places(catalog):
+    """The places this machine allows: LANES_PLACES when set, else explore.places, else all three."""
+    raw = os.environ.get("LANES_PLACES", "")
+    if raw.strip():
+        names = [name.strip() for name in raw.split(",") if name.strip()]
+        if not names:
+            raise ValueError("LANES_PLACES names no place (places: {})".format(", ".join(PLACES)))
+        source = "LANES_PLACES"
+    else:
+        names, source = catalog["explore"].get("places", PLACES), "explore.places"
+    for name in names:
+        if name not in PLACES:
+            raise ValueError("unknown place {} in {} (places: {})".format(name, source, ", ".join(PLACES)))
+    return [place for place in PLACES if place in names]
+
+
+def check_place(place, allowed):
+    if place not in PLACES:
+        raise ValueError("unknown place {} (places: {})".format(place, ", ".join(PLACES)))
+    if place not in allowed:
+        raise ValueError("place {} is not allowed on this machine (allowed places: {})".format(
+            place, ", ".join(allowed)))
+
+
+def validate_catalog(catalog):
+    if not isinstance(catalog, dict) or any(not isinstance(catalog.get(key), dict)
+                                          for key in ("lanes", "providers", "explore")):
+        raise CatalogError("catalog needs lanes, providers and explore objects")
+    config = catalog["explore"]
+    for key in ("min_runs", "floor", "half_life_days", "shrink", "review_points",
+                "fix_points_per_minute", "exclude_weekly_pct", "exclude_5h_pct", "claude_guard_pct"):
+        value = number(config.get(key))
+        if value is None or value < 0:
+            raise CatalogError("invalid explore.{}".format(key))
+    if config["half_life_days"] <= 0 or config["floor"] > 1:
+        raise CatalogError("invalid half life or exploration floor")
+    for key in ("measured_weight", "measured_shrink", "measured_min_n"):
+        # JSON numbers only: posterior compares these directly, so a string would fail there.
+        value = config.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+            raise CatalogError("invalid explore.{}".format(key))
+    for section, keys in (("pace", ("low_pct", "high_pct", "low_factor", "high_factor")),
+                          ("lock", ("leaning_p", "leaning_runs", "locked_p", "locked_runs"))):
+        values = config.get(section)
+        if not isinstance(values, dict) or any(number(values.get(key)) is None or number(values[key]) < 0
+                                               for key in keys):
+            raise CatalogError("invalid explore.{}".format(section))
+    targets = config.get("targets")
+    if not isinstance(targets, dict) or not targets or any(
+            not isinstance(key, str) or number(value) is None or not 0 <= number(value) <= 1
+            for key, value in targets.items()):
+        raise CatalogError("invalid explore.targets")
+    if "time" in config:
+        validate_time(config["time"])
+    if "weeks_per_month" in config and not positive_number(config["weeks_per_month"]):
+        raise CatalogError("invalid explore.weeks_per_month: needs a number above 0")
+    if "places" in config and not valid_places(config["places"]):
+        raise CatalogError("invalid explore.places: needs a list of process, subagent or cloud")
+    for name, provider in catalog["providers"].items():
+        if not isinstance(provider, dict) or number(provider.get("scarcity")) is None or provider["scarcity"] < 0:
+            raise CatalogError("invalid provider {}".format(name))
+        scales = provider.get("plan_scale", {})
+        # Above 0: a plan_scale of 0 would make every run free (its % converts to 0 on that plan).
+        if not isinstance(scales, dict) or any(not positive_number(value) for value in scales.values()):
+            raise CatalogError("invalid plan_scale: needs numbers above 0")
+        validate_plans(name, provider)
+    for name, lane in catalog["lanes"].items():
+        if (not isinstance(lane, dict) or not isinstance(lane.get("model"), str)
+                or lane.get("provider") not in catalog["providers"]):
+            raise CatalogError("invalid lane")
+        if "places" in lane and not valid_places(lane["places"]):
+            raise CatalogError("invalid lanes.{}.places: needs a list of process, subagent or cloud".format(name))
+    if not isinstance(catalog.get("arms"), list):
+        raise CatalogError("catalog needs an arms list")
+    seen = set()
+    for arm in catalog["arms"]:
+        if not isinstance(arm, dict) or any(not isinstance(arm.get(key), str) or not arm[key]
+                                          for key in ("lane", "model", "effort")):
+            raise CatalogError("invalid arm identity")
+        if arm["lane"] not in catalog["lanes"] or arm_key(arm) in seen:
+            raise CatalogError("unknown lane or duplicate arm")
+        seen.add(arm_key(arm))
+        if arm.get("status") not in ("active", "manual", "retired", "disabled"):
+            raise CatalogError("invalid arm status")
+        if not isinstance(arm.get("classes"), list) or any(c not in targets for c in arm["classes"]):
+            raise CatalogError("invalid arm classes")
+        for key in ("weight", "prior_pct", "prior_usable"):
+            if number(arm.get(key)) is None or number(arm[key]) < 0:
+                raise CatalogError("invalid arm {}".format(key))
+        if arm["prior_usable"] > 1:
+            raise CatalogError("invalid prior_usable")
+        measured = arm.get("measured", {})
+        if not isinstance(measured, dict) or any(not valid_measured(block) for block in measured.values()):
+            raise CatalogError("invalid arm measured")
+
+
+def validate_plans(name, provider):
+    """prior_plan, window_epochs and plan_prices of one provider; each is optional."""
+    prior = provider.get("prior_plan")
+    if prior is not None and (not isinstance(prior, str) or not prior):
+        raise CatalogError("invalid providers.{}.prior_plan: needs a plan id".format(name))
+    # The plans a provider sizes: its plan_scale keys (when it has plan_scale) and its prior_plan.
+    scales = provider.get("plan_scale")
+    scaled = set(scales) if isinstance(scales, dict) else set()
+    # An epoch names a plan of plan_scale; without plan_scale it can only name the prior_plan.
+    epoch_plans = scaled if "plan_scale" in provider else ({prior} if prior else set())
+    known_plans = scaled | ({prior} if prior else set())
+    epochs = provider.get("window_epochs", [])
+    if not isinstance(epochs, list):
+        raise CatalogError("invalid providers.{}.window_epochs: needs a list".format(name))
+    for index, epoch in enumerate(epochs):
+        where = "providers.{}.window_epochs[{}]".format(name, index)
+        if not isinstance(epoch, dict):
+            raise CatalogError("invalid {}: needs an object with plan, from and scale".format(where))
+        if not isinstance(epoch.get("plan"), str) or not epoch["plan"]:
+            raise CatalogError("invalid {}.plan: needs a plan id".format(where))
+        if epoch["plan"] not in epoch_plans:
+            raise CatalogError("invalid {}.plan: not a plan_scale plan of providers.{}".format(where, name))
+        if parse_time(epoch.get("from")) is None:
+            raise CatalogError("invalid {}.from: needs a UTC time such as 2026-10-30T00:00:00Z".format(where))
+        # A JSON number only: epoch_product multiplies by it.
+        if not positive_number(epoch.get("scale")):
+            raise CatalogError("invalid {}.scale: needs a number above 0".format(where))
+        if epoch.get("source") is not None and not isinstance(epoch["source"], str):
+            raise CatalogError("invalid {}.source: needs text".format(where))
+    prices = provider.get("plan_prices", {})
+    if not isinstance(prices, dict):
+        raise CatalogError("invalid providers.{}.plan_prices: needs an object of plan ids".format(name))
+    for plan, price in prices.items():
+        where = "providers.{}.plan_prices.{}".format(name, plan)
+        if plan not in known_plans:
+            raise CatalogError("invalid {}: not a plan of providers.{}".format(where, name))
+        if not plan or not isinstance(price, dict) or not positive_number(price.get("usd_per_month")):
+            raise CatalogError("invalid {}.usd_per_month: needs a number above 0".format(where))
+        for key in ("source", "checked"):
+            if price.get(key) is not None and not isinstance(price[key], str):
+                raise CatalogError("invalid {}.{}: needs text".format(where, key))
+
+
+def valid_measured(block):
+    # Written by `lane-bench priors`: usable and recall are rates, pct_week is percent of the week per run.
+    # JSON numbers only: a string "12" would pass number() and then fail the comparisons in posterior.
+    if not isinstance(block, dict):
+        return False
+    plan = block.get("plan")
+    if plan is not None and not isinstance(plan, str):
+        return False
+    values = [block.get(key) for key in ("usable", "recall", "pct_week", "n")]
+    if any(isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)
+           for value in values):
+        return False
+    usable, recall, pct_week, n = values
+    return 0 <= usable <= 1 and 0 <= recall <= 1 and pct_week >= 0 and n >= 1
+
+
+def positive_number(value):
+    # JSON numbers only: a string "0.8" would pass number() and then fail the multiplications in estimate_eta.
+    return (isinstance(value, (int, float)) and not isinstance(value, bool)
+            and math.isfinite(value) and value > 0)
+
+
+def validate_time(block):
+    if not isinstance(block, dict):
+        raise CatalogError("invalid explore.time")
+    for key in ("class_minutes", "effort_factor", "lane_factor"):
+        if key not in block:
+            continue
+        table = block[key]
+        if not isinstance(table, dict) or any(not isinstance(name, str) or not positive_number(value)
+                                              for name, value in table.items()):
+            raise CatalogError("invalid explore.time")
+    # Unknown classes fall back to class_minutes["substantive"], so a table without it cannot price them.
+    if "class_minutes" in block and "substantive" not in block["class_minutes"]:
+        raise CatalogError("invalid explore.time")
+    for key in ("prior_runs", "log_sd", "brief_ref_bytes"):
+        if key in block and not positive_number(block[key]):
+            raise CatalogError("invalid explore.time")
+    # 0 turns the brief-size term off.
+    if "brief_exponent" in block and not (positive_number(block["brief_exponent"]) or block["brief_exponent"] == 0):
+        raise CatalogError("invalid explore.time")
+
+
+def load_catalog():
+    path = os.path.expanduser(os.environ.get("LANES_ARMS", os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "..", "arms.json")))
+    local_path = os.path.expanduser(os.environ.get("LANES_ARMS_LOCAL", "~/.config/lanes/arms.local.json"))
+    try:
+        with open(path, "r", encoding="utf-8") as stream:
+            catalog = json.load(stream)
+        validate_catalog(catalog)
+        if os.path.exists(local_path):
+            with open(local_path, "r", encoding="utf-8") as stream:
+                catalog = merge_catalog(catalog, json.load(stream))
+            validate_catalog(catalog)
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        # A validation message names the bad key; other errors can carry a path, so only their type is shown.
+        detail = str(exc) if isinstance(exc, CatalogError) else type(exc).__name__
+        raise ValueError("invalid arms catalog ({})".format(detail)) from None
+    return catalog
+
+
+def match_arm(run, catalog):
+    identity = arm_key(run)
+    fallback = None
+    for arm in catalog["arms"]:
+        if arm_key(arm) == identity:
+            return arm_id(arm)
+        if arm["effort"] == "*" and (arm["lane"], arm["model"]) == identity[:2]:
+            fallback = arm_id(arm)
+    return fallback
+
+
+def machine_name():
+    return os.environ.get("LANES_MACHINE") or socket.gethostname()
+
+
+def valid_import(row):
+    if any(not isinstance(row.get(key), str) or not row[key].strip()
+           for key in ("machine", "run_id", "lane")):
+        return False
+    machine = row["machine"]
+    if (machine in (".", "..") or machine.endswith((".", " "))
+            or any(char in '/\\:*?"<>|' or ord(char) < 32 for char in machine)):
+        return False
+    for key in ("model", "effort", "class", "tag", "provider", "pick_id", "arm", "started_at",
+                "ended_at", "verdict", "plan"):
+        if row.get(key) is not None and not isinstance(row[key], str):
+            return False
+    for key in ("duration_s", "list_usd", "attributed_pct", "eta_s", "brief_bytes"):
+        if row.get(key) is not None and (number(row[key]) is None or number(row[key]) < 0):
+            return False
+    # A peak is a JSON number; unlike the timings above, a numeric string does not pass.
+    peak = row.get("peak_mem_mb")
+    if peak is not None and (isinstance(peak, bool) or not isinstance(peak, (int, float))
+                             or number(peak) is None or peak < 0):
+        return False
+    # A count can be unknown (null): 1,240 of one machine's 2,935 exported runs, 19 of them reviewed, had a
+    # Codex token count the rollout never gave, and were all dropped.
+    tokens = row.get("tokens")
+    if tokens is not None and (not isinstance(tokens, dict) or any(
+            value is not None and (number(value) is None or number(value) < 0) for value in tokens.values())):
+        return False
+    review_data = row.get("review")
+    if review_data is not None:
+        if not isinstance(review_data, dict) or review_data.get("outcome") not in OUTCOMES:
+            return False
+        if any(review_data.get(key) is not None and not isinstance(review_data[key], str)
+               for key in ("note", "reviewed_at")):
+            return False
+        minutes = review_data.get("fix_minutes")
+        if minutes is not None and (number(minutes) is None or number(minutes) < 0):
+            return False
+    return True
+
+
+def load_data(state, catalog=None):
+    """Attribute local waves before adding remote runs and their supplied shares."""
+    runs, _, malformed = load_runs(state)
+    if catalog is not None:
+        for run in runs.values():
+            if run.get("lane") in catalog["lanes"]:
+                run["provider"] = catalog["lanes"][run["lane"]]["provider"]
+    reviews, bad_reviews = latest_reviews(state, runs)
+    # The recorded plans place unlabelled runs on window epochs; the live plan only steers pricing (gather_context).
+    plans = current_plans(catalog, runs, {}) if catalog is not None else None
+    attributed, waves = attribute_usage(runs, catalog, plans)
+    malformed += bad_reviews
+    imported_dir = os.path.join(state, "imported")
+    if os.path.isdir(imported_dir):
+        for name in sorted(os.listdir(imported_dir)):
+            if not name.endswith(".jsonl"):
+                continue
+            rows, bad = read_jsonl(os.path.join(imported_dir, name))
+            malformed += bad
+            for row in rows:
+                if not valid_import(row):
+                    malformed += 1
+                    continue
+                key = "imported:" + json.dumps([row["machine"], row["run_id"]])
+                run = normalize_record(row, key)
+                if catalog is not None and run.get("lane") in catalog["lanes"]:
+                    run["provider"] = catalog["lanes"][run["lane"]]["provider"]
+                run["_imported"] = True
+                run["usage"] = {"tokens": row.get("tokens"), "list_usd": row.get("list_usd")}
+                runs[key] = run
+                if row.get("review") is not None:
+                    reviews[key] = row["review"]
+                else:
+                    reviews.pop(key, None)
+                amount = number(row.get("attributed_pct"))
+                attributed[key] = {"weekly": amount} if amount is not None else {}
+                waves[key] = set()
+    return runs, reviews, attributed, waves, malformed
+
+
+def run_plan(run):
+    usage = run.get("usage") or {}
+    for side in ("after", "before"):
+        reading = usage.get(side)
+        if isinstance(reading, dict) and isinstance(reading.get("plan"), str) and reading["plan"]:
+            return reading["plan"]
+    return run.get("plan")
+
+
+def epoch_product(settings, plan, when):
+    """The product of the scales of plan's window_epochs that began at or before `when` (None: the base window)."""
+    product = 1.0
+    if when is None or not isinstance(settings, dict):
+        return product
+    for epoch in settings.get("window_epochs") or []:
+        start = parse_time(epoch.get("from"))
+        if epoch.get("plan") == plan and start is not None and start <= when:
+            product *= epoch["scale"]
+    return product
+
+
+def pct_multiplier(settings, plan, when):
+    """The % of plan's weekly window at `when` that one unit of work takes, against a plan_scale 1.0 base window.
+
+    plan_scale is the base windows (before any epoch): Plus 5.8 means a Plus run takes 5.8x the % a Pro Lite run
+    takes. An epoch of scale 2.0 doubles the window, so from then on the same work takes half the %.
+    """
+    scales = settings.get("plan_scale") if isinstance(settings, dict) else None
+    scale = number((scales if isinstance(scales, dict) else {}).get(plan, 1.0))
+    return (1.0 if scale is None else scale) / epoch_product(settings, plan, when)
+
+
+def convert_pct(pct, settings, plan, when, current, now):
+    """A weekly % read on plan's window at `when`, as a % of the current plan's window now.
+
+    pct x (plan_scale[current] / plan_scale[plan]) x (epochs of plan at when / epochs of current at now). None when
+    the source window has no size (a plan_scale of 0).
+    """
+    source = pct_multiplier(settings, plan, when)
+    if pct is None or source <= 0:
+        return None
+    target = pct_multiplier(settings, current, now)
+    # The same window size passes the reading through unchanged (no 0.2 x 5.8 / 5.8 rounding).
+    return pct if target == source else pct * target / source
+
+
+def current_share(run, pct, provider, catalog, plans, now):
+    # A run without a plan ran on the current plan; one without a time ran now (as recency_weight takes it).
+    settings = catalog["providers"].get(provider)
+    current = plans.get(provider)
+    return convert_pct(pct, settings, run_plan(run) or current, run_time(run) or now, current, now)
+
+
+def window_keyer(catalog, provider, plans):
+    """window_of for allocate_wave: the epoch product of a run's plan at a reading time, or None with no epochs."""
+    providers = catalog.get("providers") if isinstance(catalog, dict) else None
+    settings = providers.get(provider) if isinstance(providers, dict) else None
+    if not isinstance(settings, dict) or not settings.get("window_epochs"):
+        return None
+    current = (plans or {}).get(provider)
+    return lambda run, when: epoch_product(settings, run_plan(run) or current, when)
+
+
+def weeks_per_month(catalog):
+    value = catalog["explore"].get("weeks_per_month")
+    return value if positive_number(value) else WEEKS_PER_MONTH
+
+
+def usd_per_pct(catalog, provider, plan):
+    """Plan dollars per 1% of the provider's weekly window on plan, or None when the plan has no price."""
+    settings = catalog["providers"].get(provider)
+    prices = settings.get("plan_prices") if isinstance(settings, dict) else None
+    price = prices.get(plan) if isinstance(prices, dict) and plan is not None else None
+    if not isinstance(price, dict) or not positive_number(price.get("usd_per_month")):
+        return None
+    return price["usd_per_month"] / weeks_per_month(catalog) / 100.0
+
+
+def point_rates(catalog, plans):
+    """Points per 1% of each provider's current weekly window, points per Claude-%, and whether points are dollars.
+
+    Points are plan dollars when Claude's current plan has a price: a priced plan pays its own dollars per 1%
+    (usd_per_month / weeks_per_month / 100); a provider or plan without one pays scarcity x Claude's dollars per
+    1%. review_points and fix_points_per_minute are in Claude-% and convert at Claude's dollars per 1%. With no
+    Claude price there is no dollar rate for those terms, so every term stays in Claude-% (share x scarcity).
+    """
+    claude = usd_per_pct(catalog, "claude", plans.get("claude")) if "claude" in catalog["providers"] else None
+    per_claude_pct = 1.0 if claude is None else claude
+    rates = {}
+    for provider, settings in catalog["providers"].items():
+        # Without Claude's price every provider falls back to scarcity x 1, in Claude-%, even one with its own price.
+        # That is on purpose: review and fix minutes are priced in Claude-%, so every term must share Claude's unit.
+        priced = usd_per_pct(catalog, provider, plans.get(provider)) if claude is not None else None
+        rates[provider] = priced if priced is not None else settings["scarcity"] * per_claude_pct
+    return rates, per_claude_pct, claude is not None
+
+
+def export_record(run, review_data, attributed):
+    row = {key: run.get(key) for key in FIELDS + (
+        "pick_id", "arm", "started_at", "ended_at", "duration_s", "verdict", "eta_s", "peak_mem_mb")}
+    usage = run.get("usage") or {}
+    row.update({"machine": machine_name(), "run_id": os.path.basename(os.path.normpath(run["run_dir"])),
+                "plan": run_plan(run), "tokens": usage.get("tokens"), "list_usd": usage.get("list_usd"),
+                "attributed_pct": attributed.get("weekly"), "brief_bytes": run_brief_bytes(run), "review": None})
+    if review_data is not None:
+        row["review"] = {key: review_data.get(key) for key in ("outcome", "fix_minutes", "note", "reviewed_at")}
+    return row
+
+
+def export_runs(args):
+    state = state_dir()
+    runs, _, _ = load_runs(state)
+    reviews, _ = latest_reviews(state, runs)
+    # attributed_pct is exported as the meter read it (a % of the window then); the importing machine converts it
+    # by the row's plan and started_at. The catalog's window epochs drop the waves that straddle one, so without a
+    # valid catalog an export would carry those waves unskipped: stop instead.
+    try:
+        catalog = load_catalog()
+    except ValueError as exc:
+        raise ValueError("export stopped, so no wave straddling a window epoch goes out unskipped: {}".format(exc))
+    attributed, _ = attribute_usage(runs, catalog, current_plans(catalog, runs, {}))
+    rows = [export_record(run, reviews.get(key), attributed.get(key, {}))
+            for key, run in selected_runs(runs, args.since).items()]
+    content = "".join(json.dumps(row, ensure_ascii=False, allow_nan=False) + "\n" for row in rows)
+    if args.out:
+        with open(args.out, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(content)
+    else:
+        print(content, end="")
+    return 0
+
+
+def import_runs(args):
+    if not os.path.isfile(args.file):
+        raise ValueError("import file does not exist")
+    rows, skipped = read_jsonl(args.file)
+    if any(row.get("machine") == machine_name() for row in rows):
+        raise ValueError("refusing import from this machine ({})".format(machine_name()))
+    machines = {}
+    for row in rows:
+        if not valid_import(row):
+            skipped += 1
+            continue
+        # Reuse the export allowlist so remote records cannot introduce local paths.
+        run = dict(row, run_dir=row["run_id"], usage={"tokens": row.get("tokens"), "list_usd": row.get("list_usd")})
+        clean = export_record(run, row.get("review"), {"weekly": row.get("attributed_pct")})
+        clean.update({"machine": row["machine"], "run_id": row["run_id"]})
+        machines.setdefault(row["machine"], {})[row["run_id"]] = clean
+    directory = os.path.join(state_dir(), "imported")
+    os.makedirs(directory, exist_ok=True)
+    for machine, records in machines.items():
+        with open(os.path.join(directory, machine + ".jsonl"), "w", encoding="utf-8", newline="\n") as stream:
+            for row in records.values():
+                stream.write(json.dumps(row, ensure_ascii=False, allow_nan=False) + "\n")
+    print("imported {} runs from {} machines; skipped {} invalid lines".format(
+        sum(len(records) for records in machines.values()), len(machines), skipped))
+    return 0
+
+
+def usage_status_script():
+    # bin/usage-status is a bash wrapper on Windows, which python cannot run, so the .py sibling goes first.
+    script = os.path.join(os.path.dirname(os.path.realpath(__file__)), "usage-status.py")
+    return script if os.path.isfile(script) else script[:-3]
+
+
+def read_live_usage(no_usage=False):
+    if no_usage:
+        return {}
+    try:
+        result = subprocess.run([sys.executable, usage_status_script(), "--json"],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                encoding="utf-8", timeout=20, check=False)
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            if isinstance(data, dict):
+                return data
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        pass
+    return {}
+
+
+def provider_reading(provider, live, now):
+    """(weekly used %, projected % at reset, 5h used %) from usage-status JSON; a value is None without a reading."""
+    weekly, short = None, None
+    data = live.get("agy" if provider == "gemini" else provider)
+    data = data if isinstance(data, dict) else {}
+    windows = data.get("windows")
+    if provider == "claude" and isinstance(windows, dict):
+        weekly = windows.get("seven_day")
+        short = windows.get("five_hour")
+    elif provider == "codex" and isinstance(windows, list):
+        weekly = next((item for item in windows if isinstance(item, dict) and item.get("label") == "weekly"), None)
+        short = next((item for item in windows if isinstance(item, dict) and item.get("label") == "5h"), None)
+    elif provider == "gemini" and isinstance(data.get("buckets"), list):
+        weekly = next((item for item in data["buckets"] if isinstance(item, dict)
+                       and item.get("id") == "gemini-weekly"), None)
+        short = next((item for item in data["buckets"] if isinstance(item, dict)
+                      and item.get("id") == "gemini-5h"), None)
+    weekly = weekly if isinstance(weekly, dict) else {}
+    short = short if isinstance(short, dict) else {}
+    field = "used_percent" if provider == "codex" else "used_percentage"
+    used, short_used = number(weekly.get(field)), number(short.get(field))
+    reset = parse_time(weekly.get("reset_time" if provider == "gemini" else "resets_at"))
+    projected = None
+    if used is not None and reset is not None:
+        elapsed = min(1.0, max(0.05, 1.0 - (reset - now).total_seconds() / (7 * 86400.0)))
+        projected = used / elapsed
+    return used, projected, short_used
+
+
+def provider_mode(provider, live, config, now, setting=None):
+    setting = mode_setting(config) if setting is None else setting
+    if setting != "auto":
+        return setting
+    return projected_mode(provider_reading(provider, live, now)[1], config)
+
+
+def provider_mode_until(provider, live):
+    """The UTC reset of the weekly reading used for a provider's mode, or None without that reading."""
+    data = live.get("agy" if provider == "gemini" else provider)
+    data = data if isinstance(data, dict) else {}
+    windows = data.get("windows")
+    if provider == "claude" and isinstance(windows, dict):
+        weekly = windows.get("seven_day")
+    elif provider == "codex" and isinstance(windows, list):
+        weekly = next((item for item in windows if isinstance(item, dict) and item.get("label") == "weekly"), None)
+    elif provider == "gemini" and isinstance(data.get("buckets"), list):
+        weekly = next((item for item in data["buckets"] if isinstance(item, dict)
+                       and item.get("id") == "gemini-weekly"), None)
+    else:
+        weekly = None
+    weekly = weekly if isinstance(weekly, dict) else {}
+    field = "used_percent" if provider == "codex" else "used_percentage"
+    reset = parse_time(weekly.get("reset_time" if provider == "gemini" else "resets_at"))
+    if number(weekly.get(field)) is None or reset is None:
+        return None
+    return reset.astimezone(datetime.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def provider_pace(provider, live, config, now, setting=None):
+    used, _, short_used = provider_reading(provider, live, now)
+    excluded = ((used is not None and used >= config["exclude_weekly_pct"])
+                or (short_used is not None and short_used >= config["exclude_5h_pct"])
+                or (provider == "claude" and used is not None and used >= config["claude_guard_pct"]))
+    usage_mode = provider_mode(provider, live, config, now, setting)
+    # The factor follows the provider's usage mode; pace.low_pct and pace.high_pct stay in the catalog, unused.
+    factor = {"utilization": config["pace"]["low_factor"], "saving": config["pace"]["high_factor"]}.get(usage_mode, 1.0)
+    return factor, bool(excluded)
+
+
+def recency_weight(run, config, now):
+    ended = parse_time(run.get("ended_at")) or parse_time(run.get("started_at"))
+    age = (now - ended).total_seconds() / 86400.0 if ended is not None else 0.0
+    return 0.5 ** (age / config["half_life_days"])
+
+
+def current_plans(catalog, runs, live):
+    plans = {}
+    for provider, settings in catalog["providers"].items():
+        candidates = [run for run in runs.values() if run.get("provider") == provider and run_plan(run)]
+        candidates.sort(key=lambda run: parse_time(run.get("ended_at")) or parse_time(run.get("started_at"))
+                        or datetime.datetime.min.replace(tzinfo=datetime.timezone.utc))
+        plan = run_plan(candidates[-1]) if candidates else settings.get("prior_plan")
+        codex = live.get("codex")
+        if provider == "codex" and isinstance(codex, dict) and codex.get("plan_type"):
+            plan = codex["plan_type"]
+        plans[provider] = plan
+    return plans
+
+
+def on_plan(run, plan):
+    return not run_plan(run) or run_plan(run) == plan
+
+
+def calibrated_rates(state, runs, catalog, plans, now=None):
+    """% of today's weekly window per unit of run weight, from claude-calibration.json and from local waves."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    rates = {}
+    try:
+        with open(os.path.join(state, "claude-calibration.json"), "r", encoding="utf-8") as stream:
+            calibration = json.load(stream)
+        rate = number(calibration.get("pct_per_usd")) if isinstance(calibration, dict) else None
+        if rate is not None and rate >= 0:
+            rates["claude"] = rate
+    except (OSError, ValueError):
+        pass
+    for provider in ("codex", "gemini"):
+        if provider not in catalog["providers"]:
+            continue
+        local = [run for run in runs.values() if run.get("provider") == provider and not run.get("_imported")]
+        shares, members = allocate_wave(local, "weekly", provider, window_keyer(catalog, provider, plans))
+        waves = {}
+        for run in local:
+            key = canonical(run["run_dir"])
+            if key in members:
+                waves.setdefault(members[key], []).append((run, shares[key]))
+        read, deltas, weights = [], [], []
+        for wave in waves.values():
+            values = [weight_for(run, provider) for run, _ in wave]
+            converted = [current_share(run, share, provider, catalog, plans, now) for run, share in wave]
+            if (any(not on_plan(run, plans[provider]) for run, _ in wave)
+                    or any(value is None or value < 0 for value in values) or sum(values) <= 0
+                    or any(value is None for value in converted)):
+                continue
+            read.append(sum(share for _, share in wave))
+            deltas.append(sum(converted))
+            weights.append(sum(values))
+        # The 2-point floor is on the meter's own readings, which move in whole percents; the rate is of today's
+        # window, so a wave from before a window epoch counts at today's size.
+        if len(deltas) >= 3 and sum(read) >= 2:
+            rates[provider] = sum(deltas) / sum(weights)
+    return rates
+
+
+def bench_pct_week(arm, class_name, catalog, plan, now=None):
+    # Our suite's measured share of the week per run; the class being picked wins over the mean of the others.
+    provider = catalog["lanes"][arm["lane"]]["provider"]
+    settings = catalog["providers"][provider]
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    blocks = {name: block for name, block in (arm.get("measured") or {}).items()
+              if isinstance(block, dict) and number(block.get("pct_week")) is not None}
+    if not blocks:
+        return None
+    chosen = [blocks[class_name]] if class_name in blocks else list(blocks.values())
+    values = []
+    for block in chosen:
+        # lane-bench divides a run's credits (Claude: list $) by window.weekly_credits, the base window, so a block
+        # is a share of its plan's base window whatever its date, and today's epochs apply on top. A block without
+        # a plan was measured on the current plan.
+        value = convert_pct(number(block["pct_week"]), settings, block.get("plan") or plan, None, plan, now)
+        if value is not None:
+            values.append(value)
+    return statistics.mean(values) if values else None
+
+
+def fable_factor(run, catalog):
+    """A fable run's weekly weight against the Opus-heavy calibrated Claude rate: fable / opus from
+    providers.claude.window.model_weight_week. Any other run, or a missing or non-positive weight, counts as 1."""
+    if run.get("lane") != "fable":
+        return 1.0
+    window = catalog["providers"].get("claude", {}).get("window")
+    weights = window.get("model_weight_week") if isinstance(window, dict) else None
+    weights = weights if isinstance(weights, dict) else {}
+    fable, opus = number(weights.get("fable")), number(weights.get("opus"))
+    return fable / opus if fable is not None and opus is not None and fable > 0 and opus > 0 else 1.0
+
+
+def arm_cost(arm, history, attributed, catalog, plans, rates, now, class_name=None):
+    """An arm's % of today's weekly window per run on the current plan, and the tier it came from."""
+    provider = catalog["lanes"][arm["lane"]]["provider"]
+    plan = plans[provider]
+    measured = []
+    for key, run in history:
+        if "weekly" in attributed.get(key, {}) and on_plan(run, plan):
+            share = current_share(run, attributed[key]["weekly"], provider, catalog, plans, now)
+            if share is not None:
+                measured.append((share, recency_weight(run, catalog["explore"], now)))
+    if len(measured) >= 2 and sum(weight for _, weight in measured) > 0:
+        return sum(value * weight for value, weight in measured) / sum(weight for _, weight in measured), "measured"
+    bench = bench_pct_week(arm, class_name, catalog, plan, now)
+    if bench is not None:
+        return bench, "bench"
+    weights = []
+    for _, run in history:
+        value = weight_for(run, provider)
+        if value is not None and value >= 0:
+            weights.append(value * fable_factor(run, catalog))
+    if provider in rates and weights:
+        return statistics.mean(weights) * rates[provider], "calibrated"
+    # prior_pct is a share of prior_plan's base window (a plan_scale 1.0 plan when there is no prior_plan).
+    settings = catalog["providers"][provider]
+    prior_plan = settings.get("prior_plan")
+    prior = convert_pct(arm["prior_pct"], settings, prior_plan, None, plan, now) if prior_plan else None
+    if prior is None:
+        prior = arm["prior_pct"] * pct_multiplier(settings, plan, now)
+    return prior, "prior"
+
+
+def model_context(args, class_name=None):
+    return context_for_class(gather_context(args), class_name)
+
+
+def gather_context(args):
+    catalog = load_catalog()
+    state = state_dir()
+    runs, reviews, attributed, _, _ = load_data(state, catalog)
+    live = read_live_usage(getattr(args, "no_usage", False))
+    now = datetime.datetime.now(datetime.timezone.utc)
+    config = catalog["explore"]
+    plans = current_plans(catalog, runs, live)
+    rates = calibrated_rates(state, runs, catalog, plans, now)
+    point_rate, per_claude_pct, _ = point_rates(catalog, plans)
+    # Keep complete waves for calibration, even when the review horizon is shorter.
+    all_runs = runs
+    runs = selected_runs(runs, getattr(args, "since", None))
+    setting = mode_setting(config)
+    pace = {provider: provider_pace(provider, live, config, now, setting) for provider in catalog["providers"]}
+    histories = {arm_id(arm): [] for arm in catalog["arms"]}
+    off_catalog = {}
+    for key, run in runs.items():
+        identity = match_arm(run, catalog)
+        if identity is not None:
+            histories[identity].append((key, run))
+        else:
+            identity = arm_key(run)
+            off_catalog[identity] = off_catalog.get(identity, 0) + 1
+    return {"catalog": catalog, "reviews": reviews, "attributed": attributed, "plans": plans, "rates": rates,
+            "histories": histories, "off_catalog": off_catalog, "pace": pace, "now": now, "runs": all_runs,
+            "point_rates": point_rate, "per_claude_pct": per_claude_pct, "live": live, "setting": setting}
+
+
+def context_for_class(base, class_name=None):
+    catalog, now = base["catalog"], base["now"]
+    config, reviews, histories, pace = catalog["explore"], base["reviews"], base["histories"], base["pace"]
+    absent = absent_providers(catalog)
+    stats = []
+    for arm in catalog["arms"]:
+        identity = arm_id(arm)
+        history = histories[identity]
+        reviewed = [(run, reviews[key]) for key, run in history if key in reviews]
+        provider = catalog["lanes"][arm["lane"]]["provider"]
+        cost, tier = arm_cost(arm, history, base["attributed"], catalog, base["plans"], base["rates"], now, class_name)
+        fixed = [review_data for _, review_data in reviewed if review_data["outcome"] == "fixed"]
+        minutes = [number(review_data.get("fix_minutes")) for review_data in fixed]
+        minutes = [value for value in minutes if value is not None]
+        # Plan dollars (see point_rates): the run's share of today's window at its plan's price, paced by the usage
+        # mode; review_points and fix_points_per_minute are Claude-% and convert at Claude's dollars per 1%.
+        per_claude_pct = base["per_claude_pct"]
+        fix_cost = (len(fixed) / len(reviewed) * (statistics.mean(minutes) if minutes else 0)
+                    * config["fix_points_per_minute"] * per_claude_pct) if reviewed else 0
+        points = (cost * base["point_rates"][provider] * pace[provider][0]
+                  + config["review_points"] * per_claude_pct + fix_cost)
+        stats.append({"arm": identity, "entry": arm, "provider": provider, "history": history,
+                      "reviews": reviewed, "reviewed_all": len(reviewed), "cost": cost, "tier": tier,
+                      "points": points, "excluded": pace[provider][1] or provider in absent})
+    return {"catalog": catalog, "stats": stats, "off_catalog": base["off_catalog"], "now": now, "runs": base["runs"]}
+
+
+def posterior(stat, class_name, config, now):
+    success, failure, class_success, class_failure, count = 0.0, 0.0, 0.0, 0.0, 0
+    for run, review_data in stat["reviews"]:
+        weight = recency_weight(run, config, now)
+        usable = review_data["outcome"] in ("accepted", "fixed")
+        success += weight * usable
+        failure += weight * (not usable)
+        if run.get("class") == class_name:
+            class_success += weight * usable
+            class_failure += weight * (not usable)
+            count += 1
+    block = (stat["entry"].get("measured") or {}).get(class_name)
+    if block is not None and block["n"] >= config["measured_min_n"]:
+        weight, prior, shrink = config["measured_weight"], block["usable"], config["measured_shrink"]
+    else:
+        weight, prior, shrink = 2, stat["entry"]["prior_usable"], config["shrink"]
+    pooled = (success + weight * prior) / (success + failure + weight)
+    alpha = 0.5 + shrink * pooled + class_success
+    beta = 0.5 + shrink * (1 - pooled) + class_failure
+    return alpha, beta, count
+
+
+def eligible_arms(context, class_name, exclude="", place=None):
+    return eligible_draw(context, class_name, exclude, place)[0]
+
+
+def eligible_draw(context, class_name, exclude="", place=None):
+    """The arms every draw may pick, and {lane: places} for lanes dropped for their place.
+
+    Only arms whose lane runs in an allowed place (or in --place, when given) are returned, so forced, floor and
+    Thompson draws all see the same set."""
+    catalog = context["catalog"]
+    if class_name not in catalog["explore"]["targets"]:
+        raise ValueError("unknown class: {}".format(class_name))
+    excluded = {value.strip() for value in exclude.split(",") if value.strip()}
+    # A misspelt name (gemni) would otherwise exclude nothing and leave the lane it meant drawn.
+    unknown = sorted(excluded - set(catalog["lanes"]))
+    if unknown:
+        raise ValueError("unknown lane in --exclude: {} (lanes: {})".format(
+            ", ".join(unknown), ", ".join(sorted(catalog["lanes"]))))
+    allowed = allowed_places(catalog)
+    if place is not None:
+        check_place(place, allowed)
+    wanted = [place] if place is not None else allowed
+    rows, skipped = [], {}
+    for stat in context["stats"]:
+        arm = stat["entry"]
+        if (arm["status"] != "active" or class_name not in arm["classes"]
+                or arm["lane"] in excluded or stat["excluded"]):
+            continue
+        places = lane_places(catalog, arm["lane"])
+        if not any(name in wanted for name in places):
+            skipped[arm["lane"]] = places
+            continue
+        row = dict(stat)
+        alpha, beta, reviewed = posterior(stat, class_name, catalog["explore"], context["now"])
+        row.update({"alpha": alpha, "beta": beta, "mean_usable": alpha / (alpha + beta), "reviewed": reviewed})
+        rows.append(row)
+    return rows, skipped
+
+
+def thompson_choice(rows, target, rng):
+    samples = [(row, rng.betavariate(row["alpha"], row["beta"])) for row in rows]
+    candidates = [(row, probability) for row, probability in samples if probability >= target]
+    if candidates:
+        return min(candidates, key=lambda item: item[0]["points"] / max(item[1], 1e-300))[0]
+    return max(samples, key=lambda item: item[1])[0]
+
+
+def weighted_choice(rows, rng):
+    weights = [row["entry"]["weight"] / math.sqrt(max(row["points"], 1e-300)) for row in rows]
+    return rng.choices(rows, weights=weights if any(weights) else None, k=1)[0]
+
+
+def choose_arm(rows, config, class_name, rng):
+    forced = [row for row in rows if row["reviewed_all"] < config["min_runs"]]
+    if forced:
+        return weighted_choice(forced, rng), "forced"
+    if rng.random() < config["floor"]:
+        return weighted_choice(rows, rng), "floor"
+    return thompson_choice(rows, config["targets"][class_name], rng), "thompson"
+
+
+def run_place(lane, catalog, allowed, place):
+    """The place a run line names: --place when given; else process when the lane runs there; else its first
+    allowed place in PLACES order (so a machine that allows only cloud and subagent gets --subagent, not nothing)."""
+    if place is not None:
+        return place
+    options = [name for name in lane_places(catalog, lane) if name in allowed]
+    return "process" if "process" in options else options[0]
+
+
+def run_line(row, args, catalog, pick_id, place):
+    arm = row["entry"]
+    flag = PLACE_FLAGS[place]
+    parts = ["lane", shlex.quote(arm["lane"])] + ([flag] if flag else [])
+    parts += ["-C", shlex.quote(args.dir) if args.dir else "<DIR>",
+              "-b", shlex.quote(args.brief) if args.brief else "<BRIEF>"]
+    if arm["model"] != catalog["lanes"][arm["lane"]]["model"]:
+        parts.extend(["-m", shlex.quote(arm["model"])])
+    if arm["lane"] != "gemini" and arm["effort"] != "*":
+        parts.extend(["-e", shlex.quote(arm["effort"])])
+    parts.extend(["--class", shlex.quote(args.class_name), "--pick", pick_id])
+    if args.pair:
+        parts.extend(["--tag", "pair-" + pick_id[-4:]])
+    return " ".join(parts)
+
+
+def points_text(value):
+    # In plan dollars cheap arms differ in the fourth decimal (luna medium 0.0047 against luna max 0.0049).
+    if value < 0.01:
+        return "{:.4f}".format(value)
+    return "{:.3f}".format(value) if value < 0.1 else "{:.2f}".format(value)
+
+
+def time_config(catalog):
+    block = catalog["explore"].get("time")
+    block = block if isinstance(block, dict) else {}
+    return {key: block.get(key, default) for key, default in TIME_DEFAULTS.items()}
+
+
+def time_prior(config, lane, effort, class_name, brief_bytes=None):
+    # An unknown or missing class takes substantive; an unknown effort or lane takes a factor of 1.0.
+    minutes = config["class_minutes"].get(class_name, config["class_minutes"]["substantive"])
+    minutes *= config["effort_factor"].get(effort, 1.0) * config["lane_factor"].get(lane, 1.0)
+    # A longer brief is a bigger unit: on 183 real units the log error rose 0.8 per doubling of the brief (FINDINGS §16).
+    if brief_bytes is not None and brief_bytes > 0:
+        minutes *= (max(brief_bytes, 500) / config["brief_ref_bytes"]) ** config["brief_exponent"]
+    return minutes
+
+
+def run_brief_bytes(run):
+    # lane records brief_bytes from 2026-10-29; older local runs still have their brief.md, imported ones may not.
+    value = number(run.get("brief_bytes"))
+    if value is not None and value > 0:
+        return value
+    run_dir = run.get("run_dir")
+    if not run.get("_imported") and isinstance(run_dir, str):
+        try:
+            return os.path.getsize(os.path.join(run_dir, "brief.md")) or None
+        except OSError:
+            return None
+    return None
+
+
+def estimate_eta(runs, catalog, lane, model, effort, class_name, tag, now, brief_bytes=None):
+    """Shrunk log residuals against the prior: machine, then class, arm, and arm x class."""
+    if lane not in catalog["lanes"]:
+        raise ValueError("unknown lane: {}".format(lane))
+    if model is None:
+        model = catalog["lanes"][lane]["model"]
+    config, explore = time_config(catalog), catalog["explore"]
+    tag = tag or None
+    prior_runs = config["prior_runs"]
+    history = []
+    for run in runs.values():
+        duration = number(run.get("duration_s"))
+        if duration is None or duration <= 0:
+            continue
+        # A run that did no finished work says nothing about the task's length: it stopped early or never started.
+        verdict = str(run.get("verdict") or "").upper()
+        if (verdict in ("QUOTA", "BUSY", "NOOP", "FAILED", "SANDBOX", "UNKNOWN", "TIMEOUT")
+                or (run.get("tag") or None) != tag):
+            continue
+        prior = time_prior(config, run.get("lane"), run.get("effort"), run.get("class"), run_brief_bytes(run))
+        history.append({"w": recency_weight(run, explore, now), "r": math.log(max(duration, 3) / 60.0 / prior),
+                        "class": run.get("class"), "arm": (run.get("lane"), run.get("model"), run.get("effort"))})
+
+    def shrunk(pairs):
+        return sum(weight * value for weight, value in pairs) / (sum(weight for weight, _ in pairs) + prior_runs)
+
+    machine = shrunk([(item["w"], item["r"]) for item in history])
+    by_class = {name: shrunk([(item["w"], item["r"] - machine) for item in history if item["class"] == name])
+                for name in {item["class"] for item in history} | {class_name}}
+    arm = (lane, model, effort)
+    arm_runs = [item for item in history if item["arm"] == arm]
+    arm_level = shrunk([(item["w"], item["r"] - machine - by_class[item["class"]]) for item in arm_runs])
+    cell = [item for item in arm_runs if item["class"] == class_name]
+
+    def residual(item):
+        return item["r"] - machine - by_class[class_name] - arm_level
+
+    cell_level = shrunk([(item["w"], residual(item)) for item in cell])
+    minutes = time_prior(config, lane, effort, class_name, brief_bytes) * math.exp(
+        machine + by_class[class_name] + arm_level + cell_level)
+    spread = sum(item["w"] * (residual(item) - cell_level) ** 2 for item in cell)
+    sd = math.sqrt((spread + prior_runs * config["log_sd"] ** 2) / (sum(item["w"] for item in cell) + prior_runs))
+    counts = {"arm_class": len(cell), "arm": len(arm_runs),
+              "class": sum(item["class"] == class_name for item in history), "machine": len(history)}
+    tier = next((name for name, key in TIER_RUNS if counts[key] >= 2), "prior")
+    return {"arm": "/".join(str(part) for part in arm if part is not None), "class": class_name, "tag": tag,
+            "minutes": round(minutes, 2), "p80_minutes": round(minutes * math.exp(0.8416 * sd), 2),
+            "tier": tier, "runs": counts}
+
+
+def eta_figure(minutes):
+    # The one minute format for pick and eta: one decimal under 10, whole minutes under 90, then hours.
+    if minutes < 10:
+        return "{:.1f}".format(minutes)
+    if minutes < 90:
+        return "{:.0f}".format(minutes)
+    return "{:.1f} h".format(minutes / 60.0)
+
+
+def eta_text(minutes):
+    figure = eta_figure(minutes)
+    return figure if figure.endswith(" h") else figure + " min"
+
+
+def eta_summary(estimate):
+    return "eta ~{} (p80 {})".format(eta_text(estimate["minutes"]), eta_figure(estimate["p80_minutes"]))
+
+
+def eta_runs(estimate):
+    key = dict(TIER_RUNS).get(estimate["tier"])
+    return estimate["runs"][key] if key else None
+
+
+def write_json(path, record):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8", newline="\n") as stream:
+        json.dump(record, stream, ensure_ascii=False, allow_nan=False, indent=2)
+        stream.write("\n")
+
+
+PAIR_REFUSAL = ("A pair is a capability test: it runs one unit twice. Run one only after the user approves it, "
+                "and pass --approved \"<who, when>\".")
+
+
+def skipped_text(skipped, place, allowed):
+    names, allowed_text = ", ".join(skipped), ", ".join(allowed)
+    if place is not None:
+        return "skipped {}: they do not run in place {} (allowed places: {})".format(names, place, allowed_text)
+    return "skipped {}: they run in none of the allowed places ({})".format(names, allowed_text)
+
+
+def pick(args):
+    approved = (args.approved or "").strip()
+    if args.pair and not approved:
+        raise ValueError(PAIR_REFUSAL)
+    if approved and not args.pair:
+        raise ValueError("--approved applies to --pair only")
+    context = model_context(args, args.class_name)
+    catalog = context["catalog"]
+    rows, skipped = eligible_draw(context, args.class_name, ",".join(args.exclude), args.place)
+    allowed = allowed_places(catalog)
+    if not rows:
+        where = " in place {}".format(args.place) if args.place is not None else ""
+        raise ValueError("no eligible arms for {}{} (allowed places: {})".format(
+            args.class_name, where, ", ".join(allowed)))
+    rng = random.Random(args.seed)
+    first, mode = choose_arm(rows, catalog["explore"], args.class_name, rng)
+    chosen = [first]
+    if args.pair:
+        others = [row for row in rows if row["entry"]["lane"] != first["entry"]["lane"]]
+        other_providers = [row for row in others if row["provider"] != first["provider"]]
+        if not others:
+            raise ValueError("pair requires two eligible lanes")
+        second, _ = choose_arm(other_providers or others, catalog["explore"], args.class_name, rng)
+        chosen.append(second)
+        mode = "pair"
+    # Time is shown and logged only: it is computed after the arms are chosen and never changes the choice.
+    etas = [estimate_eta(context["runs"], catalog, row["entry"]["lane"], row["entry"]["model"],
+                         row["entry"]["effort"], args.class_name, None, context["now"], brief_size(args.brief))
+            for row in chosen]
+    pick_id = "p-{}-{:04x}".format(context["now"].strftime("%Y%m%d-%H%M%S"), rng.getrandbits(16))
+    top = sorted(rows, key=lambda row: row["points"] / row["mean_usable"])[:5]
+    record = {"pick_id": pick_id, "at": context["now"].isoformat(timespec="seconds").replace("+00:00", "Z"),
+              "class": args.class_name, "mode": mode, "place": args.place, "arms": [row["arm"] for row in chosen],
+              "top": [{key: row[key] for key in ("arm", "points", "mean_usable")} for row in top],
+              "eta": [{key: estimate[key] for key in ("arm", "minutes", "p80_minutes", "tier")} for estimate in etas]}
+    if args.pair:
+        record["approved"] = approved
+    os.makedirs(state_dir(), exist_ok=True)
+    with open(os.path.join(state_dir(), "picks.jsonl"), "a", encoding="utf-8", newline="\n") as stream:
+        stream.write(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
+    lines = [run_line(row, args, catalog, pick_id, run_place(row["entry"]["lane"], catalog, allowed, args.place))
+             for row in chosen]
+    if args.json:
+        payload = dict(record, run_lines=lines)
+        if skipped:
+            payload["skipped_places"] = [{"lane": lane, "places": places} for lane, places in skipped.items()]
+        print(json.dumps(payload, ensure_ascii=False, allow_nan=False))
+    else:
+        print("pick {} class={} mode={}".format(pick_id, args.class_name, mode))
+        if skipped:
+            print(skipped_text(skipped, args.place, allowed))
+        for row, line, estimate in zip(chosen, lines, etas):
+            print("arm  {}  usable~{:.2f} ({} reviewed)  {} pts/run [{}]  {} pts/usable  {}".format(
+                arm_display(row["entry"], catalog), row["mean_usable"], row["reviewed"], points_text(row["points"]),
+                row["tier"], points_text(row["points"] / row["mean_usable"]), eta_summary(estimate)))
+            print("run  " + line)
+    return 0
+
+
+def recommend(args):
+    base = gather_context(args)
+    catalog = base["catalog"]
+    config = catalog["explore"]
+    classes = [args.class_name] if args.class_name else list(config["targets"])
+    rng = random.Random(args.seed)
+    record = {"updated_at": iso_now(), "classes": {}}
+    for class_name in classes:
+        context = context_for_class(base, class_name)
+        rows = eligible_arms(context, class_name)
+        if not rows:
+            record["classes"][class_name] = {"status": "exploring", "leader": None, "p_best": 0.0,
+                                              "reviewed": 0, "arms": []}
+            if not args.json:
+                print("{}: exploring (no eligible arms)".format(class_name))
+            continue
+        wins = {row["arm"]: 0 for row in rows}
+        for _ in range(args.draws):
+            wins[thompson_choice(rows, config["targets"][class_name], rng)["arm"]] += 1
+        for row in rows:
+            row["p_best"] = wins[row["arm"]] / args.draws
+        rows.sort(key=lambda row: -row["p_best"])
+        leader = rows[0]
+        status = "exploring"
+        for candidate in ("locked", "leaning"):
+            if leader["p_best"] >= config["lock"][candidate + "_p"] and leader["reviewed"] >= config["lock"][candidate + "_runs"]:
+                status = candidate
+                break
+        record["classes"][class_name] = {"status": status, "leader": leader["arm"],
+                                          "p_best": leader["p_best"], "reviewed": leader["reviewed"],
+                                          "arms": [{key: row[key] for key in (
+                                              "arm", "p_best", "mean_usable", "points")} for row in rows]}
+        if not args.json:
+            print("{}: {} {} (P(best) {:.2f}, {} reviewed)".format(
+                class_name, status, arm_display(leader["entry"], catalog), leader["p_best"], leader["reviewed"]))
+            print("  arm  reviewed  usable%  pts/run  tier  pts/usable  P(best)")
+            for row in rows:
+                print("  {}  {}  {:.1f}%  {}  {}  {}  {:.2f}".format(
+                    arm_display(row["entry"], catalog), row["reviewed"], 100 * row["mean_usable"],
+                    points_text(row["points"]), row["tier"], points_text(row["points"] / row["mean_usable"]), row["p_best"]))
+    write_json(os.path.join(state_dir(), "routing.json"), record)
+    if args.json:
+        print(json.dumps(record, ensure_ascii=False, allow_nan=False))
+    return 0
+
+
+def discover_models(catalog):
+    models = []
+    path = os.path.join(os.path.expanduser(os.environ.get("CODEX_HOME", "~/.codex")), "models_cache.json")
+    try:
+        with open(path, "r", encoding="utf-8") as stream:
+            cache = json.load(stream)
+        if isinstance(cache, dict) and isinstance(cache.get("models"), list):
+            for item in cache["models"]:
+                # Hidden entries (codex-auto-review, gpt-reserve) serve Codex itself; nothing routes work to them.
+                if (not isinstance(item, dict) or not isinstance(item.get("slug"), str) or not item["slug"]
+                        or item.get("visibility") == "hide"):
+                    continue
+                levels = item.get("supported_reasoning_levels")
+                efforts = {level.get("effort") for level in levels if isinstance(level, dict)} if isinstance(
+                    levels, list) else set()
+                note = item.get("description") if isinstance(item.get("description"), str) else None
+                models.append(("codex", item["slug"], efforts, note))
+    except (OSError, ValueError):
+        pass
+    try:
+        result = subprocess.run(["agy", "models"], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                text=True, encoding="utf-8", timeout=20, check=False)
+        if result.returncode == 0:
+            # agy prints "<id>\t<display name>": the id is the model, and a line with spaces in it is not one.
+            for line in result.stdout.splitlines():
+                model = line.split("\t", 1)[0].strip()
+                if model and not any(char.isspace() for char in model):
+                    models.append(("gemini", model, set(), None))
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        pass
+    known = {arm["model"] for arm in catalog["arms"]}
+    rate_card = catalog["providers"].get("codex", {}).get("rate_card") or {}
+    discovered, seen = [], set()
+    for provider, model, efforts, note in models:
+        if model in known or (provider, model) in seen:
+            continue
+        seen.add((provider, model))
+        # A model joins the lane its family names (gpt-5.6-terra to terra). A family no lane names needs a new
+        # lane, with its own price, which only a kit release adds; filing it under another lane misprices it.
+        words = model.lower().replace(".", "-").replace("_", "-").replace("/", "-").split("-")
+        lane = next((name for name, settings in catalog["lanes"].items()
+                     if settings["provider"] == provider and name in words), None)
+        templates = [arm for arm in catalog["arms"] if arm["lane"] == lane and arm["status"] == "active"]
+        effort = None
+        if provider == "gemini" and templates:
+            # agy names the effort in the id (gemini-3.8-flash-high): one arm, copied from the arm of that effort.
+            effort = words[-1] if words[-1] in ("low", "medium", "high", "xhigh", "max") else None
+            templates = [next((arm for arm in templates if arm["effort"] == effort), templates[0])]
+        elif efforts:
+            templates = [arm for arm in templates if arm["effort"] in efforts]
+        new_rate = rate_card.get(model) if isinstance(rate_card.get(model), dict) else None
+        arms = []
+        for template in templates:
+            # The predecessor's classes and weight (POLICY, Explore 6), and its cost prior scaled by output price.
+            prior_pct = template["prior_pct"]
+            old_rate = rate_card.get(template["model"])
+            if new_rate and isinstance(old_rate, dict) and number(old_rate.get("output")) and number(
+                    new_rate.get("output")) is not None:
+                prior_pct = round(prior_pct * number(new_rate["output"]) / number(old_rate["output"]), 4)
+            arms.append({"lane": lane, "model": model, "effort": effort or template["effort"], "status": "manual",
+                         "classes": list(template["classes"]), "weight": template["weight"],
+                         "prior_pct": prior_pct, "prior_usable": template["prior_usable"]})
+        row = {"provider": provider, "model": model, "lane": lane, "note": note,
+               "suggested": {"arms": arms} if arms else None}
+        if provider == "codex":
+            row["priced"] = new_rate is not None
+        discovered.append(row)
+    return discovered
+
+
+def arms(args):
+    context = model_context(args)
+    rows = []
+    for stat in context["stats"]:
+        dates = [parse_time(run.get("ended_at")) or parse_time(run.get("started_at")) for _, run in stat["history"]]
+        dates = [date for date in dates if date is not None]
+        entry = stat["entry"]
+        rows.append({"arm": stat["arm"], "status": entry["status"], "classes": entry["classes"],
+                     "weight": entry["weight"], "reviewed": stat["reviewed_all"],
+                     "last_run": max(dates).date().isoformat() if dates else None,
+                     "points": stat["points"], "tier": stat["tier"]})
+    off_catalog = [dict(zip(("lane", "model", "effort"), identity), count=count)
+                   for identity, count in sorted(context["off_catalog"].items(), key=lambda item: tuple(
+                       str(value or "") for value in item[0]))]
+    discovered = discover_models(context["catalog"]) if args.discover else []
+    if args.json:
+        print(json.dumps({"arms": rows, "off_catalog": off_catalog, "new": discovered},
+                         ensure_ascii=False, allow_nan=False))
+    else:
+        print("arm  status  classes  weight  reviewed  last run  pts/run  tier")
+        for row, stat in zip(rows, context["stats"]):
+            print("{}  {}  {}  {}  {}  {}  {}  {}".format(
+                arm_display(stat["entry"], context["catalog"]), row["status"], ",".join(row["classes"]), row["weight"], row["reviewed"],
+                row["last_run"] or "-", points_text(row["points"]), row["tier"]))
+        for row in off_catalog:
+            print("off-catalog: {}/{}/{} ({} runs)".format(row["lane"], row["model"], row["effort"], row["count"]))
+        for row in discovered:
+            line = "new: {} {}".format(row["provider"], row["model"])
+            if row["note"]:
+                line += " ({})".format(row["note"])
+            if row["lane"] is None:
+                line += "  no lane serves this family; a kit release adds one with its price"
+            elif row["suggested"] is None:
+                line += "  lane {} has no active arm to copy".format(row["lane"])
+            else:
+                line += "  arms.local.json (status manual; set active to explore): {}".format(
+                    json.dumps(row["suggested"], ensure_ascii=False))
+                if row.get("priced") is False:
+                    line += "  no rate card price: lane cannot measure its credits until the kit's arms.json has one"
+            print(line)
+    return 0
+
+
+def brief_size(path):
+    try:
+        return os.path.getsize(os.path.expanduser(path)) or None if path else None
+    except OSError:
+        return None
+
+
+def eta(args):
+    # Reads the ledger and the catalog only: no usage-status call, and nothing is written.
+    catalog = load_catalog()
+    runs, _, _, _, _ = load_data(state_dir(), catalog)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    brief_bytes = args.brief_bytes if args.brief_bytes is not None else brief_size(args.brief)
+    if args.lane is None:
+        if args.class_name is None:
+            raise ValueError("eta needs --lane, or --class to list arms")
+        if args.model or args.effort:
+            raise ValueError("--model and --effort need --lane")
+        absent = absent_providers(catalog)
+        arms_for_class = [arm for arm in catalog["arms"]
+                          if arm["status"] == "active" and args.class_name in arm["classes"]
+                          and catalog["lanes"][arm["lane"]]["provider"] not in absent]
+        estimates = [estimate_eta(runs, catalog, arm["lane"], arm["model"], arm["effort"], args.class_name,
+                                  args.tag, now, brief_bytes) for arm in arms_for_class]
+        estimates.sort(key=lambda estimate: estimate["minutes"])
+        if args.json:
+            print(json.dumps({"class": args.class_name, "tag": args.tag or None, "arms": estimates},
+                             ensure_ascii=False, allow_nan=False))
+        else:
+            print_table(["arm", "eta_min", "p80_min", "tier", "runs"],
+                        [[estimate["arm"], eta_figure(estimate["minutes"]), eta_figure(estimate["p80_minutes"]),
+                          estimate["tier"], "" if eta_runs(estimate) is None else str(eta_runs(estimate))]
+                         for estimate in estimates])
+        return 0
+    # No --effort is allowed: a Claude lane run without -e has none, and its prior then takes a factor of 1.0.
+    estimate = estimate_eta(runs, catalog, args.lane, args.model, args.effort, args.class_name, args.tag, now,
+                            brief_bytes)
+    if args.json:
+        print(json.dumps(estimate, ensure_ascii=False, allow_nan=False))
+    else:
+        count = eta_runs(estimate)
+        label = estimate["tier"] if count is None else "{}: {} runs".format(estimate["tier"], count)
+        print("{} [{}]".format(eta_summary(estimate), label))
+    return 0
+
+
+def advisor(args):
+    """The fable advisor's switch, its budget use over the last 7 days, and how each role's runs went."""
+    catalog = load_catalog()
+    config = catalog["explore"].get("advisor")
+    if not isinstance(config, dict):
+        if args.json:
+            print(json.dumps({"configured": False}))
+        else:
+            print("advisor: not configured")
+        return 0
+    lane = config.get("lane") if isinstance(config.get("lane"), str) and config.get("lane") else "fable"
+    runs, reviews, _, _, _ = load_data(state_dir(), catalog)
+    since = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)
+    members = {key: run for key, run in runs.items() if run.get("lane") == lane}
+    spent = 0.0
+    for run in members.values():
+        started = parse_time(run.get("started_at"))
+        cost = number((run.get("usage") or {}).get("list_usd"))
+        if group_value(run, "role") != "user" and started is not None and started >= since and cost is not None:
+            spent += cost
+    efforts = config.get("roles") if isinstance(config.get("roles"), dict) else {}
+    seen = {group_value(run, "role") for run in members.values()}
+    roles = []
+    for role in list(efforts) + sorted(seen - set(efforts)):
+        mine = {key: run for key, run in members.items() if group_value(run, "role") == role}
+        reviewed = [reviews[key] for key in mine if key in reviews]
+        counts = {name: sum(review.get("outcome") == name for review in reviewed) for name in OUTCOMES}
+        roles.append(dict(
+            role=role, effort=efforts.get(role), runs=len(mine), reviewed=len(reviewed), **counts,
+            usable_rate=(counts["accepted"] + counts["fixed"]) / len(reviewed) if reviewed else None,
+            median_minutes=median([number(run.get("duration_s")) / 60.0 if number(run.get("duration_s")) is not None
+                                   else None for run in mine.values()])))
+    budget = number(config.get("weekly_list_usd"))
+    result = {"configured": True, "lane": lane, "model": config.get("model"), "active": config.get("active") is True,
+              "inactive_reason": config.get("inactive_reason"), "budget": budget, "list_usd_7d": spent,
+              "roles": roles}
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, allow_nan=False))
+        return 0
+    print("advisor: lane {} model {} active {}".format(lane, config.get("model") or "-", "yes" if result["active"] else "no"))
+    if not result["active"] and config.get("inactive_reason"):
+        print("inactive: {}".format(config["inactive_reason"]))
+    used = "${:0.2f}".format(spent)
+    if budget is not None and budget > 0:
+        print("budget: {} of ${:0.2f} list over the last 7 days, roles other than user ({:0.0f}%)".format(
+            used, budget, 100.0 * spent / budget))
+    else:
+        print("budget: {} list over the last 7 days, roles other than user (no weekly_list_usd)".format(used))
+    rate = lambda value: "" if value is None else display_number(100.0 * value) + "%"
+    print_table(["role", "effort", "runs", "reviewed"] + list(OUTCOMES) + ["usable%", "med_min"],
+                [[row["role"], row["effort"] or "", str(row["runs"]), str(row["reviewed"])]
+                 + [str(row[name]) for name in OUTCOMES] + [rate(row["usable_rate"]),
+                                                            display_number(row["median_minutes"])]
+                 for row in roles])
+    return 0
+
+
+def mode(args):
+    catalog = load_catalog()
+    config = catalog["explore"]
+    live = read_live_usage(getattr(args, "no_usage", False))
+    now = datetime.datetime.now(datetime.timezone.utc)
+    setting = mode_setting(config)
+    providers = {}
+    for provider in ("claude", "codex", "gemini"):
+        used, projected, _ = provider_reading(provider, live, now)
+        providers[provider] = {"mode": provider_mode(provider, live, config, now, setting), "used_pct": used,
+                               "projected_pct": None if projected is None else round(projected, 1)}
+    if args.json:
+        print(json.dumps({"setting": setting, "providers": providers}, ensure_ascii=False))
+        return 0
+    for provider, row in providers.items():
+        if setting != "auto":
+            source = "setting " + setting
+        elif row["projected_pct"] is None:
+            source = "auto: no reading"
+        else:
+            source = "auto: week {}%, projected {}% at reset".format(display_number(row["used_pct"], 0),
+                                                                     display_number(row["projected_pct"], 0))
+        print("{:<7} {:<12} ({})".format(provider, row["mode"], source))
+    return 0
+
+
+def positive_int(value):
+    try:
+        result = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("must be an integer")
+    if result < 1:
+        raise argparse.ArgumentTypeError("must be at least 1")
+    return result
+
+
+def nonnegative_int(value):
+    try:
+        result = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("must be an integer")
+    if result < 0:
+        raise argparse.ArgumentTypeError("must be zero or greater")
+    return result
+
+
+def date_arg(value):
+    try:
+        return datetime.date.fromisoformat(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("expected YYYY-MM-DD")
+
+
+# --- Mirror cloud sessions (lane main): absent providers, the pick table, and the import of the main's markers. ---
+
+ORCH_CLASSES = ("mechanical", "substantive", "hard", "design", "review", "research")
+ORCH_NUMBER = r"[0-9]{1,9}(?:\.[0-9]{1,6})?"
+ORCH_COUNT = r"[0-9]{1,12}"
+ORCH_START = re.compile(r"orch: START ([0-9]{8}-[0-9]{6}-main)")
+# The subject is the whole marker: keys in the documented order, no other text, nothing guessed.
+ORCH_REVIEW = re.compile(
+    r"orch: REVIEW (?P<unit>[A-Za-z0-9._-]{1,48}) (?P<outcome>[a-z]{1,12}) arm=(?P<arm>[A-Za-z0-9._/-]{1,200}) "
+    r"class=(?P<cls>[a-z]{1,16}) min=(?P<min>-|" + ORCH_NUMBER + r") "
+    r"tok=(?P<tok>-|(?:-|" + ORCH_COUNT + r")/(?:-|" + ORCH_COUNT + r")) usd=(?P<usd>-|" + ORCH_NUMBER + r")"
+    r"(?: fix=(?P<fix>-|" + ORCH_NUMBER + r"))?(?: via=(?P<via>subagent|local))?")
+ORCH_ARM_PART = re.compile(r"[A-Za-z0-9._-]{1,64}")
+ORCH_BRANCH = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,199}")
+
+
+def plan_override(provider):
+    """The plan the owner declares for a provider: USAGE_OPTIMIZER_PLAN_<PROVIDER>, else plans.json in the config dir.
+
+    None when neither names one. "none" means the owner has no such provider (see absent_providers).
+    """
+    value = os.environ.get("USAGE_OPTIMIZER_PLAN_" + provider.upper())
+    if not (isinstance(value, str) and value.strip()):
+        try:
+            with open(os.path.join(config_dir(), "plans.json"), "r", encoding="utf-8") as stream:
+                data = json.load(stream)
+            value = data.get(provider) if isinstance(data, dict) else None
+        except (OSError, ValueError):
+            value = None
+    return value.strip() if isinstance(value, str) and value.strip() else None
+
+
+def absent_providers(catalog):
+    """Providers the owner has declared absent (plan "none"): the picker offers none of their arms."""
+    return {provider for provider in catalog["providers"]
+            if (plan_override(provider) or "").lower() == "none"}
+
+
+def write_text_atomic(path, text):
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    temp = "{}.tmp-{}".format(path, os.getpid())
+    with open(temp, "w", encoding="utf-8", newline="\n") as stream:
+        stream.write(text)
+    os.replace(temp, path)
+
+
+def whole_shares(counts, draws):
+    """Each count's share of the draws, rounded to 4 places; the largest takes the rounding so the sum is 1."""
+    shares = {name: round(count / draws, 4) for name, count in counts.items()}
+    if shares:
+        largest = max(counts, key=lambda name: counts[name])
+        shares[largest] = round(1.0 - math.fsum(value for name, value in shares.items() if name != largest), 4)
+    return shares
+
+
+def picks_class_block(base, class_name, draws, seed, exclude=""):
+    """One class of picks.json: the arms the picker could choose now, and how often choose_arm chooses each."""
+    catalog = base["catalog"]
+    config = catalog["explore"]
+    context = context_for_class(base, class_name)
+    rows = eligible_arms(context, class_name, exclude)
+    if not rows:
+        return {"status": "exploring", "arms": []}
+    counts = {row["arm"]: 0 for row in rows}
+    rng = random.Random(seed)
+    for _ in range(draws):
+        counts[choose_arm(rows, config, class_name, rng)[0]["arm"]] += 1
+    shares = whole_shares(counts, draws)
+    # The status is recommend's: the leader's P(best) over the same number of draws, and its reviewed runs.
+    wins = {row["arm"]: 0 for row in rows}
+    rng = random.Random(seed)
+    for _ in range(draws):
+        wins[thompson_choice(rows, config["targets"][class_name], rng)["arm"]] += 1
+    leader = max(rows, key=lambda row: wins[row["arm"]])
+    status = "exploring"
+    for candidate in ("locked", "leaning"):
+        if (wins[leader["arm"]] / draws >= config["lock"][candidate + "_p"]
+                and leader["reviewed"] >= config["lock"][candidate + "_runs"]):
+            status = candidate
+            break
+    arms = []
+    for row in rows:
+        entry = row["entry"]
+        in_class = [review_data for run, review_data in row["reviews"] if run.get("class") == class_name]
+        estimate = estimate_eta(context["runs"], catalog, entry["lane"], entry["model"], entry["effort"],
+                                class_name, None, context["now"])
+        arms.append({"arm": row["arm"], "lane": entry["lane"],
+                     "where": "subagent" if row["provider"] == "claude" else "local",
+                     "reviewed": row["reviewed"],
+                     "outcomes": {name: sum(item["outcome"] == name for item in in_class) for name in OUTCOMES},
+                     "usable": round(row["mean_usable"], 3), "points": round(row["points"], 5),
+                     "minutes": round(estimate["minutes"], 1), "p_pick": shares[row["arm"]],
+                     "forced": row["reviewed_all"] < config["min_runs"]})
+    arms.sort(key=lambda item: -item["p_pick"])
+    return {"status": status, "arms": arms}
+
+
+def main_picks(args):
+    """The pick table the mirror reads (picks.json): stats and the picker's own odds, no run ids, paths or notes.
+
+    --exclude leaves lanes out of every class; "excluded" records them, sorted (an empty list when none)."""
+    base = gather_context(args)
+    catalog = base["catalog"]
+    excluded = sorted({value.strip() for item in args.exclude for value in item.split(",") if value.strip()})
+    exclude = ",".join(excluded)
+    absent = absent_providers(catalog)
+    plans = {provider: "none" if provider in absent else (base["plans"].get(provider) or "unknown")
+             for provider in catalog["providers"]}
+    modes = {provider: provider_mode(provider, base.get("live") or {}, catalog["explore"], base["now"],
+                                     base.get("setting"))
+             for provider in catalog["providers"]}
+    modes_until = {provider: provider_mode_until(provider, base.get("live") or {})
+                   for provider in catalog["providers"]}
+    record = {"version": 1, "at": iso_now(), "kit": None, "repo": None, "plans": plans, "modes": modes,
+              "modes_until": modes_until,
+              "excluded": excluded,
+              "classes": {name: picks_class_block(base, name, args.draws, args.seed, exclude)
+                          for name in catalog["explore"]["targets"]}}
+    text = json.dumps(record, ensure_ascii=False, allow_nan=False, indent=2) + "\n"
+    if args.out:
+        write_text_atomic(args.out, text)
+        print("wrote {} ({} arms)".format(args.out, sum(len(block["arms"]) for block in record["classes"].values())))
+    else:
+        sys.stdout.write(text)
+    return 0
+
+
+def orch_git(repo, *argv, timeout=120):
+    env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+    try:
+        return subprocess.run(["git", "-c", "log.showSignature=false", "-C", repo] + list(argv),
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, timeout=timeout, check=False)
+    except subprocess.TimeoutExpired:
+        raise ValueError("git {} timed out".format(argv[0])) from None
+
+
+def orch_commits(repo, branch, fetch):
+    """(sha, committer time, subject) of the marker commits on origin/<branch>, oldest first.
+
+    Only the first-parent line is read, so a commit merged in from another branch cannot forge a marker, and only
+    the subject line is read: a body can neither hide nor fake a marker.
+    """
+    if ORCH_BRANCH.fullmatch(branch) is None or ".." in branch or branch.endswith(("/", ".lock")):
+        raise ValueError("BRANCH is not a plain branch name: {!r}".format(branch))
+    if not os.path.isdir(repo) or orch_git(repo, "rev-parse", "--git-dir").returncode != 0:
+        raise ValueError("REPO is not a git checkout: {}".format(repo))
+    ref = "refs/remotes/origin/" + branch
+    if fetch:
+        result = orch_git(repo, "fetch", "--quiet", "--no-tags", "origin", "+refs/heads/{0}:{1}".format(branch, ref))
+        if result.returncode != 0:
+            detail = result.stderr.decode("utf-8", "replace").strip().splitlines()
+            raise ValueError("git fetch origin {} failed: {}".format(
+                branch, re.sub(r"[^ -~]", "?", detail[-1])[:200] if detail else "exit {}".format(result.returncode)))
+    if orch_git(repo, "rev-parse", "--verify", "--quiet", ref + "^{commit}").returncode != 0:
+        raise ValueError("origin/{} not found in {}{}".format(branch, repo, "" if fetch else " (try without --no-fetch)"))
+    result = orch_git(repo, "log", "-z", "--first-parent", "--reverse", "--no-color", "--encoding=UTF-8",
+                      "--grep=^orch: ", "--format=%H %cI %s", ref, "--")
+    if result.returncode != 0:
+        raise ValueError("git log failed in {}".format(repo))
+    commits = []
+    for record in result.stdout.decode("utf-8", "replace").split("\0"):
+        match = re.fullmatch(r"([0-9a-f]{40}|[0-9a-f]{64}) (\S+) (.*)", record, re.DOTALL)
+        if match:
+            commits.append(match.groups())
+    return commits
+
+
+def parse_orch_review(subject):
+    """The fields of an `orch: REVIEW` subject, or None when anything in it is off the grammar."""
+    match = ORCH_REVIEW.fullmatch(subject)
+    if match is None:
+        return None
+    fields = match.groupdict()
+    if fields["outcome"] not in OUTCOMES or fields["cls"] not in ORCH_CLASSES:
+        return None
+    via = fields["via"] or "subagent"
+    arm = fields["arm"].split("/")
+    if fields["arm"] == "-" and via == "local":
+        # A via=local review names its run by tag, so it needs no arm.
+        arm = [None, None, None]
+    elif len(arm) not in (2, 3) or any(ORCH_ARM_PART.fullmatch(part) is None for part in arm):
+        return None
+    elif len(arm) == 2:
+        # lane/effort: import_orch takes the model from the catalog, or skips the marker.
+        arm = [arm[0], None, arm[1]]
+
+    def amount(text):
+        return None if text in (None, "-") else float(text)
+
+    tokens = None
+    if fields["tok"] != "-":
+        counts = [None if part == "-" else int(part) for part in fields["tok"].split("/")]
+        tokens = {"input": counts[0], "output": counts[1]} if counts != [None, None] else None
+    full = None if None in arm else "/".join(arm)
+    return {"unit": fields["unit"], "outcome": fields["outcome"], "arm": full, "lane": arm[0],
+            "model": arm[1], "effort": arm[2], "class": fields["cls"], "minutes": amount(fields["min"]),
+            "tokens": tokens, "usd": amount(fields["usd"]), "fix": amount(fields["fix"]),
+            "via": via}
+
+
+def whole_if_whole(value):
+    return int(value) if value is not None and value == int(value) else value
+
+
+def orch_time(value):
+    return value.astimezone(datetime.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def store_orch_review(state, run_dir, review_data, sha, write_file):
+    """Store a review the way `lane-stats review` does (review.json beside the run, and a reviews.jsonl line).
+
+    review.json is only written when asked: a run that already has one keeps it, and the later reviewed_at wins.
+    """
+    if write_file:
+        write_text_atomic(os.path.join(run_dir, "review.json"), json.dumps(review_data, ensure_ascii=False) + "\n")
+    line = dict(review_data, run_dir=run_dir, orch_sha=sha)
+    os.makedirs(state, exist_ok=True)
+    with open(os.path.join(state, "reviews.jsonl"), "a", encoding="utf-8", newline="\n") as stream:
+        stream.write(json.dumps(line, ensure_ascii=False) + "\n")
+
+
+def import_orch(args):
+    """Record the units a main cloud session reported (its `orch: REVIEW` commits) so the picker learns from them."""
+    state = state_dir()
+    commits = orch_commits(args.repo, args.branch, not args.no_fetch)
+    start = None
+    for index, (_, _, subject) in enumerate(commits):
+        match = ORCH_START.fullmatch(subject)
+        if match:
+            start = (index, match.group(1))
+    if start is None:
+        print("lane-stats: no 'orch: START' commit on origin/{}".format(args.branch), file=sys.stderr)
+        return 2
+    main_id = start[1]
+    catalog = optional_catalog()
+    runs, _, _ = load_runs(state)
+    seen = {row.get("orch_sha") for row in read_jsonl(os.path.join(state, "reviews.jsonl"))[0]}
+    imported = attached = 0
+    skipped = {}
+
+    def skip(reason, sha, warn=True):
+        skipped[reason] = skipped.get(reason, 0) + 1
+        if warn:
+            print("lane-stats: skipped {}: {}".format(sha[:12], reason), file=sys.stderr)
+
+    # Commits before the last START belong to an earlier main session whose history this branch merely carries.
+    for sha, when, subject in commits[start[0] + 1:]:
+        if not subject.startswith("orch: REVIEW"):
+            continue
+        marker = parse_orch_review(subject)
+        committed = parse_time(when)
+        if marker is None or committed is None:
+            skip("malformed", sha)
+            continue
+        tag = "orch-{}-{}".format(main_id, marker["unit"])
+        review_data = {"outcome": marker["outcome"], "note": "", "fix_minutes": whole_if_whole(marker["fix"]),
+                       "reviewed_at": orch_time(committed)}
+        if marker["via"] == "local":
+            if sha in seen:
+                skip("already imported", sha, warn=False)
+                continue
+            local = [(parse_time(run.get("ended_at")) or parse_time(run.get("started_at"))
+                      or datetime.datetime.min.replace(tzinfo=datetime.timezone.utc), position, run)
+                     for position, run in enumerate(runs.values())
+                     if run.get("tag") == tag and run.get("place") != "cloud-main"]
+            if not local:
+                skip("no local run", sha)
+                continue
+            run_dir = max(local, key=lambda item: item[:2])[2]["run_dir"]
+            store_orch_review(state, run_dir, review_data, sha,
+                              not os.path.exists(os.path.join(run_dir, "review.json")))
+            seen.add(sha)
+            attached += 1
+            continue
+        lane = marker["lane"]
+        if marker["model"] is None:
+            # A lane/effort arm: mirror cloud sessions keep model ids out of commit subjects (their system prompt
+            # forbids them), and the catalog maps a lane and effort to one arm. Take its model only when exactly
+            # one catalog arm matches; otherwise skip, never guess.
+            models = {arm.get("model") for arm in (catalog or {}).get("arms", [])
+                      if arm.get("lane") == lane and arm.get("effort") == marker["effort"]}
+            if len(models) != 1 or None in models:
+                skip("unknown arm", sha)
+                continue
+            model = models.pop()
+            marker = dict(marker, model=model, arm="{}/{}/{}".format(lane, model, marker["effort"]))
+        if catalog is not None and lane in catalog["lanes"]:
+            provider = catalog["lanes"][lane]["provider"]
+        else:
+            provider = PROVIDERS.get(lane)
+        if provider is None:
+            skip("unknown lane", sha)
+            continue
+        run_dir = os.path.join(state, "runs", "orch-" + sha[:12])
+        minutes = marker["minutes"]
+        meta = {"lane": lane, "provider": provider, "model": marker["model"], "effort": marker["effort"],
+                "class": marker["class"], "tag": tag, "arm": marker["arm"], "place": "cloud-main",
+                "verdict": "OK",
+                "started_at": orch_time(committed - datetime.timedelta(minutes=minutes or 0)),
+                "ended_at": orch_time(committed),
+                "duration_s": None if minutes is None else round(minutes * 60.0, 3), "exit_code": 0,
+                "usage": {"tokens": marker["tokens"], "list_usd": marker["usd"]},
+                "main_id": main_id, "unit": marker["unit"]}
+        if os.path.isfile(os.path.join(run_dir, "meta.json")):
+            if os.path.isfile(os.path.join(run_dir, "review.json")):
+                skip("already imported", sha, warn=False)
+                continue
+        else:
+            os.makedirs(run_dir, exist_ok=True)
+            write_text_atomic(os.path.join(run_dir, "meta.json"), json.dumps(meta, ensure_ascii=False) + "\n")
+            imported += 1
+        store_orch_review(state, run_dir, review_data, sha, True)
+        seen.add(sha)
+        attached += 1
+    count = sum(skipped.values())
+    print("imported {} runs, {} reviews attached, {} skipped{}".format(
+        imported, attached, count,
+        " ({})".format(", ".join("{} {}".format(number, reason) for reason, number in sorted(skipped.items())))
+        if count else ""))
+    return 0
+
+
+def share_week(value=None):
+    """Return an ISO week and its half-open UTC time range."""
+    if value is None:
+        today = datetime.datetime.now(datetime.timezone.utc).date()
+        monday = today - datetime.timedelta(days=today.weekday() + 7)
+        year, week, _ = monday.isocalendar()
+        value = "{:04d}-W{:02d}".format(year, week)
+    match = re.fullmatch(r"([0-9]{4})-W([0-9]{2})", value or "")
+    if match is None:
+        raise ValueError("week must be YYYY-Www")
+    try:
+        monday = datetime.date.fromisocalendar(int(match.group(1)), int(match.group(2)), 1)
+    except ValueError:
+        raise ValueError("week must be a valid ISO week") from None
+    start = datetime.datetime.combine(monday, datetime.time(), tzinfo=datetime.timezone.utc)
+    return value, start, start + datetime.timedelta(days=7)
+
+
+def round_share(value):
+    if value is None or value == 0:
+        return value
+    return float("{:.3g}".format(value))
+
+
+def kit_version():
+    path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "POLICY.md")
+    with open(path, "r", encoding="utf-8") as stream:
+        match = re.search(r"^Claude Usage Optimizer version: ([0-9][0-9.-]*)\.", stream.read(), re.MULTILINE)
+    if match is None:
+        raise ValueError("POLICY.md has no version line")
+    return match.group(1)
+
+
+def share_config():
+    path = os.path.join(config_dir(), "share.json")
+    try:
+        with open(path, "r", encoding="utf-8") as stream:
+            value = json.load(stream)
+    except (OSError, ValueError):
+        value = {}
+    enabled = value.get("enabled") is True
+    install = value.get("install")
+    if not isinstance(install, str) or re.fullmatch(r"[0-9a-f]{16}", install) is None:
+        install = None
+    return path, {"enabled": enabled, "install": install}
+
+
+def write_share_config(path, enabled, install):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    write_text_atomic(path, json.dumps({"enabled": enabled, "install": install}, sort_keys=True) + "\n")
+
+
+def build_share_payload(week, install, catalog):
+    week, start, end = share_week(week)
+    state = state_dir()
+    runs, reviews, attributed, _, _ = load_data(state, catalog)
+    eligible = {}
+    arm_values = {(arm["lane"], arm["effort"], class_name)
+                  for arm in catalog["arms"] for class_name in arm.get("classes", [])}
+    plans = {}
+    for key, run in runs.items():
+        ended = parse_time(run.get("ended_at"))
+        identity = (run.get("lane"), run.get("effort"), run.get("class"))
+        if ended is None or not start <= ended < end or identity not in arm_values:
+            continue
+        eligible.setdefault(identity, []).append((key, run))
+        plan = run_plan(run)
+        provider = run.get("provider")
+        if (isinstance(provider, str) and provider in catalog["providers"] and isinstance(plan, str)
+                and PLAN_ID.fullmatch(plan)):
+            plans[provider] = plan
+    minimum = catalog.get("explore", {}).get("share", {}).get("min_reviewed", 3)
+    cells = []
+    for (lane, effort, class_name), members in sorted(eligible.items()):
+        reviewed = [(key, run, reviews[key]) for key, run in members if key in reviews]
+        if len(reviewed) < minimum:
+            continue
+        usable = [(key, run) for key, run, review in reviewed
+                  if review.get("outcome") in ("accepted", "fixed")]
+        durations = [number(run.get("duration_s")) for _, run in members]
+        ratios = []
+        for _, run in members:
+            duration, eta_value = number(run.get("duration_s")), number(run.get("eta_s"))
+            if duration is not None and eta_value is not None and duration >= 0 and eta_value > 0:
+                ratios.append(duration / eta_value)
+        weekly = [attributed.get(key, {}).get("weekly") for key, _ in members]
+        weekly = [value for value in weekly if value is not None]
+        dollars = [number((run.get("usage") or {}).get("list_usd")) for _, run in members]
+        known_dollars = [value for value in dollars if value is not None]
+        cells.append({
+            "lane": lane, "effort": effort, "class": class_name, "runs": len(members),
+            "reviewed": len(reviewed), "usable": len(usable),
+            "med_min": round_share(median([value / 60.0 for value in durations if value is not None])),
+            "eta_ratio": round_share(median(ratios)),
+            "wk_pct_per_usable": round_share(sum(weekly) / len(usable)) if usable and weekly else None,
+            "usd_per_usable": round_share(sum(known_dollars) / len(usable))
+            if usable and known_dollars else None,
+        })
+    return {"schema": 1, "week": week, "kit": kit_version(), "host": "claude-code", "install": install,
+            "plans": dict(sorted(plans.items())), "cells": cells[:200]}
+
+
+def validate_share_payload(payload, catalog):
+    problems = []
+
+    def problem(text):
+        problems.append(text)
+
+    if not isinstance(payload, dict):
+        return ["payload must be a JSON object"]
+    if set(payload) != SHARE_TOP_KEYS:
+        problem("top-level keys must be exactly: " + ", ".join(sorted(SHARE_TOP_KEYS)))
+    if payload.get("schema") != 1 or isinstance(payload.get("schema"), bool):
+        problem("schema must be 1")
+    try:
+        share_week(payload.get("week"))
+    except ValueError:
+        problem("week must be a valid ISO week in YYYY-Www form")
+    if not isinstance(payload.get("kit"), str) or re.fullmatch(r"[0-9][0-9.-]{0,31}", payload["kit"]) is None:
+        problem("kit must be a version string")
+    if payload.get("host") != "claude-code":
+        problem("host must be claude-code")
+    if not isinstance(payload.get("install"), str) or re.fullmatch(r"[0-9a-f]{16}", payload["install"]) is None:
+        problem("install must be 16 lowercase hexadecimal characters")
+    plans = payload.get("plans")
+    if not isinstance(plans, dict):
+        problem("plans must be an object")
+    else:
+        for provider, plan in plans.items():
+            if provider not in catalog.get("providers", {}):
+                problem("plans contains an unknown provider")
+            if not isinstance(plan, str) or PLAN_ID.fullmatch(plan) is None:
+                problem("each plan must match ^[a-z0-9_]{1,24}$")
+    cells = payload.get("cells")
+    if not isinstance(cells, list):
+        problem("cells must be a list")
+        return problems
+    if len(cells) > 200:
+        problem("cells must contain at most 200 entries")
+    allowed = {(arm["lane"], arm["effort"], class_name)
+               for arm in catalog.get("arms", []) for class_name in arm.get("classes", [])}
+    seen = set()
+    for index, cell in enumerate(cells):
+        prefix = "cell {}: ".format(index + 1)
+        if not isinstance(cell, dict):
+            problem(prefix + "must be an object")
+            continue
+        if set(cell) != SHARE_CELL_KEYS:
+            problem(prefix + "keys must be exactly: " + ", ".join(sorted(SHARE_CELL_KEYS)))
+        identity = (cell.get("lane"), cell.get("effort"), cell.get("class"))
+        if identity not in allowed:
+            problem(prefix + "lane, effort and class must identify a catalog arm")
+        if identity in seen:
+            problem(prefix + "duplicates an earlier arm and class")
+        seen.add(identity)
+        counts = []
+        for name in ("runs", "reviewed", "usable"):
+            value = cell.get(name)
+            if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+                problem(prefix + name + " must be a nonnegative integer")
+            else:
+                counts.append(value)
+        if len(counts) == 3 and not counts[0] >= counts[1] >= counts[2]:
+            problem(prefix + "counts must satisfy runs >= reviewed >= usable")
+        for name in ("med_min", "eta_ratio", "wk_pct_per_usable", "usd_per_usable"):
+            value = cell.get(name)
+            if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
+                                      or not math.isfinite(value) or value < 0):
+                problem(prefix + name + " must be a nonnegative number or null")
+    return problems
+
+
+def share_input(path):
+    try:
+        if os.path.getsize(path) > 65536:
+            return None, ["submission exceeds 64 KB"]
+        with open(path, "r", encoding="utf-8") as stream:
+            text = stream.read()
+    except (OSError, UnicodeError):
+        return None, ["submission cannot be read as UTF-8"]
+    match = re.search(r"```json[ \t]*\r?\n(.*?)\r?\n```", text, re.IGNORECASE | re.DOTALL)
+    source = match.group(1) if match else text
+    try:
+        return json.loads(source), []
+    except (ValueError, TypeError, RecursionError):
+        return None, ["submission does not contain valid JSON"]
+
+
+def share_body(payload):
+    return "Anonymous weekly lane statistics follow.\n\n```json\n{}\n```\n".format(
+        json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=True, allow_nan=False))
+
+
+def private_pattern_problems(serialized):
+    sources = []
+    env = os.environ.get("USAGE_OPTIMIZER_PRIVATE_PATTERNS")
+    if env is not None:
+        if os.path.isfile(os.path.expanduser(env)):
+            with open(os.path.expanduser(env), "r", encoding="utf-8") as stream:
+                sources.extend(stream.read().splitlines())
+        else:
+            sources.extend(env.splitlines())
+    path = os.path.join(config_dir(), "private-patterns.txt")
+    if os.path.isfile(path):
+        with open(path, "r", encoding="utf-8") as stream:
+            sources.extend(stream.read().splitlines())
+    matches = []
+    for index, pattern in enumerate(sources, 1):
+        if not pattern or pattern.lstrip().startswith("#"):
+            continue
+        try:
+            found = re.search(pattern, serialized) is not None
+        except re.error:
+            found = pattern in serialized
+        if found:
+            matches.append("private pattern line {} matches the payload".format(index))
+    return matches
+
+
+def share(args):
+    catalog = load_catalog()
+    repo = catalog.get("explore", {}).get("share", {}).get("repo", SHARE_REPO)
+    config_path, config = share_config()
+    if args.validate:
+        payload, problems = share_input(args.validate)
+        if not problems:
+            problems = validate_share_payload(payload, catalog)
+        for item in problems:
+            print("lane-stats: " + item, file=sys.stderr)
+        return 1 if problems else 0
+    if args.enable or args.disable:
+        install = secrets.token_hex(8) if args.new_id or config["install"] is None else config["install"]
+        write_share_config(config_path, args.enable, install)
+        print("sharing enabled" if args.enable else "sharing disabled")
+        return 0
+    if args.new_id:
+        raise ValueError("--new-id needs --enable or --disable")
+    install = config["install"] or secrets.token_hex(8)
+    payload = build_share_payload(args.week, install, catalog)
+    serialized = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=True, allow_nan=False)
+    print(serialized)
+    if not args.send:
+        print("Nothing was sent.")
+        return 0
+    if not config["enabled"]:
+        print("lane-stats: sharing is disabled; run share --enable first", file=sys.stderr)
+        return 1
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest()
+    history_path = os.path.join(state_dir(), "shared.jsonl")
+    history, _ = read_jsonl(history_path)
+    if any(row.get("week") == payload["week"] for row in history):
+        print("lane-stats: that week was already shared", file=sys.stderr)
+        return 1
+    problems = private_pattern_problems(serialized)
+    if problems:
+        for item in problems:
+            print("lane-stats: " + item, file=sys.stderr)
+        return 1
+    # Both ends must be a terminal: on Windows the NUL device reports isatty() as true.
+    if sys.stdin.isatty() and sys.stdout.isatty() and not args.yes:
+        try:
+            answer = input("Post these numbers as a public GitHub issue on {}? [y/N] ".format(repo))
+        except EOFError:
+            answer = ""
+        if answer.strip().lower() not in ("y", "yes"):
+            print("Nothing was sent.")
+            return 1
+    elif not args.yes:
+        print("lane-stats: --yes is required when stdin is not a TTY", file=sys.stderr)
+        return 1
+    body = share_body(payload)
+    gh = shutil.which("gh")
+    logged_in = gh is not None and subprocess.run([gh, "auth", "status"], stdout=subprocess.DEVNULL,
+                                                   stderr=subprocess.DEVNULL, check=False).returncode == 0
+    if logged_in:
+        with tempfile.NamedTemporaryFile("w", encoding="utf-8", suffix=".md", delete=False) as stream:
+            stream.write(body)
+            body_path = stream.name
+        try:
+            result = subprocess.run([gh, "issue", "create", "--repo", repo, "--title",
+                                     "stats {} kit {}".format(payload["week"], payload["kit"]),
+                                     "--label", "stats", "--body-file", body_path], check=False)
+        finally:
+            try:
+                os.unlink(body_path)
+            except OSError:
+                pass
+        if result.returncode != 0:
+            return result.returncode
+        os.makedirs(os.path.dirname(history_path), exist_ok=True)
+        with open(history_path, "a", encoding="utf-8", newline="\n") as stream:
+            stream.write(json.dumps({"week": payload["week"], "sha256": digest}, sort_keys=True) + "\n")
+        return 0
+    os.makedirs(state_dir(), exist_ok=True)
+    body_path = os.path.join(state_dir(), "share-{}.md".format(payload["week"]))
+    write_text_atomic(body_path, body)
+    print("https://github.com/{}/issues/new?template=stats.yml".format(repo))
+    print(body_path)
+    return 0
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(prog="lane-stats")
+    commands = parser.add_subparsers(dest="command", required=True)
+    review_parser = commands.add_parser("review")
+    review_parser.add_argument("run")
+    review_parser.add_argument("--outcome", required=True, choices=OUTCOMES)
+    review_parser.add_argument("--note", default="")
+    review_parser.add_argument("--fix-minutes", type=nonnegative_int)
+    review_parser.set_defaults(func=review)
+    report_parser = commands.add_parser("report")
+    report_parser.add_argument("--since", type=date_arg)
+    report_parser.add_argument("--by", default="lane,effort,class")
+    report_parser.add_argument("--json", action="store_true")
+    report_parser.set_defaults(func=report)
+    for name in ("pick", "explore"):
+        pick_parser = commands.add_parser(name)
+        pick_parser.add_argument("--class", dest="class_name", required=True)
+        pick_parser.add_argument("--pair", action="store_true")
+        pick_parser.add_argument("--approved", metavar="NOTE", help="who approved this pair, and when (required with --pair)")
+        pick_parser.add_argument("--exclude", action="append", default=[], help="lanes to skip; repeatable or comma-separated")
+        pick_parser.add_argument("--place", help="only lanes that run in this place: process, subagent or cloud "
+                                                 "(must be allowed on this machine)")
+        pick_parser.add_argument("--seed", type=int)
+        pick_parser.add_argument("--no-usage", action="store_true")
+        pick_parser.add_argument("--dir")
+        pick_parser.add_argument("--brief")
+        pick_parser.add_argument("--json", action="store_true")
+        if name == "explore":
+            pick_parser.add_argument("--target")
+        pick_parser.set_defaults(func=pick)
+    recommend_parser = commands.add_parser("recommend")
+    recommend_parser.add_argument("--class", dest="class_name")
+    recommend_parser.add_argument("--since", type=date_arg)
+    recommend_parser.add_argument("--draws", type=positive_int, default=4000)
+    recommend_parser.add_argument("--seed", type=int)
+    recommend_parser.add_argument("--no-usage", action="store_true")
+    recommend_parser.add_argument("--json", action="store_true")
+    recommend_parser.set_defaults(func=recommend)
+    arms_parser = commands.add_parser("arms")
+    arms_parser.add_argument("--discover", action="store_true")
+    arms_parser.add_argument("--json", action="store_true")
+    arms_parser.set_defaults(func=arms)
+    eta_parser = commands.add_parser("eta")
+    eta_parser.add_argument("--lane")
+    eta_parser.add_argument("--model")
+    eta_parser.add_argument("--effort")
+    eta_parser.add_argument("--class", dest="class_name")
+    eta_parser.add_argument("--tag")
+    eta_parser.add_argument("--brief", help="the brief file: its size scales the estimate")
+    eta_parser.add_argument("--brief-bytes", type=positive_int)
+    eta_parser.add_argument("--json", action="store_true")
+    eta_parser.set_defaults(func=eta)
+    advisor_parser = commands.add_parser("advisor", help="the fable advisor: switch, 7-day budget use, role outcomes")
+    advisor_parser.add_argument("--json", action="store_true")
+    advisor_parser.set_defaults(func=advisor)
+    mode_parser = commands.add_parser("mode")
+    mode_parser.add_argument("--no-usage", action="store_true")
+    mode_parser.add_argument("--json", action="store_true")
+    mode_parser.set_defaults(func=mode)
+    export_parser = commands.add_parser("export")
+    export_parser.add_argument("--since", type=date_arg)
+    export_parser.add_argument("--out")
+    export_parser.set_defaults(func=export_runs)
+    import_parser = commands.add_parser("import")
+    import_parser.add_argument("file")
+    import_parser.set_defaults(func=import_runs)
+    share_parser = commands.add_parser("share", help="preview, enable, or send anonymous weekly statistics")
+    share_action = share_parser.add_mutually_exclusive_group()
+    share_action.add_argument("--preview", action="store_true")
+    share_action.add_argument("--enable", action="store_true")
+    share_action.add_argument("--disable", action="store_true")
+    share_action.add_argument("--send", action="store_true")
+    share_action.add_argument("--validate", metavar="FILE")
+    share_parser.add_argument("--week", help="ISO week (YYYY-Www); default is the last complete week")
+    share_parser.add_argument("--new-id", action="store_true", help="replace the anonymous install id")
+    share_parser.add_argument("--yes", action="store_true", help="confirm a send when stdin is not a TTY")
+    share_parser.set_defaults(func=share)
+    picks_parser = commands.add_parser("main-picks", help="print the pick table the main cloud session reads")
+    picks_parser.add_argument("--out", help="write picks.json here instead of printing it")
+    picks_parser.add_argument("--draws", type=positive_int, default=2000)
+    picks_parser.add_argument("--seed", type=int)
+    picks_parser.add_argument("--no-usage", action="store_true")
+    picks_parser.add_argument("--exclude", action="append", default=[],
+                              help="lanes to leave out of every class; repeatable or comma-separated")
+    picks_parser.set_defaults(func=main_picks)
+    orch_parser = commands.add_parser("import-orch", help="record the units a main cloud session reported")
+    orch_parser.add_argument("repo", metavar="REPO", help="a git checkout of the project")
+    orch_parser.add_argument("branch", metavar="BRANCH", help="the main session's branch on origin")
+    orch_parser.add_argument("--no-fetch", action="store_true", help="read refs/remotes/origin/BRANCH as it is")
+    orch_parser.set_defaults(func=import_orch)
+    return parser
+
+
+def main(argv=None):
+    if os.name == "nt":
+        for stream in (sys.stdout, sys.stderr):
+            if hasattr(stream, "reconfigure"):
+                stream.reconfigure(encoding="utf-8", errors="replace")
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        return args.func(args)
+    except (OSError, ValueError) as exc:
+        print("lane-stats: {}".format(exc), file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

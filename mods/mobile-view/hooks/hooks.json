@@ -1,0 +1,4 @@
+{
+  "description": "Mobile-style transcript: compact tool rows, folded code blocks, numbered prompts and the Questions pane",
+  "modules": ["./register.tsx"]
+}

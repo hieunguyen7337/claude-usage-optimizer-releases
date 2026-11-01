@@ -1,0 +1,19 @@
+{
+  "_source": "OFFICIAL platform.claude.com pricing, read 2026-10-19 (values as given in the U2 brief)",
+  "_unit": "USD per 1,000,000 tokens",
+  "_columns": ["input", "cw5m", "cw1h", "cache_read", "output"],
+  "_notes": [
+    "cw5m / cw1h = 5-minute / 1-hour cache write.",
+    "claude-haiku-5-5 has two tiers chosen PER RESPONSE: prompt = input + cw5m + cw1h + cache_read; prompt <= threshold_prompt_tokens uses prompt_le_threshold, otherwise prompt_gt_threshold.",
+    "Models not listed here are reported as token sums only and left out of USD totals."
+  ],
+  "claude-opus-5-5": {"input": 4, "cw5m": 5, "cw1h": 8, "cache_read": 0.20, "output": 20},
+  "claude-sonnet-5-5": {"input": 2, "cw5m": 2.5, "cw1h": 4, "cache_read": 0.10, "output": 10},
+  "claude-haiku-5-5": {
+    "threshold_prompt_tokens": 100000,
+    "prompt_le_threshold": {"input": 0.10, "cw5m": 0.125, "cw1h": 0.20, "cache_read": 0.01, "output": 0.50},
+    "prompt_gt_threshold": {"input": 0.50, "cw5m": 0.625, "cw1h": 1, "cache_read": 0.05, "output": 2.50}
+  },
+  "claude-opus-5": {"input": 5, "cw5m": 6.25, "cw1h": 10, "cache_read": 0.50, "output": 25},
+  "claude-fable-5-1": {"input": 10, "cw5m": 12.5, "cw1h": 20, "cache_read": 0.25, "output": 50}
+}

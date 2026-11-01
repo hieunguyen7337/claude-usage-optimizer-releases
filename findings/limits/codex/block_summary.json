@@ -1,0 +1,226 @@
+[
+  {
+    "block": "P1",
+    "model": "gpt-6-astra",
+    "sessions": 40,
+    "events": 80,
+    "uncached_tok": 440884,
+    "cached_tok": 1151360,
+    "output_tok": 268757,
+    "reasoning_tok": 20,
+    "uncached_cr": 110.221,
+    "cached_cr": 28.784,
+    "output_cr": 335.946,
+    "total_cr": 474.951,
+    "first_up": 2.0,
+    "last_up": 7.0,
+    "reading_before": null,
+    "delta_p": 5.0,
+    "a": 94.99,
+    "a_tail": 93.022,
+    "b": 73.091,
+    "b_se": 5.382,
+    "b_with_intercept": 95.919,
+    "b_intercept": -83.7,
+    "b_step_rate": 95.72,
+    "quant_dp_bracket": "[4, 6]",
+    "quant_cr_range": "[79.16, 118.74]",
+    "rise_points": [
+      [
+        1.0,
+        12.009,
+        3.0
+      ],
+      [
+        2.0,
+        107.343,
+        4.0
+      ],
+      [
+        3.0,
+        205.269,
+        5.0
+      ],
+      [
+        4.0,
+        300.769,
+        6.0
+      ],
+      [
+        5.0,
+        394.889,
+        7.0
+      ]
+    ]
+  },
+  {
+    "block": "P2",
+    "model": "gpt-6-astra",
+    "sessions": 1,
+    "events": 121,
+    "uncached_tok": 104391,
+    "cached_tok": 10832128,
+    "output_tok": 2836,
+    "reasoning_tok": 0,
+    "uncached_cr": 26.098,
+    "cached_cr": 270.803,
+    "output_cr": 3.545,
+    "total_cr": 300.446,
+    "first_up": 7.0,
+    "last_up": 11.0,
+    "reading_before": 7.0,
+    "delta_p": 4.0,
+    "a": 75.111,
+    "a_tail": 70.446,
+    "b": 57.136,
+    "b_se": 5.268,
+    "b_with_intercept": 77.309,
+    "b_intercept": -60.519,
+    "b_step_rate": 76.858,
+    "quant_dp_bracket": "[3, 5]",
+    "quant_cr_range": "[60.09, 100.15]",
+    "rise_points": [
+      [
+        1.0,
+        20.88,
+        8.0
+      ],
+      [
+        2.0,
+        88.655,
+        9.0
+      ],
+      [
+        3.0,
+        170.023,
+        10.0
+      ],
+      [
+        4.0,
+        251.454,
+        11.0
+      ]
+    ]
+  },
+  {
+    "block": "P3",
+    "model": "gpt-6-astra",
+    "sessions": 29,
+    "events": 29,
+    "uncached_tok": 903719,
+    "cached_tok": 368128,
+    "output_tok": 145,
+    "reasoning_tok": 0,
+    "uncached_cr": 225.93,
+    "cached_cr": 9.203,
+    "output_cr": 0.181,
+    "total_cr": 235.314,
+    "first_up": 11.0,
+    "last_up": 14.0,
+    "reading_before": 11.0,
+    "delta_p": 3.0,
+    "a": 78.438,
+    "a_tail": 75.762,
+    "b": 63.695,
+    "b_se": 4.932,
+    "b_with_intercept": 80.78,
+    "b_intercept": -39.866,
+    "b_step_rate": 80.78,
+    "quant_dp_bracket": "[2, 4]",
+    "quant_cr_range": "[58.83, 117.66]",
+    "rise_points": [
+      [
+        1.0,
+        40.888,
+        12.0
+      ],
+      [
+        2.0,
+        121.746,
+        13.0
+      ],
+      [
+        3.0,
+        202.449,
+        14.0
+      ]
+    ]
+  },
+  {
+    "block": "P4",
+    "model": "gpt-6.1-sol",
+    "sessions": 40,
+    "events": 161,
+    "uncached_tok": 1063178,
+    "cached_tok": 3112448,
+    "output_tok": 749485,
+    "reasoning_tok": 3727,
+    "uncached_cr": 53.159,
+    "cached_cr": 7.781,
+    "output_cr": 187.371,
+    "total_cr": 248.311,
+    "first_up": 14.0,
+    "last_up": 18.0,
+    "reading_before": 14.0,
+    "delta_p": 4.0,
+    "a": 62.078,
+    "a_tail": 61.686,
+    "b": 59.734,
+    "b_se": 2.845,
+    "b_with_intercept": 70.658,
+    "b_intercept": -32.773,
+    "b_step_rate": 70.771,
+    "quant_dp_bracket": "[3, 5]",
+    "quant_cr_range": "[49.66, 82.77]",
+    "rise_points": [
+      [
+        1.0,
+        36.0,
+        15.0
+      ],
+      [
+        2.0,
+        110.766,
+        16.0
+      ],
+      [
+        3.0,
+        180.414,
+        17.0
+      ],
+      [
+        4.0,
+        248.311,
+        18.0
+      ]
+    ]
+  },
+  {
+    "block": "P5",
+    "model": "gpt-6-luna",
+    "sessions": 40,
+    "events": 115,
+    "uncached_tok": 1080461,
+    "cached_tok": 2286336,
+    "output_tok": 904039,
+    "reasoning_tok": 1505,
+    "uncached_cr": 2.701,
+    "cached_cr": 0.572,
+    "output_cr": 11.3,
+    "total_cr": 14.573,
+    "first_up": 18.0,
+    "last_up": 18.0,
+    "reading_before": 18.0,
+    "delta_p": 0.0,
+    "a": null,
+    "a_tail": null,
+    "b": null,
+    "b_se": null,
+    "b_with_intercept": null,
+    "b_intercept": null,
+    "b_step_rate": null,
+    "quant_dp_bracket": "[0, 1]",
+    "quant_cr_range": "[14.57, inf]",
+    "rise_points": []
+  }
+]

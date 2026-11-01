@@ -1,0 +1,5 @@
+# Git for Windows defaults to core.autocrlf=true, which checks text out with CRLF: shell scripts then fail and
+# the bundle no longer matches the source. Every text file is LF on every machine.
+* text=auto eol=lf
+# CSV files keep the bytes Python's csv module wrote (CRLF rows), unconverted everywhere.
+*.csv -text

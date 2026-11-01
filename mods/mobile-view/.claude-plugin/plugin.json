@@ -1,0 +1,21 @@
+{
+  "name": "mobile-view",
+  "version": "1.4.0",
+  "description": "Reads like the Claude mobile app: one line per tool call, long code blocks folded, your prompts numbered, and a Questions view (> in an empty prompt, Esc to go back) that jumps back to any earlier prompt. /mobile-view off returns to stock rendering.",
+  "author": { "name": "Claude Usage Optimizer" },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "codeLines": {
+      "type": "number",
+      "title": "Fold code blocks longer than",
+      "description": "Code blocks in Claude's replies with more lines than this are folded to one line; a button under the reply shows them.",
+      "default": 12
+    },
+    "maxGroupLines": {
+      "type": "number",
+      "title": "Calls listed per group",
+      "description": "How many calls of a run of reads, searches and shell commands get their own line before the rest is counted.",
+      "default": 8
+    }
+  }
+}
