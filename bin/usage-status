@@ -158,14 +158,20 @@ def probe_claude(directory, max_age=15, quiet=False):
                 continue
             if isinstance(event, dict) and event.get("type") == "rate_limit_event":
                 last = event
-        windows = (((last or {}).get("rate_limit_info") or {}).get("unifiedWindows")) or {}
+        info = (last or {}).get("rate_limit_info") or {}
+        windows = dict(info.get("unifiedWindows") or {})
+        kind = info.get("rateLimitType")
+        if kind in ("five_hour", "seven_day") and kind not in windows:
+            windows[kind] = {"utilization": info.get("utilization"), "resetsAt": info.get("resetsAt")}
         reading = {"observed_at": iso_time(dt.datetime.now(UTC)), "source": "probe"}
         for key in ("five_hour", "seven_day"):
             window = windows.get(key) or {}
             utilization, reset = number(window.get("utilization")), iso_time(window.get("resetsAt"))
             if utilization is None or reset is None:
-                raise ValueError("missing rate window")
+                continue  # the event may list one window only (a cloud VM on 2026-11-02 got the weekly one alone)
             reading[key] = {"used_percentage": utilization * 100, "resets_at": reset}
+        if "five_hour" not in reading and "seven_day" not in reading:
+            raise ValueError("missing rate window")
         previous = read_json(os.path.join(directory, "claude-latest.json"))
         changed = not isinstance(previous, dict) or any(
             previous.get(key) != reading.get(key) for key in ("five_hour", "seven_day", "scoped"))

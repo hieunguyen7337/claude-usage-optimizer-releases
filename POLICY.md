@@ -1,6 +1,6 @@
 # Claude Usage Optimizer: usage policy
 
-Claude Usage Optimizer version: 2026-11-01.6. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Claude Usage Optimizer version: 2026-11-01.7. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
 Machine-specific rules (project dispatchers, locked lanes, local paths) belong in
 `~/.claude/CLAUDE.md` above the import line, and they win when the two conflict.
 
@@ -672,7 +672,8 @@ a serializer (`jq -n`, `json.dumps`): on Suite R luna broke 6.5% of its JSONL fi
   older than 15 minutes, and writes it as the statusline would (`"source": "probe"`). The prompt and Stop hooks start
   that probe detached, at most once per 5 minutes, and never wait for it; `auto` mode then paces a cloud session from
   its own reading. `USAGE_OPTIMIZER_CLOUD_PROBE_MIN` sets the age (`off` disables). Outside the cloud it runs only
-  with `usage-status --probe-claude`.
+  with `usage-status --probe-claude`. The event can list one window alone: on 2026-11-02 a cloud VM's carried only
+  the weekly one, which the probe discarded until 2026-11-01.7; it now keeps whichever windows the event carries.
 - **Update notice.** `kit-update check` finds a newer release on the default branch of the recorded checkout's
   origin and writes one kit notice. `turn-meter` prints at most five notices per prompt and counts the rest
   (LANES.md, "Kit update").

@@ -73,6 +73,37 @@ class CloudMeterTests(unittest.TestCase):
         self.run_status("--probe-claude", "--quiet")
         self.assertEqual(latest.read_text(), old)
 
+    def probe_with_event(self, info):
+        status = load("usage-status")
+        line = json.dumps({"type": "rate_limit_event", "rate_limit_info": info})
+        done = subprocess.CompletedProcess([], 0, stdout=line + "\n")
+        with mock.patch.object(status.subprocess, "run", return_value=done):
+            return status.probe_claude(str(self.usage), None, quiet=True)
+
+    def test_probe_keeps_a_weekly_only_event(self):
+        # The shape a cloud VM returned on 2026-11-02: no five_hour window at all.
+        ok = self.probe_with_event({"status": "allowed_warning", "resetsAt": 1893542400,
+                                    "rateLimitType": "seven_day", "utilization": 0.26,
+                                    "unifiedWindows": {"seven_day": {"utilization": 0.26, "resetsAt": 1893542400,
+                                                                     "status": "allowed"}}})
+        self.assertTrue(ok)
+        value = json.loads((self.usage / "claude-latest.json").read_text(encoding="utf-8"))
+        self.assertEqual(value["seven_day"]["used_percentage"], 26)
+        self.assertEqual(value["seven_day"]["resets_at"], "2030-01-02T00:00:00Z")
+        self.assertNotIn("five_hour", value)
+        status = load("usage-status")
+        _, line = status.claude_section(str(self.usage), dt.datetime.now(dt.timezone.utc))
+        self.assertIn("weekly 26%", line)
+
+    def test_probe_uses_top_level_window_and_rejects_an_empty_event(self):
+        self.assertTrue(self.probe_with_event({"rateLimitType": "five_hour", "utilization": 0.4,
+                                               "resetsAt": 1893456000}))
+        value = json.loads((self.usage / "claude-latest.json").read_text(encoding="utf-8"))
+        self.assertEqual(value["five_hour"]["used_percentage"], 40)
+        (self.usage / "claude-latest.json").unlink()
+        self.assertFalse(self.probe_with_event({"status": "allowed"}))
+        self.assertFalse((self.usage / "claude-latest.json").exists())
+
     def test_cloud_hook_detaches_but_local_does_not_and_mode_names_probe(self):
         meter = load("turn-meter")
         now = dt.datetime.now(dt.timezone.utc)
