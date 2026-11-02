@@ -208,8 +208,10 @@ subagent's lines under the call that started them), a composer and the action ke
   session, `claude attach <id>` for a local one).
 - `b` fetches the branch from origin and shows `git diff --stat` against the base, when a local checkout is known.
 - `r` refreshes now.
-- `i` interrupts, `y` approves a held message (shown only when the session needs you), `m` changes the permission
-  mode and `x` archives. For now these four open the session in the Claude app, and the notice says so.
+- `i` interrupts, `y` approves a held message (shown only when the session needs you), and `m` changes the permission
+  mode; these three open the session in the Claude app for now.
+- `x` archives through the sessions API. `d` deletes permanently after a second `d` within 10 seconds; when the
+  delete endpoint is unavailable, the pane opens the session in the Claude app and asks you to delete it there.
 
 The pane reads the list every 15 seconds and an open session every 4 seconds, twice as long after an error (up to two
 minutes), and only while it is open. The sessions API behind it is undocumented: it is the one the Claude app and

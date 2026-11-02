@@ -222,6 +222,7 @@ export type ActionId =
   | 'approve-held'
   | 'set-permission-mode'
   | 'archive'
+  | 'delete'
 
 declare module 'claude-code' {
   interface PluginState {

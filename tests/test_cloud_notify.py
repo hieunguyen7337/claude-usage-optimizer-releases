@@ -448,7 +448,9 @@ class GuardTests(CloudNotifyTestCase):
             with self.subTest(name=name):
                 started = time.perf_counter()
                 self.assertFalse(cloud_notify.starts_cloud_session(command))
-                self.assertLess(time.perf_counter() - started, 1.0)
+                # 3 s, not 1: the heredoc took 1.14 s once with eight test modules in parallel on a 3-CPU VM
+                # (2026-11-02); a quadratic reader on these inputs would take minutes.
+                self.assertLess(time.perf_counter() - started, 3.0)
 
     def test_guard_matcher_names_both_session_tools_and_bash(self):
         self.assertEqual(cloud_notify.GUARD_MATCHER.split("|"), [*cloud_notify.GUARD_TOOLS, "Bash"])

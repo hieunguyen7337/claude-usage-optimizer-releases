@@ -1,7 +1,7 @@
-// What a key in the session view does. No write call to the sessions API yet: interrupt, approve, permission
-// mode and archive open the session in the Claude app until a later unit adds each call (ACTIONS below is the
-// one table to edit: each entry says how its action runs).
+// What a key in the session view does. Interrupt, approve and permission mode still open the session in the app;
+// archive and delete use the sessions API (ACTIONS below is the one table to edit: each entry says how it runs).
 import type { ActionId, ActionNotice, SessionRow } from '../types'
+import { archiveSession, deleteSession } from './api'
 
 /** Longest text `send` takes, in characters. */
 export const SEND_MAX = 20000
@@ -113,6 +113,10 @@ export async function runAction($: any, id: ActionId, row: SessionRow, text?: st
         return await runCopyResume($, row)
       case 'branch-diff':
         return await runBranchDiff($, row)
+      case 'archive':
+        return await runArchive($, row)
+      case 'delete':
+        return await runDelete($, row)
       case 'refresh':
         return notice('info', 'Refreshing the list')
       case 'older':
@@ -126,8 +130,7 @@ export async function runAction($: any, id: ActionId, row: SessionRow, text?: st
 }
 
 /**
- * The action table: each key, its label and when a row offers it. An action with `viaApp` opens the Claude app for
- * now; a later unit drops its `viaApp` and adds its case to runAction's switch.
+ * The action table: each key, its label and when a row offers it. An action with `viaApp` opens the Claude app.
  */
 const ACTIONS: Record<ActionId, Spec> = {
   send: { key: 's', label: 'Send', offers: canSend },
@@ -145,7 +148,8 @@ const ACTIONS: Record<ActionId, Spec> = {
     viaApp: 'Approve held message',
   },
   'set-permission-mode': { key: 'm', label: 'Permission mode', offers: hasId, viaApp: 'Set permission mode' },
-  archive: { key: 'x', label: 'Archive', offers: hasId, viaApp: 'Archive' },
+  archive: { key: 'x', label: 'Archive', offers: (row) => hasId(row) && row.state !== 'archived' },
+  delete: { key: 'd', label: 'Delete', offers: hasId },
 }
 
 /** The order the footer and the keys follow. */
@@ -160,6 +164,7 @@ const ORDER: ActionId[] = [
   'approve-held',
   'set-permission-mode',
   'archive',
+  'delete',
 ]
 
 function hasId(row: SessionRow): boolean {
@@ -248,6 +253,29 @@ async function runOpenApp($: any, row: SessionRow): Promise<Notice> {
   const out = await $.process.run(openerArgv(await hostPlatform($), url))
   if (out.exitCode === 0) return notice('ok', `Opened in the Claude app: ${url}`)
   return notice('error', `Could not open ${url}${firstLine(out.stderr) !== '' ? `: ${firstLine(out.stderr)}` : ''}`)
+}
+
+/** Archives a session through the sessions API. */
+async function runArchive($: any, row: SessionRow): Promise<Notice> {
+  if (row.id === null) return notice('error', 'Archive: this row has no session id.')
+  const result = await archiveSession($, row.id)
+  return result.ok
+    ? notice('ok', `Archived "${cleanOutput(row.title)}"`)
+    : notice('error', `Archive failed: ${cleanOutput(result.reason)}`)
+}
+
+/** Deletes through the tentative API, falling back to the app when that endpoint is unavailable. */
+async function runDelete($: any, row: SessionRow): Promise<Notice> {
+  if (row.id === null) return notice('error', 'Delete: this row has no session id.')
+  const result = await deleteSession($, row.id)
+  if (result.ok) return notice('ok', `Deleted "${cleanOutput(row.title)}"`)
+  if (result.status === 404 || result.status === 405) {
+    const opened = await runOpenApp($, row)
+    // Never 'ok': the session still exists, and an ok delete makes the pane drop the row and close the view.
+    const tone = opened.tone === 'error' ? 'error' : 'info'
+    return notice(tone, `Delete is not available through the API; delete it in the Claude app. ${opened.text}`)
+  }
+  return notice('error', `Delete failed: ${cleanOutput(result.reason)}`)
 }
 
 /** An action the app does for now: it opens the session there, and the notice says so. */

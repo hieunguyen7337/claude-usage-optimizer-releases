@@ -177,8 +177,15 @@ function errorName(error: unknown): string {
   return typeof name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,40}$/.test(name) ? name : 'Error'
 }
 
-/** One authorized GET, parsed as JSON: re-authorizes once on a 401; any failure gives a short reason. */
-export async function getJson($: any, url: string): Promise<Fetched<unknown>> {
+type RequestOptions = {
+  method?: 'GET' | 'POST' | 'DELETE'
+  body?: string
+  emptyOk?: boolean
+  successStatuses?: readonly number[]
+}
+
+/** One authorized request, parsed as JSON: re-authorizes once on a 401; any failure gives a short reason. */
+export async function requestJson($: any, url: string, options: RequestOptions = {}): Promise<Fetched<unknown>> {
   for (let attempt = 0; attempt < 2; attempt++) {
     let handle: string | null
     try {
@@ -189,7 +196,14 @@ export async function getJson($: any, url: string): Promise<Fetched<unknown>> {
     if (handle === null) return { ok: false, status: null, reason: 'no credential' }
     let response: any
     try {
-      response = await $.http.fetch(url, { auth: handle, headers: { ...API_HEADERS } })
+      const headers: Record<string, string> = { ...API_HEADERS }
+      if (options.method === 'POST') headers['content-type'] = 'application/json'
+      response = await $.http.fetch(url, {
+        ...(options.method === undefined ? {} : { method: options.method }),
+        ...(options.body === undefined ? {} : { body: options.body }),
+        auth: handle,
+        headers,
+      })
     } catch (error) {
       return { ok: false, status: null, reason: `network: ${errorName(error)}` }
     }
@@ -198,7 +212,11 @@ export async function getJson($: any, url: string): Promise<Fetched<unknown>> {
       cachedHandle = null
       continue
     }
-    if (status === null || status < 200 || status > 299) {
+    const successful = status !== null &&
+      (options.successStatuses === undefined
+        ? status >= 200 && status <= 299
+        : options.successStatuses.includes(status))
+    if (!successful) {
       let message = ''
       let code: string | null = null
       try {
@@ -218,6 +236,7 @@ export async function getJson($: any, url: string): Promise<Fetched<unknown>> {
       const reason = status === null ? 'no response' : `HTTP ${status}${detail === '' ? '' : `: ${detail}`}`
       return code === null ? { ok: false, status, reason } : { ok: false, status, reason, code }
     }
+    if (options.emptyOk && (response.text === undefined || response.text === '')) return { ok: true, value: null }
     try {
       return { ok: true, value: JSON.parse(typeof response.text === 'string' ? response.text : '') }
     } catch {
@@ -225,6 +244,31 @@ export async function getJson($: any, url: string): Promise<Fetched<unknown>> {
     }
   }
   return { ok: false, status: 401, reason: 'HTTP 401' }
+}
+
+/** One authorized GET, parsed as JSON. */
+export async function getJson($: any, url: string): Promise<Fetched<unknown>> {
+  return requestJson($, url)
+}
+
+/** POST /v1/code/sessions/{id}/archive; a conflict means it was already archived. */
+export async function archiveSession($: any, id: string): Promise<Fetched<unknown>> {
+  const got = await requestJson($, `${API_BASE}/${encodeURIComponent(id)}/archive`, {
+    method: 'POST',
+    body: '{}',
+    emptyOk: true,
+    successStatuses: [200, 409],
+  })
+  return got
+}
+
+/** DELETE /v1/code/sessions/{id}; an empty successful response is valid. */
+export async function deleteSession($: any, id: string): Promise<Fetched<unknown>> {
+  return requestJson($, `${API_BASE}/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    emptyOk: true,
+    successStatuses: [200, 202, 204],
+  })
 }
 
 /** A URL with the options that are set as its query. */

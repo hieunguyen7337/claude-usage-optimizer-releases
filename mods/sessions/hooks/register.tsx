@@ -12,7 +12,7 @@ import type {
   RepoGroup,
   SessionRow,
 } from '../types'
-import { actionsFor, appUrl, runAction } from './actions'
+import { actionsFor, appUrl, cleanOutput, runAction } from './actions'
 import { getEvents, getSession, listSessions } from './api'
 import { readAgents, readListAgents, readRegistry } from './local'
 import { groupRows, headerOf, mergeRows } from './merge'
@@ -60,6 +60,8 @@ const timers: { list: Pending; open: Pending; band: Pending } = { list: null, op
 const failures = { list: 0, open: 0, band: 0 }
 /** Reads in flight, so a key press and a timer do not read the same thing twice at once. */
 const busy = { list: false, open: false, older: false }
+/** A delete confirmation lives only for this module load, so a reload can never leave one armed. */
+let pendingDelete: { key: string; at: number } | null = null
 
 /** A short note from what a call threw: its message, one line, cut, long token-like runs masked. */
 export function noteOf(what: string, error: unknown): string {
@@ -509,6 +511,7 @@ async function openPane($: any, fromKey = false): Promise<boolean> {
 
 /** Opens a row's session view; its first read follows at once. */
 async function openRow($: any, row: SessionRow) {
+  pendingDelete = null
   let header = null
   try {
     header = headerOf(null, row)
@@ -537,6 +540,7 @@ async function openRow($: any, row: SessionRow) {
 
 /** Back from the session view to the list. */
 async function backToList($: any) {
+  pendingDelete = null
   cancel('open')
   const open = await read($, OPEN)
   await update($, OPEN, () => null)
@@ -548,6 +552,7 @@ async function backToList($: any) {
 
 /** The pane is gone: the polls stop and the next open starts at the list. */
 async function closed($: any) {
+  pendingDelete = null
   cancel('list')
   cancel('open')
   await update($, PANE_OPEN, () => false)
@@ -607,6 +612,7 @@ async function readOlder($: any, open: OpenSession, id: string, cursor: string, 
 /** An action key: refresh reads now, older reads the page before, send goes through the composer, the rest run in
  * actions.ts. Returns the notice an action gave (none for refresh or when the open row is gone). */
 async function act($: any, id: ActionId, text?: string): Promise<ActionNotice | undefined> {
+  if (id !== 'delete') pendingDelete = null
   if (id === 'refresh') {
     await refreshNow($)
     return undefined
@@ -614,15 +620,43 @@ async function act($: any, id: ActionId, text?: string): Promise<ActionNotice | 
   const open = await read($, OPEN)
   const row = open === null ? undefined : (await read($, ROWS)).find(candidate => candidate.key === open.key)
   if (open === null || row === undefined) {
+    pendingDelete = null
     return undefined
   }
-  const at = new Date(await $.clock.now()).toISOString()
+  const now = await $.clock.now()
+  const at = new Date(now).toISOString()
+  const armedDelete = pendingDelete
+  if (id === 'delete' && (armedDelete?.key !== row.key || now - armedDelete.at > 10000)) {
+    pendingDelete = { key: row.key, at: now }
+    const armed = {
+      tone: 'info' as const,
+      text: cleanOutput(`Delete "${cleanOutput(row.title)}" permanently? Press d again within 10 s. This cannot be undone.`),
+      at,
+    }
+    await update($, NOTICE, () => armed)
+    return armed
+  }
+  if (id === 'delete') pendingDelete = null
   let notice: ActionNotice
   try {
     notice = id === 'older' ? await olderEvents($, open, row, at) : await runAction($, id, row, text)
   } catch (error) {
     notice = { tone: 'error', text: noteOf(id, error), at }
   }
+  if (id === 'delete' && notice.tone === 'ok') {
+    // The session is gone: drop its row, and leave its view the way Back does (which also stops its poll), unless
+    // another session was opened meanwhile. The list draws no notice, so a toast says it.
+    await update($, ROWS, rows => rows.filter(candidate => candidate.key !== row.key))
+    const current = await read($, OPEN)
+    if (current !== null && current.key === open.key) {
+      await backToList($)
+      await update($, FOCUSED, () => null)
+    }
+    $.ui.toast(notice.text)
+    await refreshList($)
+    return notice
+  }
+  if (id === 'archive' && notice.tone === 'ok') await refreshList($)
   // An action outlives a change of view: its notice shows only while the same session is still open.
   const still = await read($, OPEN)
   if (still !== null && still.key === open.key) {
