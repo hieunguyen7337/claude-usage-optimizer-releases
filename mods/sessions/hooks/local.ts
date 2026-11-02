@@ -51,6 +51,7 @@ export function parseAgentsJson(stdout: string): LocalAgent[] {
       state: clean(text(raw.state)),
       startedAt: text(raw.startedAt),
       repo: null,
+      branch: null,
     })
   }
   return agents
@@ -114,13 +115,29 @@ export function parseRunMeta(source: string, runId: string): Registry['runs'][nu
   return { sessionId, role: verify ? 'verify' : 'side', repo: null, runId }
 }
 
-/** Runs `claude agents --json` and fills each row's repo from `git -C <cwd> remote get-url origin`; [] on failure. */
+/** Runs `claude agents --json` and fills repo and branch from git, cached per cwd; [] on failure. */
 export async function readAgents($: any): Promise<LocalAgent[]> {
   try {
     const ran = await $.process.run(['claude', 'agents', '--json'])
     if (ran.exitCode !== 0) return []
     const agents = parseAgentsJson(String(ran.stdout))
     const byCwd = new Map<string, Promise<string | null>>()
+    const branches = new Map<string, Promise<string | null>>()
+    const branchOf = (cwd: string): Promise<string | null> => {
+      let known = branches.get(cwd)
+      if (!known) {
+        known = (async () => {
+          try {
+            const git = await $.process.run(['git', '-C', cwd, 'branch', '--show-current'])
+            return git.exitCode === 0 ? clean(text(String(git.stdout).trim())) : null
+          } catch {
+            return null
+          }
+        })()
+        branches.set(cwd, known)
+      }
+      return known
+    }
     const repoOf = (cwd: string): Promise<string | null> => {
       let known = byCwd.get(cwd)
       if (!known) {
@@ -137,7 +154,7 @@ export async function readAgents($: any): Promise<LocalAgent[]> {
       return known
     }
     for (const agent of agents) {
-      if (agent.cwd !== null) agent.repo = await repoOf(agent.cwd)
+      if (agent.cwd !== null) [agent.repo, agent.branch] = await Promise.all([repoOf(agent.cwd), branchOf(agent.cwd)])
     }
     return agents
   } catch {

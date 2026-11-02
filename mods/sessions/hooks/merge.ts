@@ -20,6 +20,12 @@ export type MergeInput = {
   registry: Registry
   /** What each API session's recent events show (held message, permission wait), by session id; optional. */
   signals?: Record<string, NeedsYou>
+  missingMirrors?: Array<{ repo: string; sessionId: string; reason: string }>
+}
+
+/** Whether two non-null ids name the same session, across API and registry prefixes. */
+export function sameSessionId(a: string | null, b: string | null): boolean {
+  return a !== null && b !== null && a.replace(/^(cse_|session_)/, '') === b.replace(/^(cse_|session_)/, '')
 }
 
 /** The branch of a session's repository; a cloud session reports its own under the key '' (observed 2026-11-01). */
@@ -51,8 +57,8 @@ function mirrorCheckout(registry: Registry, repo: string | null): string | null 
 /** The kit role of a session id: a mirror in mains, else a side or verify run. */
 function roleOf(registry: Registry, id: string | null): SessionRow['role'] {
   if (id === null) return null
-  for (const entry of Object.values(registry.mains)) if (entry.sessionId === id) return 'mirror'
-  return registry.runs.find((run) => run.sessionId === id)?.role ?? null
+  for (const entry of Object.values(registry.mains)) if (sameSessionId(entry.sessionId, id)) return 'mirror'
+  return registry.runs.find((run) => sameSessionId(run.sessionId, id))?.role ?? null
 }
 
 /** Puts a local agent's facts on a row. */
@@ -134,7 +140,7 @@ function listRow(row: ListAgentRow): SessionRow {
   }
 }
 
-/** Every row once (a bridge session and its agents row merge on name and repository), newest activity first. */
+/** Every row once: bridge agents match by title and repo, else a unique repo and branch; newest activity first. */
 export function mergeRows(input: MergeInput): SessionRow[] {
   const rows: SessionRow[] =
     input.cloud === null ? input.listAgents.map(listRow) : input.cloud.map((session) => apiRow(session, input.signals))
@@ -142,11 +148,18 @@ export function mergeRows(input: MergeInput): SessionRow[] {
   const matches = (row: SessionRow, agent: LocalAgent): boolean =>
     agent.name !== null && row.title === agent.name && sameRepo(row.repo, agent.repo)
   for (const agent of input.agents) {
-    const into = rows.find((row) => {
+    let into = rows.find((row) => {
       if (merged.has(row.key) || row.localId !== null) return false
       if (input.cloud === null) return (row.kind === 'background' || row.kind === 'remote') && matches(row, agent)
       return row.kind === 'remote' && row.id !== null && matches(row, agent)
     })
+    if (into === undefined && input.cloud !== null && agent.branch !== null) {
+      const candidates = rows.filter((row) =>
+        !merged.has(row.key) && row.localId === null && row.kind === 'remote' && row.id !== null &&
+        sameRepo(row.repo, agent.repo) && row.branch !== null && row.branch === agent.branch,
+      )
+      if (candidates.length === 1) into = candidates[0]
+    }
     if (into) {
       merged.add(into.key)
       attach(into, agent)
@@ -168,10 +181,19 @@ export function mergeRows(input: MergeInput): SessionRow[] {
       if (!row.from.includes('registry')) row.from.push('registry')
     }
   }
+  for (const mirror of input.missingMirrors ?? []) {
+    if (rows.some((row) => sameSessionId(row.id, mirror.sessionId))) continue
+    rows.push({
+      key: `mirror:${mirror.sessionId}`, id: mirror.sessionId, title: `${mirror.repo} mirror (${mirror.reason})`,
+      repo: mirror.repo, kind: 'cloud', state: 'offline', role: 'mirror', from: ['registry'],
+      localId: null, localSessionId: null, branch: null, activeAt: null, unread: false,
+      context: null, model: null, effort: null, checkout: null,
+    })
+  }
   return rows.sort((a, b) => time(b.activeAt) - time(a.activeAt) || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
 }
 
-/** Rows -> groups: inactive rows only with showArchived; groups by newest activity, "Other" (repo null) last. */
+/** Rows -> groups: needs-you first, then newest activity; inactive rows hidden, mirrors kept, Other last. */
 export function groupRows(rows: readonly SessionRow[], showArchived: boolean): RepoGroup[] {
   const groups = new Map<string | null, SessionRow[]>()
   for (const row of rows) {
@@ -181,8 +203,13 @@ export function groupRows(rows: readonly SessionRow[], showArchived: boolean): R
     else groups.set(row.repo, [row])
   }
   const latest = (group: RepoGroup): number => Math.max(...group.rows.map((row) => time(row.activeAt)))
-  return [...groups].map(([repo, list]) => ({ repo, rows: list })).sort((a, b) => {
+  const needsYou = (group: RepoGroup): boolean => group.rows.some((row) => row.state === 'needs-you')
+  return [...groups].map(([repo, list]) => ({
+    repo,
+    rows: [...list.filter((row) => row.state === 'needs-you'), ...list.filter((row) => row.state !== 'needs-you')],
+  })).sort((a, b) => {
     if ((a.repo === null) !== (b.repo === null)) return a.repo === null ? 1 : -1
+    if (needsYou(a) !== needsYou(b)) return needsYou(a) ? -1 : 1
     return latest(b) - latest(a) || String(a.repo).localeCompare(String(b.repo))
   })
 }

@@ -744,6 +744,27 @@ class KitReinstallTests(CloudNotifyTestCase):
 
     def setUp(self):
         super().setUp()
+        if os.name == "nt":
+            git_exe = shutil.which("git")
+            git_dir = os.path.dirname(git_exe) if git_exe else ""
+            bash_candidates = [
+                os.path.join(git_dir, "bash.exe"),
+                os.path.join(os.path.dirname(git_dir), "bin", "bash.exe"),
+                os.path.join(os.path.dirname(os.path.dirname(git_dir)), "bin", "bash.exe"),
+            ]
+            git_bash = next((candidate for candidate in bash_candidates if os.path.isfile(candidate)), None)
+            if git_bash is None:
+                self.skipTest("Git for Windows bash.exe not found")
+            real_run = cloud_notify.subprocess.run
+
+            def run_with_git_bash(args, *run_args, **run_kwargs):
+                if args and args[0] == "bash":
+                    args = [git_bash] + list(args[1:])
+                return real_run(args, *run_args, **run_kwargs)
+
+            run_patch = mock.patch.object(cloud_notify.subprocess, "run", run_with_git_bash)
+            run_patch.start()
+            self.addCleanup(run_patch.stop)
         self.home = os.path.join(self.root, "home")
         os.makedirs(self.home)
         self.env["HOME"] = self.home
@@ -760,7 +781,7 @@ class KitReinstallTests(CloudNotifyTestCase):
     def publish_kit(self, script):
         """Commit a fake install.sh on origin's lane-main/kit."""
         self.git(self.origin, "checkout", "-q", "-b", "lane-main/kit")
-        with open(os.path.join(self.origin, "install.sh"), "w", encoding="utf-8") as handle:
+        with open(os.path.join(self.origin, "install.sh"), "w", encoding="utf-8", newline="\n") as handle:
             handle.write(script)
         self.git(self.origin, "add", "install.sh")
         self.git(self.origin, "commit", "-q", "-m", "kit")

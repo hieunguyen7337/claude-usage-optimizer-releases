@@ -283,6 +283,15 @@ ships.
 
 ## 11. Release lessons
 
+**2026-11-02.2.**
+- *A Button holds only strings and Text.* The engine refuses a tree with a Box inside a Button, and the whole list
+  stops drawing. The text functions' own tests cannot see it; a test that mounts the pane can.
+- *One session, two ids.* The sessions API names a session `cse_…`, and `mains.json` stores the same session as
+  `session_…` with the same suffix, so no listed mirror was ever tagged. Compare session ids without their prefix.
+- *A layout change reaches every test that finds drawn text.* The layout brief named the view's tests, and the pane
+  and signals tests, which look for row and footer text in the mounted pane, failed in the cloud verify. A brief that
+  changes what is drawn names every test file that matches drawn text.
+
 **2026-11-01.3.**
 - *Measure a cloud session's cost from its own transcripts, and the meter from a clean window.* The sessions list API
   (`GET /v1/code/sessions`) gives each session a lifetime `usage.cost_usd` at list price. It updates only now and

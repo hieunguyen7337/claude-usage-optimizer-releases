@@ -15,6 +15,8 @@ const ESC_SEQ = /\u001b[ -/]*[0-~]?/g
 const CONTROLS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g
 const BIDI = /[\u202a-\u202e\u2066-\u2069]/g
 const BLANK_RUN = /\n(?:[ \t]*\n){3,}/g
+/** The most characters a tool call's result text keeps (the cut ends with an ellipsis, inside the count). */
+export const RESULT_CHARS = 4000
 
 /** Strips C0/C1 control characters (keeping \n and \t), ANSI escape sequences and bidi overrides; caps at max chars. */
 export function cleanText(text: string, max: number = 4000): string {
@@ -62,6 +64,24 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
 const asString = (value: unknown): string => (typeof value === 'string' ? value : '')
 
 const asList = (value: unknown): unknown[] => (Array.isArray(value) ? value : [])
+
+/**
+ * A tool result's text: its content as it is when a string, else the text blocks of its content list joined by a
+ * newline (images and other blocks skipped). Cleaned exactly as assistant text is, and at most RESULT_CHARS long.
+ */
+export function resultTextOf(content: unknown): string {
+  if (typeof content === 'string') {
+    return cleanText(content, RESULT_CHARS)
+  }
+  const texts: string[] = []
+  for (const item of asList(content)) {
+    const block = asRecord(item)
+    if (block?.type === 'text') {
+      texts.push(asString(block.text))
+    }
+  }
+  return cleanText(texts.join('\n'), RESULT_CHARS)
+}
 
 /** The content blocks of payload.message, as records; a plain string becomes one text block. */
 function blocksOf(payload: Record<string, unknown> | null): Record<string, unknown>[] {
@@ -176,6 +196,10 @@ function foldUser(fold: Fold, event: ApiEvent, payload: Record<string, unknown> 
       const call = block.type === 'tool_result' ? fold.calls.get(asString(block.tool_use_id)) : undefined
       if (call?.tool) {
         call.tool.status = block.is_error === true ? 'error' : 'ok'
+        const result = resultTextOf(block.content)
+        if (result.trim() !== '') {
+          call.result = result
+        }
       }
     }
     return

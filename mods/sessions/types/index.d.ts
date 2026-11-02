@@ -96,6 +96,8 @@ export type LocalAgent = {
   startedAt: string | null
   /** owner/repo from `git -C <cwd> remote get-url origin`, null when unknown. */
   repo: string | null
+  /** Current branch from `git -C <cwd> branch --show-current`, null when unknown or detached. */
+  branch: string | null
 }
 
 /** One row of the ListAgents tool's text: `Name [ref] - cloud|bg|Remote Control - running|...`, - a middle dot. */
@@ -175,6 +177,9 @@ export type TranscriptLine = {
   tool?: { useId: string; name: string; label: string; status: 'running' | 'ok' | 'error' }
   /** For kind tool: a subagent's lines under the call that started it (events whose parent_tool_use_id is its id). */
   children?: TranscriptLine[]
+  /** For kind tool: the text its result carried (a string, or the text blocks of a content list), cleaned and at most
+   * 4000 characters. Absent until a result with text comes. Drawn only in the expanded session view. */
+  result?: string
 }
 
 /** What the open session's events say needs the owner: a held peer message, a permission wait. */
@@ -246,6 +251,8 @@ declare module 'claude-code' {
       foldedGroup: StateFamily<boolean>
       /** Tool calls opened to show their subagent lines, by line key. */
       openCall: StateFamily<boolean>
+      /** Whether the open session view is expanded (`e`): every text unfolded, each call's result drawn under it. */
+      expanded: boolean
     }
   }
 }

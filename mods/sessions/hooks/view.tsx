@@ -33,7 +33,7 @@ export const STATE_COLOR: Record<SessionState, string | undefined> = {
   archived: 'inactive',
 }
 
-const KIND_SHORT: Record<SessionRow['kind'], string> = { cloud: 'cloud', remote: 'remote', background: 'bg', other: '' }
+const KIND_SHORT: Record<SessionRow['kind'], string> = { cloud: 'cloud', remote: 'remote', background: 'local', other: '' }
 
 const ELLIPSIS = '\u2026'
 const DOT = ' \u00b7 '
@@ -45,6 +45,10 @@ export const NOTICE_ROWS = 12
 const TEXT_ROWS = 4
 /** The most transcript or log lines the session view keeps on screen (the newest). */
 const MAX_LINES = 300
+/** The same cap in the expanded session view (the `e` key). */
+const MAX_EXPANDED_LINES = 2000
+/** The most rows a tool call's result body draws in the expanded view, its last saying how many more there are. */
+export const RESULT_ROWS = 20
 
 // ---------------------------------------------------------------------------------------------------------------
 // Cells
@@ -189,26 +193,28 @@ export type ListOptions = {
 /** One drawn line of the list: a group's header, a row, or the empty list's line. */
 export type ListEntry =
   | { kind: 'group'; key: string; repo: string; text: string; isFolded: boolean }
-  | { kind: 'row'; key: string; row: SessionRow; text: string; isFocused: boolean }
+  | { kind: 'row'; key: string; row: SessionRow; text: string; lines: string[]; isFocused: boolean }
   | { kind: 'empty'; key: string; text: string }
 
 /** A group's header: `owner/repo (n)` or `Other (n)`, after a fold mark. */
 export function groupText(repo: string | null, count: number, isFolded: boolean, width: number): string {
-  return fit(`${isFolded ? '\u25b8' : '\u25be'} ${repo ?? 'Other'} (${count})`, width)
+  const name = repo !== null && width < 80 ? repo.slice(repo.lastIndexOf('/') + 1) : repo ?? 'Other'
+  return fit(`${isFolded ? '\u25b8' : '\u25be'} ${name} (${count})`, width)
 }
 
 /**
  * One row: focus mark, state glyph and label, unread dot, title, then kind, branch, age, context, model and
- * effort, and the kit role. The title takes what the facts leave, at least 12 cells; then the facts are cut.
+ * effort, and the kit role. The title takes what the facts leave, at least 12 cells or 40% of the room.
  */
 export function rowText(row: SessionRow, width: number, now: number, isFocused: boolean): string {
   const left = `${isFocused ? FOCUS_MARK : '  '}${STATE_GLYPH[row.state]} ${pad(STATE_LABEL[row.state], 12)} ${
     row.unread ? UNREAD : ' '
   } `
+  const age = ageText(row.activeAt, now)
   const facts = [
     KIND_SHORT[row.kind],
     row.branch === null ? '' : fit(row.branch, 18),
-    ageText(row.activeAt, now),
+    age === '-' ? '' : age,
     contextText(row.context),
     modelEffort(row.model, row.effort),
     row.role ?? '',
@@ -216,11 +222,62 @@ export function rowText(row: SessionRow, width: number, now: number, isFocused: 
     .filter(part => part !== '')
     .join(' ')
   const room = width - cells(left) - 2
-  const titleWidth = Math.max(12, room - cells(facts))
+  const titleWidth = Math.max(12, Math.floor(room * 0.4), room - cells(facts))
   const title = oneLine(row.title) || '(untitled)'
   const factsShown = fit(facts, room - titleWidth)
   const line = factsShown === '' ? left + fit(title, titleWidth) : `${left}${pad(title, titleWidth)}  ${factsShown}`
   return fit(line, width)
+}
+
+/** A list row's lines: a compact single line at 100 cells, otherwise title and facts on separate lines. */
+export function rowLines(row: SessionRow, width: number, now: number, isFocused: boolean): string[] {
+  if (width >= 100) return [rowText(row, width, now, isFocused)]
+  const title = oneLine(row.title) || '(untitled)'
+  const first = `${isFocused ? FOCUS_MARK : '  '}${STATE_GLYPH[row.state]} ${row.unread ? UNREAD : ' '} ${title}`
+  const age = ageText(row.activeAt, now)
+  const facts = [
+    STATE_LABEL[row.state],
+    KIND_SHORT[row.kind],
+    row.role ?? '',
+    row.branch === null ? '' : fit(row.branch, 24),
+    age === '-' ? '' : age,
+    contextText(row.context),
+    modelEffort(row.model, row.effort),
+  ]
+    .filter(part => part !== '')
+    .join(DOT)
+  return [fit(first, width), fit(`    ${facts}`, width)]
+}
+
+/** The order the summary counts states in: what needs the owner first. */
+const SUMMARY_ORDER: readonly SessionState[] = ['needs-you', 'working', 'review-ready', 'idle', 'offline', 'archived']
+
+/** Counts all visible rows, including rows in folded groups: the total, then each state present, needs-you first. */
+export function summaryText(groups: readonly RepoGroup[], showArchived: boolean, width: number): string {
+  const rows = groups.flatMap(group => group.rows).filter(row => showArchived || !isInactive(row))
+  const parts = [`${rows.length} ${rows.length === 1 ? 'session' : 'sessions'}`]
+  for (const state of SUMMARY_ORDER) {
+    const count = rows.filter(row => row.state === state).length
+    if (count > 0) parts.push(`${count} ${STATE_LABEL[state]}`)
+  }
+  return fit(parts.join(DOT), width)
+}
+
+/** Packs dot-separated parts into lines, cutting only a part that cannot fit by itself. */
+export function wrapParts(text: string, width: number): string[] {
+  const lines: string[] = []
+  let line = ''
+  for (const part of text.split(DOT)) {
+    const next = line === '' ? part : `${line}${DOT}${part}`
+    if (line !== '' && cells(next) > width) {
+      lines.push(fit(line, width))
+      line = part
+    } else {
+      line = next
+    }
+  }
+  lines.push(fit(line, width))
+  return lines
 }
 
 /**
@@ -258,7 +315,8 @@ export function listEntries(
     if (!isFolded) {
       for (const row of group.rows) {
         const isFocused = row.key === focused
-        entries.push({ kind: 'row', key: `row:${row.key}`, row, text: rowText(row, width, now, isFocused), isFocused })
+        const lines = rowLines(row, width, now, isFocused)
+        entries.push({ kind: 'row', key: `row:${row.key}`, row, text: lines[0] ?? '', lines, isFocused })
       }
     }
   }
@@ -273,7 +331,9 @@ export function listText(
   focused: string | null,
   options: ListOptions = {},
 ): string[] {
-  return listEntries(groups, width, now, focused, options).map(entry => entry.text)
+  return listEntries(groups, width, now, focused, options).flatMap(entry =>
+    entry.kind === 'row' ? entry.lines : [entry.text],
+  )
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -284,6 +344,8 @@ export type SessionOptions = {
   notice?: ActionNotice | null
   /** Whether a tool call shows its subagent lines, by line key. */
   isOpened?: (key: string) => boolean
+  /** Whether the transcript is expanded (the `e` key): every text unfolded, each call's result body under it. */
+  expanded?: boolean
   /** The action keys, for the action row's text. */
   actions?: ReadonlyArray<{ id: string; key: string; label: string }>
 }
@@ -321,28 +383,74 @@ export function headerText(header: SessionHeader, width: number): string[] {
 
 const TOOL_GLYPH = { running: '\u2026', ok: '\u2713', error: '\u2717' } as const
 
-/** The rows of one transcript line at an indent, a call's subagent lines under it when it is opened. */
+/**
+ * How the transcript is drawn. expanded (the `e` key): every text unfolded, each call's result body drawn under it.
+ * latestText: the key of the newest assistant text, drawn in full even when the view is folded.
+ */
+export type Unfold = { expanded: boolean; latestText: string | null }
+const FOLDED: Unfold = { expanded: false, latestText: null }
+
+/** The key of the newest assistant text among a transcript's top-level lines (null when there is none). */
+export function latestTextKey(lines: readonly TranscriptLine[]): string | null {
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]
+    if (line?.kind === 'text') {
+      return line.key
+    }
+  }
+  return null
+}
+
+/** The most transcript lines kept on screen: the newest MAX_LINES, or MAX_EXPANDED_LINES when expanded. */
+const capOf = (expanded: boolean): number => (expanded ? MAX_EXPANDED_LINES : MAX_LINES)
+
+/** A tool call's head row: fold mark, status glyph, name and label, and its subagent line count while it is shut. */
+function callHead(line: TranscriptLine, width: number, indent: number, opened: boolean): string {
+  const lead = ' '.repeat(indent)
+  const room = width - indent
+  const tool = line.tool
+  const children = line.children ?? []
+  const fold = children.length === 0 ? ' ' : opened ? '\u25be' : '\u25b8'
+  const label = tool === undefined ? oneLine(line.text) : `${tool.name}  ${oneLine(tool.label)}`
+  const more = children.length > 0 && !opened ? ` (+${children.length})` : ''
+  const glyph = tool === undefined ? ' ' : TOOL_GLYPH[tool.status]
+  return fit(`${lead}${fold}${glyph} ${fit(label, Math.max(1, room - 3 - cells(more)))}${more}`, width)
+}
+
+/** A tool call's result body, expanded only: its lines at indent + 4, RESULT_ROWS of them, then how many more. */
+function resultRows(line: TranscriptLine, width: number, indent: number, unfold: Unfold): string[] {
+  if (!unfold.expanded || line.kind !== 'tool' || line.result === undefined) {
+    return []
+  }
+  const lead = ' '.repeat(indent + 4)
+  const parts = strip(line.result)
+    .split('\n')
+    .map(part => part.replace(/\t/g, '  ').trimEnd())
+    .filter(part => part.trim() !== '')
+  const rows = parts.slice(0, RESULT_ROWS).map(part => fit(`${lead}${part}`, width))
+  if (parts.length > RESULT_ROWS) {
+    rows.push(fit(`${lead}${ELLIPSIS} +${parts.length - RESULT_ROWS} lines`, width))
+  }
+  return rows
+}
+
+/** The rows of one transcript line at an indent: a call's head and result body, its subagent lines under it when it is
+ * opened; a text's rows, four unless it is unfolded (the newest assistant text, or every text when expanded). */
 export function lineText(
   line: TranscriptLine,
   width: number,
   indent: number,
   isOpened: (key: string) => boolean = () => false,
+  unfold: Unfold = FOLDED,
 ): string[] {
   const lead = ' '.repeat(indent)
-  const room = width - indent
   if (line.kind === 'tool') {
-    const tool = line.tool
     const children = line.children ?? []
     const opened = children.length > 0 && isOpened(line.key)
-    const fold = children.length === 0 ? ' ' : opened ? '\u25be' : '\u25b8'
-    const label = tool === undefined ? oneLine(line.text) : `${tool.name}  ${oneLine(tool.label)}`
-    const more = children.length > 0 && !opened ? ` (+${children.length})` : ''
-    const glyph = tool === undefined ? ' ' : TOOL_GLYPH[tool.status]
-    const head = `${lead}${fold}${glyph} `
-    const rows = [head + fit(label, Math.max(1, room - 3 - cells(more))) + more]
+    const rows = [callHead(line, width, indent, opened), ...resultRows(line, width, indent, unfold)]
     if (opened) {
       for (const child of children) {
-        rows.push(...lineText(child, width, indent + 4, isOpened))
+        rows.push(...lineText(child, width, indent + 4, isOpened, unfold))
       }
     }
     return rows.map(row => fit(row, width))
@@ -353,10 +461,11 @@ export function lineText(
       .map(part => part.replace(/\t/g, '  ').trimEnd())
       .filter(part => part.trim() !== '')
     const first = line.kind === 'prompt' ? FOCUS_MARK : '  '
-    const shown = parts.slice(0, TEXT_ROWS)
+    const unfolded = unfold.expanded || (line.kind === 'text' && line.key === unfold.latestText)
+    const shown = unfolded ? parts : parts.slice(0, TEXT_ROWS)
     const rows = shown.map((part, index) => fit(`${lead}${index === 0 ? first : '  '}${part}`, width))
-    if (parts.length > TEXT_ROWS) {
-      rows.push(fit(`${lead}  ${ELLIPSIS} +${parts.length - TEXT_ROWS} lines`, width))
+    if (parts.length > shown.length) {
+      rows.push(fit(`${lead}  ${ELLIPSIS} +${parts.length - shown.length} lines`, width))
     }
     return rows.length > 0 ? rows : [fit(`${lead}${first}`, width)]
   }
@@ -395,9 +504,18 @@ export function actionsText(actions: ReadonlyArray<{ key: string; label: string 
   return rows.map(one => fit(one, width))
 }
 
-/** The transcript part of the session view: its lines, the log text of a local session, or what it waits on. */
-export function bodyText(open: OpenSession, width: number, isOpened?: (key: string) => boolean): string[] {
+/**
+ * The transcript part of the session view: its lines, the log text of a local session, or what it waits on. The
+ * expanded view (the `e` key) unfolds every text, draws each call's result body and keeps MAX_EXPANDED_LINES.
+ */
+export function bodyText(
+  open: OpenSession,
+  width: number,
+  isOpened?: (key: string) => boolean,
+  expanded: boolean = false,
+): string[] {
   const rows: string[] = []
+  const cap = capOf(expanded)
   if (open.status === 'loading') {
     rows.push(fit('loading\u2026', width))
   } else if (open.status === 'error') {
@@ -408,7 +526,7 @@ export function bodyText(open: OpenSession, width: number, isOpened?: (key: stri
     while (parts.length > 0 && parts[parts.length - 1] === '') {
       parts.pop()
     }
-    for (const part of parts.slice(-MAX_LINES)) {
+    for (const part of parts.slice(-cap)) {
       rows.push(fit(part, width))
     }
     if (parts.length === 0) {
@@ -416,13 +534,14 @@ export function bodyText(open: OpenSession, width: number, isOpened?: (key: stri
     }
     return rows
   }
+  const unfold: Unfold = { expanded, latestText: latestTextKey(open.lines) }
   for (const line of open.lines) {
-    rows.push(...lineText(line, width, 0, isOpened))
+    rows.push(...lineText(line, width, 0, isOpened, unfold))
   }
   if (open.lines.length === 0 && open.status === 'ready') {
     rows.push(fit('No events yet.', width))
   }
-  return rows.slice(-MAX_LINES)
+  return rows.slice(-cap)
 }
 
 /** The session view's text lines: header, transcript, notice and action row, each at most `width` cells. */
@@ -431,7 +550,7 @@ export function sessionText(open: OpenSession, width: number, now: number, optio
   if (open.header !== null) {
     rows.push(...headerText(open.header, width))
   }
-  rows.push(...bodyText(open, width, options.isOpened))
+  rows.push(...bodyText(open, width, options.isOpened, options.expanded === true))
   if (options.notice !== undefined && options.notice !== null) {
     rows.push(...noticeText(options.notice, width))
   }
@@ -471,19 +590,22 @@ export function listTree(ui: any, data: ListData, handlers: ListHandlers) {
   })
   return (
     <Box flexDirection="column">
-      {entries.map(entry => {
+      {entries[0]?.kind === 'empty' ? '' : <Text bold>{summaryText(data.groups, data.showArchived, data.width)}</Text>}
+      {entries.flatMap(entry => {
         if (entry.kind === 'empty') {
-          return <Text dimColor>{entry.text}</Text>
+          return [<Text dimColor>{entry.text}</Text>]
         }
         if (entry.kind === 'group') {
-          return (
+          return [
             <Button key={entry.key} plain onPress={() => handlers.toggleGroup(entry.repo)}>
               <Text bold>{entry.text}</Text>
-            </Button>
-          )
+            </Button>,
+          ]
         }
         const color = STATE_COLOR[entry.row.state]
-        return (
+        // A Button holds only strings and Text (the engine refuses a Box in it): the title line is the pressable row,
+        // and the facts line is a dim Text under it.
+        return [
           <Button key={entry.key} plain onPress={() => handlers.openRow(entry.row)}>
             <Text
               color={entry.isFocused ? 'suggestion' : color}
@@ -492,10 +614,11 @@ export function listTree(ui: any, data: ListData, handlers: ListHandlers) {
             >
               {entry.text}
             </Text>
-          </Button>
-        )
+          </Button>,
+          ...entry.lines.slice(1).map(line => <Text dimColor>{line}</Text>),
+        ]
       })}
-      <Text dimColor>{fit(data.status, data.width)}</Text>
+      {wrapParts(data.status, data.width).map(line => <Text dimColor>{line}</Text>)}
       <Box flexDirection="row" flexWrap="wrap" columnGap={2}>
         <Button key="archived" hotkey="a" label={data.showArchived ? 'hide inactive' : 'show inactive'}
           onPress={() => handlers.toggleArchived()} />
@@ -511,6 +634,8 @@ export type SessionData = {
   now: number
   notice: ActionNotice | null
   isOpened: (key: string) => boolean
+  /** Whether the transcript is expanded (the `e` key). */
+  expanded: boolean
   /** The action keys, `send` left out (the composer is its key); key '' draws a Button without a hotkey. */
   actions: ReadonlyArray<{ id: string; key: string; label: string }>
   draft: string
@@ -526,23 +651,45 @@ export type SessionHandlers = {
   send: (text: string) => unknown
 }
 
-/** One transcript line as a tree: a call with subagent lines is a Button that opens them. */
-function lineTree(ui: any, line: TranscriptLine, data: SessionData, handlers: SessionHandlers, indent: number): any {
+/**
+ * One transcript line as a tree: a call with subagent lines is a Button that opens them; its result body (expanded)
+ * sits under its head, and its subagent lines under the body.
+ */
+function lineTree(
+  ui: any,
+  line: TranscriptLine,
+  data: SessionData,
+  handlers: SessionHandlers,
+  indent: number,
+  unfold: Unfold,
+): any {
   const { Box, Button, Text } = ui
-  const rows = lineText(line, data.width, indent, data.isOpened)
   const dim = line.kind === 'result' || line.kind === 'notice'
   const color = line.kind === 'held' ? 'warning' : line.tool?.status === 'error' ? 'error' : undefined
-  if (line.kind === 'tool' && (line.children ?? []).length > 0) {
-    const opened = data.isOpened(line.key)
+  if (line.kind === 'tool') {
+    const children = line.children ?? []
+    const opened = children.length > 0 && data.isOpened(line.key)
+    const head = callHead(line, data.width, indent, opened)
+    const body = resultRows(line, data.width, indent, unfold)
+    const headNode =
+      children.length > 0 ? (
+        <Button key={`call:${line.key}`} plain onPress={() => handlers.toggleCall(line.key)}>
+          <Text color={color}>{head}</Text>
+        </Button>
+      ) : (
+        <Text color={color}>{head}</Text>
+      )
     return (
       <Box flexDirection="column">
-        <Button key={`call:${line.key}`} plain onPress={() => handlers.toggleCall(line.key)}>
-          <Text color={color}>{rows[0] ?? ''}</Text>
-        </Button>
-        {opened ? (line.children ?? []).map(child => lineTree(ui, child, data, handlers, indent + 4)) : ''}
+        {headNode}
+        {body.map(row => (
+          <Text dimColor>{row}</Text>
+        ))}
+        {opened ? children.map(child => lineTree(ui, child, data, handlers, indent + 4, unfold)) : ''}
       </Box>
     )
   }
+  const rows = lineText(line, data.width, indent, data.isOpened, unfold)
   return (
     <Box flexDirection="column">
       {rows.map(row => (
@@ -559,9 +706,10 @@ export function sessionTree(ui: any, data: SessionData, handlers: SessionHandler
   const { Box, Button, Input, Text } = ui
   const open = data.open
   const header = open.header === null ? [] : headerText(open.header, data.width)
-  const lines = open.logText === undefined ? open.lines.slice(-MAX_LINES) : []
+  const lines = open.logText === undefined ? open.lines.slice(-capOf(data.expanded)) : []
+  const unfold: Unfold = { expanded: data.expanded, latestText: latestTextKey(open.lines) }
   const status = open.logText !== undefined || lines.length === 0 || open.status !== 'ready'
-  const bodyRows = status ? bodyText({ ...open, lines: [] }, data.width) : []
+  const bodyRows = status ? bodyText({ ...open, lines: [] }, data.width, undefined, data.expanded) : []
   return (
     <Box flexDirection="column">
       {header.map((row, index) => (
@@ -573,7 +721,7 @@ export function sessionTree(ui: any, data: SessionData, handlers: SessionHandler
         {bodyRows.map(row => (
           <Text dimColor>{row}</Text>
         ))}
-        {lines.map(line => lineTree(ui, line, data, handlers, 0))}
+        {lines.map(line => lineTree(ui, line, data, handlers, 0, unfold))}
       </Box>
       {data.notice === null ? (
         ''

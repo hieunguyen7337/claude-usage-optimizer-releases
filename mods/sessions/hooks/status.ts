@@ -1,5 +1,5 @@
 // The status model: the API's buckets, a local agent's state and a ListAgents row, each to one app-like state.
-import type { ApiSession, ListAgentRow, LocalAgent, NeedsYou, SessionKind, SessionState } from '../types'
+import type { ApiSession, ListAgentRow, LocalAgent, NeedsYou, SessionKind, SessionRow, SessionState } from '../types'
 
 /** What the list shows for each state, at most 12 cells. */
 export const STATE_LABEL: Record<SessionState, string> = {
@@ -34,9 +34,10 @@ export function stateOf(session: ApiSession, signals?: Partial<NeedsYou>): Sessi
 /**
  * Rows hidden until `a` shows them, as the Claude app hides them: archived sessions, and Remote Control sessions
  * whose local process has ended (the API keeps listing those as active, disconnected). A cloud session's VM sleeps
- * between turns and the session can still be resumed, so a disconnected cloud session stays listed.
+ * between turns and the session can still be resumed, so a disconnected cloud session stays listed. Mirrors stay visible.
  */
-export function isInactive(row: { state: SessionState; kind: SessionKind }): boolean {
+export function isInactive(row: { state: SessionState; kind: SessionKind; role?: SessionRow['role'] }): boolean {
+  if (row.role === 'mirror') return false
   return row.state === 'archived' || (row.state === 'offline' && row.kind !== 'cloud')
 }
 

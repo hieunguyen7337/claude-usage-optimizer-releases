@@ -135,11 +135,17 @@ def _session_path(state, session_id):
     return os.path.join(state, "turns", "open", session_id + ".json")
 
 
-def _session_cost(session_id):
+def _session_cost_info(session_id):
+    # (list $, source): the statusline's total_cost_usd, else the list $ of the session's transcripts ("transcript"),
+    # else (None, None). A cloud session has no statusline. Both costs include the session's subagents.
     if not _session_id_ok(session_id):
-        return None
+        return None, None
     value = _read_json(os.path.join(_usage_dir(), "sessions", session_id + ".json"))
-    return _number(value.get("total_cost_usd")) if value else None
+    cost = _number(value.get("total_cost_usd")) if value else None
+    if cost is not None:
+        return cost, "statusline"
+    cost = _transcript_cost(session_id)
+    return (cost, "transcript") if cost is not None else (None, None)
 
 
 def _window_value(cache, provider, label):
@@ -190,14 +196,178 @@ def _meters(usage_dir):
     return {provider: _meter(provider, usage_dir) for provider in PROVIDERS}
 
 
-def _cost_record(state, session_id):
-    if not _session_id_ok(session_id):
+# Transcript pricing, the fallback when the statusline has no cost. It copies bin/lane's transcript_usage,
+# price_for, message_list_usd and transcript_list_usd, and keeps their rules.
+TRANSCRIPT_COST_DIR = "transcript-costs"
+# The order of a record's tokens and of the catalog's price fields: input, output, cache_read, 5m and 1h writes.
+PRICE_FIELDS = ("input", "output", "cache_read", "cache_write_5m", "cache_write_1h")
+
+
+def _transcript_root():
+    # The projects folder of CLAUDE_CONFIG_DIR, as _census_claude reads it; ~/.claude when that is unset.
+    config = os.path.abspath(os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude"))
+    return os.path.join(config, "projects")
+
+
+def _transcript_paths(session_id):
+    # The session's transcripts that exist: <projects>/*/S.jsonl and <projects>/*/S/subagents/agent-*.jsonl.
+    root = _transcript_root()
+    try:
+        folders = os.listdir(root)
+    except OSError:
+        return []
+    found = []
+    for folder in folders:
+        main = os.path.join(root, folder, session_id + ".jsonl")
+        if os.path.isfile(main):
+            found.append(main)
+        subagents = os.path.join(root, folder, session_id, "subagents")
+        try:
+            names = os.listdir(subagents)
+        except OSError:
+            continue
+        found.extend(os.path.join(subagents, name) for name in names
+                     if name.startswith("agent-") and name.endswith(".jsonl")
+                     and os.path.isfile(os.path.join(subagents, name)))
+    return sorted(found)
+
+
+def _token_count(value):
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+
+def _one_per_response(rows):
+    # Each message id once, keeping the row with the most output tokens (the later on a tie): one API response is
+    # written as one entry per content block, and the later entries carry the final output count. Rows without an
+    # id all count.
+    responses, position = [], {}
+    for row in rows:
+        if row[0] is None:
+            responses.append(row)
+        elif row[0] not in position:
+            position[row[0]] = len(responses)
+            responses.append(row)
+        elif row[3] >= responses[position[row[0]]][3]:
+            responses[position[row[0]]] = row
+    return responses
+
+
+def _transcript_records(path):
+    # One record per API response: [message id, model, input, output, cache_read, 5m writes, 1h writes]. A response
+    # written as several entries counts once, with the entry that has the most output tokens (the later on a tie).
+    # <synthetic> entries are skipped. An unreadable file raises OSError.
+    records = []
+    with open(path, "r", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue
+            message = entry.get("message") if isinstance(entry, dict) else None
+            if not isinstance(message, dict) or entry.get("type") != "assistant":
+                continue
+            model = message.get("model")
+            if model == "<synthetic>":
+                continue
+            usage = message.get("usage") if isinstance(message.get("usage"), dict) else {}
+            creation = usage.get("cache_creation")
+            if isinstance(creation, dict):
+                write_5m = _token_count(creation.get("ephemeral_5m_input_tokens")) or 0
+                write_1h = _token_count(creation.get("ephemeral_1h_input_tokens")) or 0
+            else:
+                write_5m, write_1h = _token_count(usage.get("cache_creation_input_tokens")) or 0, 0
+            identity = message.get("id") if isinstance(message.get("id"), str) else None
+            record = [identity, model if isinstance(model, str) else None,
+                      _token_count(usage.get("input_tokens")) or 0, _token_count(usage.get("output_tokens")) or 0,
+                      _token_count(usage.get("cache_read_input_tokens")) or 0, write_5m, write_1h]
+            records.append(record)
+    return _one_per_response(records)
+
+
+def _records_valid(records):
+    return isinstance(records, list) and all(
+        isinstance(row, list) and len(row) == 7 and (row[0] is None or isinstance(row[0], str))
+        and (row[1] is None or isinstance(row[1], str))
+        and all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in row[2:])
+        for row in records)
+
+
+def _cached_transcript_records(path):
+    # The records are cached in the state dir under the transcript's path, and reused while its size and mtime are
+    # unchanged. A transcript that changed is read again in full, and an unreadable cache is a miss.
+    stat = os.stat(path)
+    name = hashlib.sha256(path.encode("utf-8", "surrogateescape")).hexdigest() + ".json"
+    cache = os.path.join(_state_dir(), TRANSCRIPT_COST_DIR, name)
+    cached = _read_json(cache)
+    if (cached and cached.get("path") == path and cached.get("size") == stat.st_size
+            and cached.get("mtime_ns") == stat.st_mtime_ns and _records_valid(cached.get("records"))):
+        return cached["records"]
+    records = _transcript_records(path)
+    try:
+        _atomic_json(cache, {"path": path, "size": stat.st_size, "mtime_ns": stat.st_mtime_ns, "records": records})
+    except (OSError, ValueError, TypeError):
+        pass  # a cache that cannot be written only costs the next call a read
+    return records
+
+
+def _catalog_prices():
+    # providers.claude.prices, from the same merged catalog as the plan price.
+    prices = _catalog_claude()[0].get("prices")
+    return prices if isinstance(prices, dict) else {}
+
+
+def _price_for(prices, model):
+    # A dated id (claude-haiku-5-5-20261001) takes its family's price: the longest key that it extends.
+    if not isinstance(model, str):
         return None
-    value = _read_json(os.path.join(_usage_dir(), "sessions", session_id + ".json"))
-    if not value or value.get("session_id") != session_id:
+    candidates = [key for key in prices if model == key or model.startswith(key + "-")]
+    price = prices.get(max(candidates, key=len)) if candidates else None
+    if not isinstance(price, dict) or not all(isinstance(price.get(name), (int, float)) for name in PRICE_FIELDS):
         return None
-    cost = _number(value.get("total_cost_usd"))
-    return cost
+    return price
+
+
+def _message_usd(price, tokens):
+    # Dollars of one response's tokens (in PRICE_FIELDS order) at the price; the long-context rates when its prompt
+    # (input, cache reads and cache writes) is above long_context.above_prompt_tokens.
+    rates = price
+    long_context = price.get("long_context")
+    prompt = tokens[0] + tokens[2] + tokens[3] + tokens[4]
+    if (isinstance(long_context, dict) and isinstance(long_context.get("above_prompt_tokens"), (int, float))
+            and prompt > long_context["above_prompt_tokens"]
+            and all(isinstance(long_context.get(name), (int, float)) for name in PRICE_FIELDS)):
+        rates = long_context
+    return sum(tokens[index] * rates[name] for index, name in enumerate(PRICE_FIELDS)) / 1e6
+
+
+def _transcript_cost(session_id):
+    # A fallback must never cost the hook its turn: any error in reading or pricing the transcripts (a malformed
+    # line, an absurd token count, a bad price) makes the cost unknown instead.
+    try:
+        return _transcript_cost_or_raise(session_id)
+    except (OSError, ValueError, TypeError, ArithmeticError, RecursionError, KeyError, IndexError):
+        return None
+
+
+def _transcript_cost_or_raise(session_id):
+    # The list $ of the session's transcripts, each response counted once by its id across the files, or None when
+    # there are none, one cannot be read, or a model has no price (never a partial sum).
+    paths = _transcript_paths(session_id)
+    if not paths:
+        return None
+    try:
+        rows = [row for path in paths for row in _cached_transcript_records(path)]
+    except OSError:
+        return None
+    responses = _one_per_response(rows)
+    prices = _catalog_prices()
+    total = 0.0
+    for row in responses:
+        price = _price_for(prices, row[1])
+        if price is None:
+            return None
+        total += _message_usd(price, row[2:])
+    return round(total, 6) if math.isfinite(total) else None
 
 
 def _preview(value, size=80):
@@ -229,13 +399,14 @@ def _turn_time_fields(state, opened, now):
     return fields
 
 
-def _write_open(state, session_id, event, cost_start, meters_start):
+def _write_open(state, session_id, event, cost_start, meters_start, cost_start_source=None):
     path = _session_path(state, session_id)
     opened = {"turn_id": "t-{}-{}".format(dt.datetime.now(UTC).strftime("%Y%m%d-%H%M%S"), uuid.uuid4().hex[:4]),
               "session_id": session_id, "started_at": _iso(),
               "cwd": event.get("cwd") if isinstance(event.get("cwd"), str) else os.getcwd(),
               "prompt_preview": _preview(event.get("prompt")),
-              "cost_start_usd": cost_start, "meters_start": meters_start}
+              "cost_start_usd": cost_start, "meters_start": meters_start,
+              **({"cost_start_source": "transcript"} if cost_start_source == "transcript" else {})}
     opened.update(_turn_time_fields(state, opened, dt.datetime.now(UTC)))
     _atomic_json(path, opened)
     return opened
@@ -257,21 +428,23 @@ def _close_turn(state, usage_dir, session_id, event, interrupted=False):
         if previous:
             started_at = previous.get("ended_at") or now
             cost_start = _number(previous.get("cost_end_usd"))
+            start_source = "transcript" if previous.get("cost_source") == "transcript" else None
             meters_start = {provider: (previous.get("meters", {}).get(provider) or {}).get("after")
                             if isinstance(previous.get("meters"), dict) else None for provider in PROVIDERS}
         else:
             started_at = now
-            cost_start = _session_cost(session_id)
+            cost_start, start_source = _session_cost_info(session_id)
             meters_start = _meters(usage_dir)
         opened = {"turn_id": "t-{}-{}".format(dt.datetime.now(UTC).strftime("%Y%m%d-%H%M%S"), uuid.uuid4().hex[:4]),
                   "session_id": session_id, "started_at": started_at,
                   "cwd": event.get("cwd") if isinstance(event.get("cwd"), str) else os.getcwd(),
                   "prompt_preview": "(continued)", "cost_start_usd": cost_start,
-                  "meters_start": meters_start}
+                  "meters_start": meters_start,
+                  **({"cost_start_source": "transcript"} if start_source == "transcript" else {})}
 
-    end_cost = _session_cost(session_id)
+    end_cost, end_source = _session_cost_info(session_id)
     if end_cost is None:
-        end_cost = _number(opened.get("cost_start_usd"))
+        end_cost, end_source = _number(opened.get("cost_start_usd")), None
     meters_before = _normalized_meters_start(opened.get("meters_start"))
     meters_after = _meters(usage_dir)
     turn = {"type": "turn", "turn_id": opened.get("turn_id"), "session_id": session_id,
@@ -282,7 +455,10 @@ def _close_turn(state, usage_dir, session_id, event, interrupted=False):
             "cost_end_usd": end_cost,
             "meters": {provider: {"before": meters_before.get(provider), "after": meters_after.get(provider)}
                        for provider in PROVIDERS},
-            "interrupted": bool(interrupted)}
+            "interrupted": bool(interrupted),
+            # Marks a turn whose start or end cost was priced from the transcripts (no statusline cost).
+            **({"cost_source": "transcript"}
+               if "transcript" in (end_source, opened.get("cost_start_source")) else {})}
     _append_jsonl(os.path.join(state, "turns.jsonl"), turn)
     last_path = os.path.join(state, "turns", "last", session_id + ".json")
     _atomic_json(last_path, turn)
@@ -367,17 +543,17 @@ MODE_RULES = {
         "read and search, on haiku; the test suite once, at the end, with only the touched modules before that."),
     "default": "Follow the policy's rules as written: cost, quality and time in balance.",
 }
-# In a cloud session (CLAUDE_CODE_REMOTE=true) the notice names subagents of this session and no other session.
+# In a cloud session (CLAUDE_CODE_REMOTE=true) the notice sends units to subagents of this session.
 MODE_RULES_CLOUD = {
     "utilization": (
         "Split every task into as many independent units as it has (units that touch one file stay one unit) and "
-        "start them all at once as parallel subagents of this session (the Agent tool). Start no other session: no "
-        "create_session, claude --cloud or lane --cloud. Split test suites by module across parallel subagents or "
+        "start them all at once as parallel subagents of this session (its subagent tool); this session's units run as its "
+        "own subagents. Split test suites by module across parallel subagents or "
         "background processes in this VM. Keep planning, review and decisions, and still read every diff before it "
         "merges. Capability tests still need the user's yes, and the 5h windows and the 85% Claude guard still stop "
         "work."),
     "saving": (
-        "Fewer, larger units, one subagent at a time unless work is blocked, and no other session; subagents only to "
+        "Fewer, larger units, one subagent at a time unless work is blocked, all as this session's own; subagents to "
         "read and search, on haiku; the test suite once, at the end, with only the touched modules before that."),
     "default": MODE_RULES["default"],
 }
@@ -394,19 +570,27 @@ def _catalog_explore():
 WEEKS_PER_MONTH = 4.345  # the catalog's explore.weeks_per_month, when it has none
 
 
-def _plan_price():
-    # Claude's plan price from the catalog: providers.claude.plan_prices[prior_plan].usd_per_month over
-    # explore.weeks_per_month. ~/.config/lanes/arms.local.json (LANES_ARMS_LOCAL) can set another plan, merged over
-    # the catalog the way lane-stats merges it. None without a price, so callers show nothing extra.
+def _catalog_claude():
+    # (providers.claude, explore) of arms.json (LANES_ARMS overrides), with ~/.config/lanes/arms.local.json
+    # (LANES_ARMS_LOCAL) merged over each key by key, the way lane-stats merges it.
     claude, explore = {}, {}
     for path in (os.environ.get("LANES_ARMS")
                  or os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir, "arms.json"),
                  os.environ.get("LANES_ARMS_LOCAL") or "~/.config/lanes/arms.local.json"):
         catalog = _read_json(os.path.expanduser(path)) or {}
+        catalog = catalog if isinstance(catalog, dict) else {}
         providers = catalog.get("providers")
         settings = providers.get("claude") if isinstance(providers, dict) else None
         claude.update(settings if isinstance(settings, dict) else {})
         explore.update(catalog["explore"] if isinstance(catalog.get("explore"), dict) else {})
+    return claude, explore
+
+
+def _plan_price():
+    # Claude's plan price from the catalog: providers.claude.plan_prices[prior_plan].usd_per_month over
+    # explore.weeks_per_month. ~/.config/lanes/arms.local.json (LANES_ARMS_LOCAL) can set another plan, merged over
+    # the catalog the way lane-stats merges it. None without a price, so callers show nothing extra.
+    claude, explore = _catalog_claude()
     plan, prices = claude.get("prior_plan"), claude.get("plan_prices")
     price = prices.get(plan) if isinstance(plan, str) and isinstance(prices, dict) else None
     monthly = _number(price.get("usd_per_month")) if isinstance(price, dict) else None
@@ -740,8 +924,9 @@ def _hook():
         if event_name == "UserPromptSubmit":
             if _open_turn(state, session_id):
                 _close_turn(state, usage_dir, session_id, data, interrupted=True)
-            _settle_last(state, session_id, _session_cost(session_id))
-            _write_open(state, session_id, data, _session_cost(session_id), _meters(usage_dir))
+            cost, cost_source = _session_cost_info(session_id)
+            _settle_last(state, session_id, cost)
+            _write_open(state, session_id, data, cost, _meters(usage_dir), cost_source)
         else:
             _close_turn(state, usage_dir, session_id, data, interrupted=False)
             _calibrate(state, usage_dir, force=False)
@@ -1197,7 +1382,7 @@ def _current(state, session_id):
     now = dt.datetime.now(UTC)
     start = _time(turn.get("started_at"))
     elapsed = max(0.0, (now - start).total_seconds() / 60.0) if start else None
-    current_cost = _session_cost(turn.get("session_id"))
+    current_cost, cost_source = _session_cost_info(turn.get("session_id"))
     start_cost = _number(turn.get("cost_start_usd"))
     cost = max(0.0, current_cost - (start_cost if start_cost is not None else 0.0)) if current_cost is not None else None
     calibration = _calibration(state)
@@ -1245,6 +1430,8 @@ def _current(state, session_id):
             "started_at": turn.get("started_at"), "started_local": _local(turn.get("started_at")),
             "elapsed_minutes": elapsed, "cost_start_usd": start_cost,
             "cost_so_far_usd": cost,
+            **({"cost_source": "transcript"}
+               if cost is not None and "transcript" in (cost_source, turn.get("cost_start_source")) else {}),
             "estimated_claude_weekly_pct": weekly_pct,
             **({"estimated_plan_usd": plan_usd, "plan_price": price} if plan_usd is not None else {}),
             "pct_per_usd": calibration["pct_per_usd"], "calibration_source": calibration["source"],
@@ -1257,6 +1444,8 @@ def _current_text(value):
     if value is None:
         return "No open turn."
     cost = "unknown" if value["cost_so_far_usd"] is None else "${:.2f}".format(value["cost_so_far_usd"])
+    if value.get("cost_source") == "transcript" and value["cost_so_far_usd"] is not None:
+        cost += " (transcript)"
     weekly = "unknown" if value["estimated_claude_weekly_pct"] is None else "≈{:.2f}%".format(value["estimated_claude_weekly_pct"])
     parts = ["{} {} min | list {} | est Claude wk {}".format(
         value["started_local"], round(value["elapsed_minutes"], 1), cost, weekly)]

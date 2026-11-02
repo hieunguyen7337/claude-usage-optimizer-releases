@@ -11,11 +11,15 @@ scratch/
 # Codex CLI writes error.log into the folder it runs in; it can hold account ids.
 error.log
 .hpc-spool/
-# Local Claude Code files stay out of git; the cloud-notify hook and the settings that register it are shared.
+# Local Claude Code files stay out of git; the cloud-notify hook, the settings that register it and the kit's lane
+# agents (for this repository's mirror) are shared. The release bundle leaves all of .claude/ out.
 /.claude/*
 !/.claude/settings.json
 !/.claude/hooks/
 /.claude/hooks/*
 !/.claude/hooks/cloud-notify.py
+!/.claude/agents/
+/.claude/agents/*
+!/.claude/agents/lane-*.md
 # cloud-notify: marks this checkout's main cloud session; never commit it
 .claude/main-session

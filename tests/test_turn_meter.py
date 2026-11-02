@@ -47,6 +47,8 @@ class TurnMeterTests(unittest.TestCase):
         self.env.pop("CLAUDE_CONFIG_DIR", None)
         self.env.pop("USAGE_OPTIMIZER_MODE", None)
         self.env.pop("LANES_ARMS_LOCAL", None)
+        # A cloud VM sets CLAUDE_CODE_REMOTE=true, which turns on cloud-only probes and defaults the tests do not expect.
+        self.env.pop("CLAUDE_CODE_REMOTE", None)
 
     def tearDown(self):
         shutil.rmtree(self.root)
@@ -679,6 +681,224 @@ class TurnMeterTests(unittest.TestCase):
         self.assertEqual(self.read_json(path)["total_cost_usd"], 2.1)
 
 
+class TranscriptCostTests(unittest.TestCase):
+    # A cloud session has no statusline, so its cost is priced from its transcripts at the catalog's prices.
+    # The prices are the test's own, in dollars per million tokens, so every expected cost is worked out by hand.
+    PRICES = {"claude-test-1": {"input": 1, "output": 5, "cache_read": 0.5, "cache_write_5m": 2, "cache_write_1h": 4,
+                                "long_context": {"above_prompt_tokens": 100000, "input": 2, "output": 10,
+                                                 "cache_read": 1, "cache_write_5m": 4, "cache_write_1h": 8}}}
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="turn-meter-transcript-test-")
+        self.state = os.path.join(self.root, "state")
+        self.usage = os.path.join(self.root, "usage")
+        self.cwd = os.path.join(self.root, "work")
+        self.config = os.path.join(self.root, "claude-config")
+        self.projects = os.path.join(self.config, "projects")
+        for path in (self.state, self.usage, self.cwd, self.projects):
+            os.makedirs(path)
+        self.arms = os.path.join(self.root, "arms.json")
+        self.write_json(self.arms, {"providers": {"claude": {"prices": self.PRICES}}})
+        self.env = dict(os.environ)
+        self.env.update({"LANES_STATE": self.state, "CLAUDE_USAGE_DIR": self.usage, "CLAUDE_CONFIG_DIR": self.config,
+                         "LANES_ARMS": self.arms, "LANES_CONFIG": os.path.join(self.root, "config"),
+                         "HOME": self.root, "USERPROFILE": self.root, "NO_COLOR": "1",
+                         "USAGE_OPTIMIZER_CODEX": "off", "USAGE_OPTIMIZER_KIT_LABEL": "off",
+                         "USAGE_OPTIMIZER_MODE_NOTICE": "off"})
+        for name in ("CLAUDE_CODE_REMOTE", "USAGE_OPTIMIZER_MODE", "LANES_ARMS_LOCAL"):
+            self.env.pop(name, None)
+
+    def tearDown(self):
+        shutil.rmtree(self.root)
+
+    def write_json(self, path, value):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(value, handle)
+
+    def read_json(self, path):
+        with open(path, encoding="utf-8") as handle:
+            return json.load(handle)
+
+    def write_cost(self, session, cost):
+        self.write_json(os.path.join(self.usage, "sessions", session + ".json"),
+                        {"session_id": session, "total_cost_usd": cost, "observed_at": "2026-10-17T01:00:00Z"})
+
+    def transcript(self, *parts):
+        return os.path.join(self.projects, *parts)
+
+    def write_lines(self, path, entries, append=False):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a" if append else "w", encoding="utf-8") as handle:
+            handle.write("".join(json.dumps(entry) + "\n" for entry in entries))
+
+    def response(self, identity, model, **usage):
+        # One assistant entry as Claude Code writes it; the usage keys are the API's.
+        return {"type": "assistant", "message": {"id": identity, "model": model, "usage": usage}}
+
+    def hook(self, event, session="session-1", **extra):
+        value = {"hook_event_name": event, "session_id": session, "cwd": self.cwd}
+        value.update(extra)
+        result = subprocess.run([sys.executable, METER, "hook"], input=json.dumps(value), text=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env,
+                                cwd=self.cwd, timeout=10, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "")
+
+    def command(self, *args):
+        return subprocess.run([sys.executable, METER, *args], text=True, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, env=self.env, cwd=self.cwd, timeout=15, check=False)
+
+    def ledger(self):
+        with open(os.path.join(self.state, "turns.jsonl"), encoding="utf-8") as handle:
+            return [json.loads(line) for line in handle if line.strip()]
+
+    def session_cost(self, session="session-1"):
+        with mock.patch.dict(os.environ, self.env, clear=True):
+            return meter._session_cost_info(session)
+
+    def test_fallback_prices_main_and_subagent_transcripts_once_per_message_id(self):
+        cache_creation = {"ephemeral_5m_input_tokens": 500, "ephemeral_1h_input_tokens": 200}
+        self.write_lines(self.transcript("-work", "session-1.jsonl"), [
+            {"type": "user", "message": {"role": "user", "content": "hello"}},
+            # One API response written as two entries: the later entry carries the final output count.
+            self.response("msg-1", "claude-test-1", input_tokens=1000, output_tokens=1, cache_read_input_tokens=2000,
+                          cache_creation=cache_creation),
+            self.response("msg-1", "claude-test-1", input_tokens=1000, output_tokens=300,
+                          cache_read_input_tokens=2000, cache_creation=cache_creation),
+            # A dated id takes its family's price; without a cache_creation object its writes are 5m.
+            self.response("msg-2", "claude-test-1-20261001", input_tokens=200, output_tokens=50,
+                          cache_creation_input_tokens=400),
+        ])
+        self.write_lines(self.transcript("-work", "session-1", "subagents", "agent-a1.jsonl"),
+                         [self.response("msg-3", "claude-test-1", input_tokens=3000, output_tokens=1000)])
+        # Neither of these counts: not an agent-*.jsonl of this session, and a session of another root.
+        self.write_lines(self.transcript("-work", "session-1", "subagents", "notes.jsonl"),
+                         [self.response("msg-7", "claude-test-1", output_tokens=10 ** 6)])
+        self.write_lines(os.path.join(self.root, ".claude", "projects", "-work", "session-1.jsonl"),
+                         [self.response("msg-8", "claude-test-1", output_tokens=10 ** 6)])
+        # By hand, in dollars per million tokens. msg-1: 1000x1 + 300x5 + 2000x0.5 + 500x2 + 200x4 = 5300, which is
+        # $0.0053. msg-2: 200x1 + 50x5 + 400x2 = 1250, which is $0.00125. msg-3: 3000x1 + 1000x5 = 8000, $0.008.
+        cost, source = self.session_cost()
+        self.assertEqual(source, "transcript")
+        self.assertAlmostEqual(cost, 0.0053 + 0.00125 + 0.008)
+
+    def test_statusline_cost_is_used_unchanged_and_transcripts_are_not_read(self):
+        self.write_lines(self.transcript("-work", "session-1.jsonl"),
+                         [self.response("msg-1", "claude-test-1", output_tokens=1000)])
+        self.write_cost("session-1", 2.5)
+        self.assertEqual(self.session_cost(), (2.5, "statusline"))
+        self.hook("UserPromptSubmit", prompt="statusline turn")
+        self.hook("Stop")
+        turn = self.ledger()[0]
+        self.assertEqual((turn["cost_start_usd"], turn["cost_end_usd"]), (2.5, 2.5))
+        self.assertNotIn("cost_source", turn)
+        self.assertFalse(os.path.exists(os.path.join(self.state, meter.TRANSCRIPT_COST_DIR)))
+
+    def test_a_model_without_a_price_makes_the_session_unknown_not_partial(self):
+        self.write_lines(self.transcript("-work", "session-1.jsonl"), [
+            self.response("msg-1", "claude-test-1", output_tokens=250),
+            self.response("msg-2", "claude-mystery-9", output_tokens=250)])
+        self.assertEqual(self.session_cost(), (None, None))
+        self.hook("UserPromptSubmit", prompt="unpriced model")
+        first = self.command("current", "--session", "session-1").stdout.splitlines()[0]
+        self.assertIn("list unknown", first)
+
+    def test_synthetic_entries_are_skipped(self):
+        # The <synthetic> entry has no price and far more tokens than the priced response: counting it would fail.
+        self.write_lines(self.transcript("-work", "session-1.jsonl"), [
+            self.response("msg-1", "<synthetic>", input_tokens=999999, output_tokens=999999),
+            self.response("msg-2", "claude-test-1", output_tokens=50000)])
+        self.assertEqual(self.session_cost(), (0.25, "transcript"))
+
+    def test_current_and_the_turn_record_show_a_transcript_priced_turn(self):
+        main = self.transcript("-work", "session-1.jsonl")
+        # $0.00125 is the session's cost when the prompt is submitted; the turn then adds $0.25.
+        self.write_lines(main, [self.response("msg-1", "claude-test-1", output_tokens=250)])
+        self.hook("UserPromptSubmit", prompt="priced from transcripts")
+        self.write_lines(main, [self.response("msg-2", "claude-test-1", output_tokens=50000)], append=True)
+        first = self.command("current", "--session", "session-1").stdout.splitlines()[0]
+        self.assertRegex(first, r" min \| list \$0\.25 \(transcript\) \| est Claude wk ")
+        value = json.loads(self.command("current", "--session", "session-1", "--json").stdout)["turn"]
+        self.assertEqual(value["cost_source"], "transcript")
+        self.assertAlmostEqual(value["cost_so_far_usd"], 0.25)
+        self.hook("Stop")
+        turn = self.ledger()[0]
+        self.assertEqual(turn["cost_source"], "transcript")
+        self.assertAlmostEqual(turn["cost_start_usd"], 0.00125)
+        self.assertAlmostEqual(turn["cost_end_usd"], 0.25125)
+        self.assertEqual(turn["session_id"], "session-1")
+
+    def test_transcript_costs_are_cached_until_the_file_changes(self):
+        main = self.transcript("-work", "session-1.jsonl")
+        self.write_lines(main, [self.response("msg-1", "claude-test-1", output_tokens=250)])
+        self.write_lines(self.transcript("-work", "session-1", "subagents", "agent-a1.jsonl"),
+                         [self.response("msg-2", "claude-test-1", output_tokens=1000)])
+        self.assertAlmostEqual(self.session_cost()[0], 0.00125 + 0.005)
+        cache_dir = os.path.join(self.state, meter.TRANSCRIPT_COST_DIR)
+        caches = [os.path.join(cache_dir, name) for name in os.listdir(cache_dir)]
+        self.assertEqual(len(caches), 2)
+        # The size and mtime are unchanged, so the cached records are used: emptying the main file's cache takes
+        # its $0.00125 out of the cost.
+        for path in caches:
+            value = self.read_json(path)
+            if value["path"] == main:
+                value["records"] = []
+            self.write_json(path, value)
+        self.assertAlmostEqual(self.session_cost()[0], 0.005)
+        # A transcript that grew has a new size, so it is read again: msg-3 adds 100 output tokens, $0.0005.
+        self.write_lines(main, [self.response("msg-3", "claude-test-1", output_tokens=100)], append=True)
+        self.assertAlmostEqual(self.session_cost()[0], 0.00125 + 0.0005 + 0.005)
+        # An unreadable cache is a miss: the transcripts are priced again, and the cache is written again.
+        for path in caches:
+            with open(path, "w", encoding="utf-8") as handle:
+                handle.write("{not json")
+        self.assertAlmostEqual(self.session_cost()[0], 0.00125 + 0.0005 + 0.005)
+        rewritten = [self.read_json(path) for path in caches]
+        main_cache = next(value for value in rewritten if value["path"] == main)
+        self.assertEqual(main_cache["size"], os.path.getsize(main))
+        self.assertEqual(len(main_cache["records"]), 2)
+
+    def test_projects_root_is_claude_config_dir_or_home_claude(self):
+        self.write_lines(self.transcript("-work", "session-1.jsonl"),
+                         [self.response("msg-1", "claude-test-1", output_tokens=1000)])
+        self.write_lines(os.path.join(self.root, ".claude", "projects", "-work", "session-1.jsonl"),
+                         [self.response("msg-1", "claude-test-1", output_tokens=20000)])
+        self.assertAlmostEqual(self.session_cost()[0], 0.005)
+        self.env.pop("CLAUDE_CONFIG_DIR")
+        self.assertAlmostEqual(self.session_cost()[0], 0.1)
+
+    def test_long_context_rates_apply_above_the_prompt_threshold(self):
+        price = self.PRICES["claude-test-1"]
+        # 200,000 prompt tokens are above 100,000, so the long-context rates: 200,000x2 + 10x10 = 400,100, $0.4001.
+        self.assertAlmostEqual(meter._message_usd(price, (200000, 10, 0, 0, 0)), 0.4001)
+        # 50,000 prompt tokens are not: 50,000x1 + 100x5 = 50,500, $0.0505.
+        self.assertAlmostEqual(meter._message_usd(price, (50000, 100, 0, 0, 0)), 0.0505)
+
+    def test_a_local_price_override_is_merged_over_the_catalog(self):
+        # arms.local.json prices override the catalog's, as in lane and lane-stats.
+        local = os.path.join(self.root, "arms.local.json")
+        self.write_json(local, {"providers": {"claude": {"prices": {"claude-test-1": dict(
+            self.PRICES["claude-test-1"], output=50)}}}})
+        self.env["LANES_ARMS_LOCAL"] = local
+        self.write_lines(self.transcript("-work", "session-1.jsonl"),
+                         [self.response("msg-1", "claude-test-1", output_tokens=1000)])
+        cost, source = self.session_cost()
+        self.assertEqual(source, "transcript")
+        self.assertAlmostEqual(cost, 0.05)
+
+    def test_a_transcript_that_cannot_be_priced_leaves_the_cost_unknown_and_keeps_the_turn(self):
+        # An absurd token count overflows the float sum; the hook must still open and close its turn.
+        self.write_lines(self.transcript("-work", "session-1.jsonl"),
+                         [self.response("msg-1", "claude-test-1", output_tokens=10 ** 400)])
+        self.assertEqual(self.session_cost(), (None, None))
+        self.hook("UserPromptSubmit", prompt="bad transcript")
+        self.hook("Stop")
+        turn = self.ledger()[0]
+        self.assertIsNone(turn["cost_end_usd"])
+        self.assertNotIn("cost_source", turn)
+
+
 class CompactionTests(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="turn-meter-compaction-test-")
@@ -693,6 +913,7 @@ class CompactionTests(unittest.TestCase):
         self.env = dict(os.environ, LANES_STATE=self.state, CLAUDE_USAGE_DIR=self.usage, LANES_CONFIG=self.config,
                         HOME=self.root, USERPROFILE=self.root, NO_COLOR="1", USAGE_OPTIMIZER_MODE_NOTICE="off")
         self.env.pop("USAGE_OPTIMIZER_MODE", None)
+        self.env.pop("CLAUDE_CODE_REMOTE", None)
 
     def tearDown(self):
         shutil.rmtree(self.root)
@@ -1054,17 +1275,17 @@ class ModeNoticeTests(PromptHookCase):
         self.env["USAGE_OPTIMIZER_MODE"] = "utilization"
         self.env["CLAUDE_CODE_REMOTE"] = "true"
         notice = self.prompt_notice()
-        self.assertIn("Start no other session", notice)
+        self.assertIn("this session's units run as its own subagents", notice)
         self.assertNotIn("Put them in a few cloud sessions", notice)
         self.env["USAGE_OPTIMIZER_MODE"] = "saving"
-        self.assertIn("no other session", self.prompt_notice())
+        self.assertIn("all as this session's own", self.prompt_notice())
 
     def test_local_session_notice_names_lane_cloud_sessions(self):
         self.env["USAGE_OPTIMIZER_MODE"] = "utilization"
         self.env.pop("CLAUDE_CODE_REMOTE", None)
         notice = self.prompt_notice()
         self.assertIn("started through lane --cloud", notice)
-        self.assertNotIn("Start no other session", notice)
+        self.assertNotIn("run as its own subagents", notice)
 
     def test_changed_mode_is_announced_once_more(self):
         self.env["USAGE_OPTIMIZER_MODE"] = "utilization"

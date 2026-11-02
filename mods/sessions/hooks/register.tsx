@@ -6,16 +6,19 @@ import type {
   ActionNotice,
   ApiEvent,
   ApiSession,
+  Fetched,
   ListStatus,
   NeedsYou,
   OpenSession,
   RepoGroup,
+  Registry,
   SessionRow,
 } from '../types'
 import { actionsFor, appUrl, cleanOutput, runAction } from './actions'
 import { getEvents, getSession, listSessions } from './api'
-import { readAgents, readListAgents, readRegistry } from './local'
-import { groupRows, headerOf, mergeRows } from './merge'
+import { readAgents, readListAgents, readRegistry, resetRegistryCache } from './local'
+import { groupRows, headerOf, mergeRows, sameSessionId } from './merge'
+import type { MergeInput } from './merge'
 import { BAND_MS, LIST_MS, MAX_MS, SESSION_MS, nextDelay } from './poll'
 import { isInactive, stateOf } from './status'
 import { cleanText, foldEvents, mergeEvents, needsYouOf } from './transcript'
@@ -40,6 +43,8 @@ let viewportSeen = { rows: 60, columns: 200 }
 // Families: by repo (Other: '') and by transcript line key.
 const FOLDED_GROUP = atom({ plugin: 'sessions', key: 'foldedGroup' } as const, false)
 const OPEN_CALL = atom({ plugin: 'sessions', key: 'openCall' } as const, false)
+// Whether the open session's transcript is expanded (`e`): every text unfolded, each call's result drawn under it.
+const EXPANDED = atom({ plugin: 'sessions', key: 'expanded' } as const, false)
 
 /** The events read so far per session key, merged on sequence number; a hot reload starts it afresh. */
 const eventCache = new Map<string, ApiEvent[]>()
@@ -53,6 +58,9 @@ const SIGNAL_READS = 8
 const OLDER_EVENTS = 100
 /** What a session's events last showed, by session id, and the stamp (lastEventAt, else updatedAt) they were read at. */
 const signalCache = new Map<string, { stamp: string | null; signals: NeedsYou }>()
+/** Missing-list mirror detail results, including refusals, reused for a minute by registry id. */
+const mirrorCache = new Map<string, { at: number; result: Fetched<ApiSession> }>()
+const MIRROR_TTL_MS = 60_000
 /** The pending poll timers; a hot reload drops them with the module, and the next render re-arms from paneOpen. */
 type Pending = { cancel: () => void } | null
 const timers: { list: Pending; open: Pending; band: Pending } = { list: null, open: null, band: null }
@@ -117,6 +125,19 @@ function actionKeys(row: SessionRow | undefined): Array<{ id: ActionId; key: str
     keys.push({ id: 'refresh', key: used.has('r') ? '' : 'r', label: 'refresh' })
   }
   return keys
+}
+
+/**
+ * The session view's action keys: the row's actions, then `e` to expand or collapse the transcript. That one is a view
+ * key, so it is listed with or without a row.
+ */
+function viewActions(
+  row: SessionRow | undefined,
+  expanded: boolean,
+): Array<{ id: ActionId | 'expand'; key: string; label: string }> {
+  const keys: Array<{ id: ActionId | 'expand'; key: string; label: string }> = actionKeys(row)
+  const taken = keys.some(action => action.key === 'e')
+  return [...keys, { id: 'expand', key: taken ? '' : 'e', label: expanded ? 'Collapse' : 'Expand' }]
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -213,6 +234,41 @@ async function signalsOf($: any, sessions: ApiSession[]): Promise<Record<string,
   return out
 }
 
+/** Reads omitted mirrors in parallel; a failed detail read becomes a visible registry row. */
+async function mirrorsOf($: any, sessions: ApiSession[], registry: Registry): Promise<{
+  sessions: ApiSession[]; missingMirrors: NonNullable<MergeInput['missingMirrors']>
+}> {
+  const now = Number(await $.clock.now())
+  const omitted = Object.entries(registry.mains).filter(([, entry]) =>
+    entry.sessionId !== null && !sessions.some((session) => sameSessionId(session.id, entry.sessionId)),
+  )
+  const reads = await Promise.all(omitted.map(async ([repo, entry]) => {
+    const id = entry.sessionId!
+    const known = mirrorCache.get(id)
+    let result = known?.result
+    if (known === undefined || now - known.at >= MIRROR_TTL_MS) {
+      const read = await attempt(async () => {
+        const apiId = id.replace(/^session_/, 'cse_')
+        const first = await getSession($, apiId)
+        return !first.ok && first.status === 404 && apiId !== id ? getSession($, id) : first
+      })
+      result = 'value' in read ? read.value : { ok: false, status: null, reason: noteOf('reading the mirror', read.error) }
+      mirrorCache.set(id, { at: now, result })
+    }
+    return { repo, sessionId: id, result: result! }
+  }))
+  const found: ApiSession[] = []
+  const missingMirrors: NonNullable<MergeInput['missingMirrors']> = []
+  for (const { repo, sessionId, result } of reads) {
+    if (result.ok) {
+      if (![...sessions, ...found].some((session) => sameSessionId(session.id, result.value.id))) found.push(result.value)
+    } else {
+      missingMirrors.push({ repo, sessionId, reason: result.reason })
+    }
+  }
+  return { sessions: found, missingMirrors }
+}
+
 /**
  * Reads the list: the sessions API, the local agents and the registry together. When the API fails, the rows come
  * from ListAgents and the registry, and the list says so (the status code only). Resolves whether it read.
@@ -237,9 +293,17 @@ export async function refreshList($: any): Promise<boolean> {
     let more = false
     let note: string | undefined
     let listAgents: Awaited<ReturnType<typeof readListAgents>> = []
+    let missingMirrors: MergeInput['missingMirrors'] = []
+    const kit: Registry = 'value' in registry ? registry.value : { mains: {}, runs: [] }
     if (listed.value.ok) {
-      cloud = listed.value.sessions
+      const listedNow = listed.value.sessions
+      cloud = listedNow
       more = listed.value.more
+      const mirrors = await attempt(() => mirrorsOf($, listedNow, kit))
+      if ('value' in mirrors) {
+        cloud = [...cloud, ...mirrors.value.sessions]
+        missingMirrors = mirrors.value.missingMirrors
+      }
     } else {
       note = `sessions API failed (${listed.value.reason}): local and kit sessions only`
       const fallback = await attempt(() => readListAgents($))
@@ -257,8 +321,9 @@ export async function refreshList($: any): Promise<boolean> {
         cloud,
         agents: 'value' in agents ? agents.value : [],
         listAgents,
-        registry: 'value' in registry ? registry.value : { mains: {}, runs: [] },
+        registry: kit,
         signals,
+        missingMirrors,
       }),
     )
     if ('error' in merged) {
@@ -270,7 +335,7 @@ export async function refreshList($: any): Promise<boolean> {
       note !== undefined
         ? { status: 'fallback', note, at }
         : more
-          ? { status: 'ready', note: `showing the newest ${cloud?.length ?? 0}`, at }
+          ? { status: 'ready', note: `showing the newest ${listed.value.ok ? listed.value.sessions.length : 0}`, at }
           : { status: 'ready', at }
     await update($, LIST, () => done)
     return cloud !== null
@@ -464,6 +529,8 @@ function armBand($: any) {
 
 /** `r`: reads now, then polls on from there. */
 async function refreshNow($: any) {
+  resetRegistryCache()
+  mirrorCache.clear()
   cancel('list')
   failures.list = 0
   if ((await read($, OPEN)) !== null) {
@@ -533,6 +600,8 @@ async function openRow($: any, row: SessionRow) {
   await update($, OPEN, () => open)
   await update($, DRAFT, () => '')
   await update($, NOTICE, () => null)
+  // Expansion belongs to the session it was chosen in: a session opened from the list starts folded.
+  await update($, EXPANDED, () => false)
   cancel('open')
   failures.open = 0
   armOpen($, 0)
@@ -711,7 +780,7 @@ async function moveRing($: any, key: string) {
 function statusLine(list: { status: string; note?: string }, rows: number, isFocused: boolean): string {
   const count = `${rows} session${rows === 1 ? '' : 's'}`
   const keys = isFocused
-    ? '\u2191\u2193 choose \u00b7 Enter opens \u00b7 a inactive \u00b7 r refresh \u00b7 Esc closes'
+    ? '\u2191\u2193 choose \u00b7 Enter opens \u00b7 Esc closes'
     : 'ctrl+x tab to choose'
   if (list.status === 'loading' || list.status === 'idle') {
     return `reading\u2026 \u00b7 ${keys}`
@@ -719,9 +788,8 @@ function statusLine(list: { status: string; note?: string }, rows: number, isFoc
   if (list.status === 'fallback' || list.status === 'error') {
     return `! ${list.note ?? list.status} \u00b7 ${count}`
   }
-  // A capped read says how far it reached ("showing the newest N") under the count.
-  const capped = list.note === undefined ? '' : ` \u00b7 ${list.note}`
-  return `${count}${capped} \u00b7 ${keys}`
+  // A capped read keeps its note; the list draws its own session count.
+  return list.note === undefined ? keys : `${list.note} \u00b7 ${keys}`
 }
 
 export const register: Register = (on, options) => {
@@ -860,6 +928,7 @@ export const register: Register = (on, options) => {
         }
       }
       await walk(open.lines)
+      const expanded = await read($, EXPANDED)
       return sessionTree(
         ui,
         {
@@ -868,14 +937,15 @@ export const register: Register = (on, options) => {
           now,
           notice: await read($, NOTICE),
           isOpened: key => opened.has(key),
-          actions: actionKeys(row),
+          expanded,
+          actions: viewActions(row, expanded),
           draft: await read($, DRAFT),
           hasComposer: e.surface !== 'mobile',
         },
         {
           back: () => backToList($),
           toggleCall: key => update($, memberOf(OPEN_CALL, { requestId: key }), value => !value),
-          action: id => act($, id as ActionId),
+          action: id => (id === 'expand' ? update($, EXPANDED, value => !value) : act($, id as ActionId)),
           typed: text => update($, DRAFT, () => text),
           send: text => send($, text),
         },

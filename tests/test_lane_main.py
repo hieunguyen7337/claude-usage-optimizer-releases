@@ -329,6 +329,7 @@ class LaneMainTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
         os.environ.pop("CLAUDE_CODE_REMOTE", None)
         os.environ.pop("USAGE_OPTIMIZER_SESSION_GUARD", None)
+        os.environ["LANES_KIT_REPO"] = "demo-owner/demo-kit"
         self.bin = os.path.join(self.root, "bin")
         self.workspace = os.path.join(self.root, "workspace")
         self.origin = os.path.join(self.root, "demo-proj.git")
@@ -565,7 +566,7 @@ class LaneMainTests(unittest.TestCase):
         self.assertIn(KIT_INSTALL_LINE, prompt)
         self.assertLess(prompt.index("cloud-notify.py mark-main"), prompt.index(KIT_INSTALL_LINE))
         self.assertLess(prompt.index(KIT_INSTALL_LINE), prompt.index("4. Read the pick table"))
-        self.assertIn("3. If ~/.claude/usage-optimizer is missing, install the kit.", prompt)
+        self.assertIn("3. Install the kit, now and again whenever ~/.claude/usage-optimizer is missing later", prompt)
         self.assertIn("git fetch origin lane-main/picks", prompt)
         self.assertIn("FETCH_HEAD:picks.json", prompt)
         self.assertIn("before each new unit", prompt)
@@ -821,14 +822,43 @@ class LaneMainTests(unittest.TestCase):
         self.assertFalse(os.path.exists(self.record))
         self.assertEqual(self.remote_refs(), {})
 
-    def test_the_prompt_forbids_starting_other_sessions_and_stays_under_the_limit(self):
+    def test_the_prompt_runs_units_as_subagents_and_stays_under_the_limit(self):
         result = self.start("--dry-run")
         self.assertEqual(result.returncode, 0, self.out(result))
         names = [name for name in os.listdir(self.state) if name.startswith("main-prompt-")]
         prompt = self.read(os.path.join(self.state, names[0]))
-        self.assertIn("Start no other session", prompt)
-        self.assertIn("never call create_session", prompt)
+        self.assertIn("Run your units as your own subagents", prompt)
+        self.assertIn("Do most of the work through subagents", prompt)
+        self.assertIn("treat it as offline: run that unit yourself", prompt)
         self.assertLess(len(prompt), load_lane().MAIN_PROMPT_LIMIT)
+
+    def test_the_prompt_takes_every_step_and_attaches_the_kit_repository(self):
+        result = self.start("--dry-run")
+        self.assertEqual(result.returncode, 0, self.out(result))
+        names = [name for name in os.listdir(self.state) if name.startswith("main-prompt-")]
+        prompt = self.read(os.path.join(self.state, names[0]))
+        self.assertIn("Take every step yourself, without asking", prompt)
+        self.assertIn("Ask the owner only when the\n  work needs a choice between options", prompt)
+        self.assertIn('add_repo with owner "demo-owner", repo "demo-kit", access "read"', prompt)
+        self.assertIn("Claude Code, Codex or Amp", prompt)
+        self.assertIn("git clone https://github.com/demo-owner/demo-kit", prompt)
+        self.assertLess(prompt.index("demo-kit"), prompt.index("Otherwise, or when that fails, install from"))
+
+    def test_without_a_kit_repository_the_prompt_installs_from_the_kit_branch_only(self):
+        self.env["LANES_KIT_REPO"] = ""
+        result = self.start("--dry-run")
+        self.assertEqual(result.returncode, 0, self.out(result))
+        names = [name for name in os.listdir(self.state) if name.startswith("main-prompt-")]
+        prompt = self.read(os.path.join(self.state, names[0]))
+        self.assertNotIn("add_repo", prompt)
+        self.assertIn("Install it from this repository's lane-main/kit branch:", prompt)
+
+    def test_the_kit_repository_is_read_from_a_github_remote(self):
+        lane = load_lane()
+        for url, repo in (("https://github.com/a/b.git", "a/b"), ("git@github.com:a/b", "a/b"),
+                          ("http://proxy@127.0.0.1:9/git/a/b", "a/b"), ("https://example.com/a/b", ""),
+                          ("https://github.com/a/b;rm", "")):
+            self.assertEqual(lane.main_github_repo(url), repo, url)
 
     # ===== 4. dry run =====
 
@@ -1237,6 +1267,21 @@ class LaneMainTests(unittest.TestCase):
         lean = tree["LEAN.md"][1].decode("utf-8")
         self.assertIn(policy_release(self.read(POLICY)), lean)
         self.assertIn("lane main", lean)
+
+    def test_the_lean_kit_ships_a_windows_install_s_scripts_not_its_launchers(self):
+        # install.sh on Windows keeps the script at bin/<tool>.py and writes wrappers naming this PC's paths at
+        # bin/<tool> and bin/<tool>.cmd; the cloud VM needs the script itself at bin/<tool>.
+        kit = self.small_kit()
+        script = "#!/usr/bin/env python3\nprint('turn')\n"
+        self.write(os.path.join(kit, "bin", "turn-meter.py"), script)
+        self.write(os.path.join(kit, "bin", "turn-meter"),
+                   "#!/usr/bin/env bash\nexec /f/conda/python /c/Users/x/bin/turn-meter.py \"$@\"\n")
+        self.write(os.path.join(kit, "bin", "turn-meter.cmd"), '@"F:\\conda\\python" "C:\\x\\turn-meter.py" %*\r\n')
+        tree = load_lane().main_lean_kit(kit)
+        self.assertEqual(tree["bin/turn-meter"], ("100755", script.encode("utf-8")))
+        self.assertNotIn("bin/turn-meter.py", tree)
+        self.assertNotIn("bin/turn-meter.cmd", tree)
+        self.assertEqual(tree["bin/tool"][1], b"#!/bin/sh\necho tool\n")
 
     def test_the_lean_kit_dry_run_installs_from_its_own_copy(self):
         bash = shutil.which("bash")
