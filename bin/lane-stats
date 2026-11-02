@@ -719,6 +719,11 @@ def lane_places(catalog, lane):
 
 def allowed_places(catalog):
     """The places this machine allows: LANES_PLACES when set, else explore.places, else all three."""
+    return allowed_places_with_source(catalog)[0]
+
+
+def allowed_places_with_source(catalog):
+    """The allowed places and the setting that supplied them."""
     raw = os.environ.get("LANES_PLACES", "")
     if raw.strip():
         names = [name.strip() for name in raw.split(",") if name.strip()]
@@ -730,7 +735,24 @@ def allowed_places(catalog):
     for name in names:
         if name not in PLACES:
             raise ValueError("unknown place {} in {} (places: {})".format(name, source, ", ".join(PLACES)))
-    return [place for place in PLACES if place in names]
+    return [place for place in PLACES if place in names], source
+
+
+def warn_unusable_places(catalog, modes, excluded=()):
+    """Warn when a present provider in utilization has no active arm in an allowed place."""
+    absent = absent_providers(catalog)
+    for provider in ("codex", "gemini"):
+        lanes = {lane for lane, config in catalog["lanes"].items() if config["provider"] == provider}
+        if modes.get(provider) != "utilization" or provider in absent or lanes.intersection(excluded):
+            continue
+        active = {arm["lane"] for arm in catalog["arms"] if arm["status"] == "active"}
+        places = {place for lane in lanes.intersection(active) for place in lane_places(catalog, lane)}
+        allowed, source = allowed_places_with_source(catalog)
+        if not places.intersection(allowed):
+            print("warning: no {} arm can run here: the allowed places ({}, from {}) leave out {}, "
+                  "while {} is in utilization mode; add one of them to explore.places or LANES_PLACES".format(
+                      provider, ", ".join(allowed), source, ", ".join(place for place in PLACES if place in places),
+                      provider), file=sys.stderr)
 
 
 def check_place(place, allowed):
@@ -2018,6 +2040,7 @@ def mode(args):
         used, projected, _ = provider_reading(provider, live, now)
         providers[provider] = {"mode": provider_mode(provider, live, config, now, setting), "used_pct": used,
                                "projected_pct": None if projected is None else round(projected, 1)}
+    warn_unusable_places(catalog, {provider: row["mode"] for provider, row in providers.items()})
     if args.json:
         print(json.dumps({"setting": setting, "providers": providers}, ensure_ascii=False))
         return 0
@@ -2173,6 +2196,7 @@ def main_picks(args):
              for provider in catalog["providers"]}
     modes_until = {provider: provider_mode_until(provider, base.get("live") or {})
                    for provider in catalog["providers"]}
+    warn_unusable_places(catalog, modes, excluded)
     record = {"version": 1, "at": iso_now(), "kit": None, "repo": None, "plans": plans, "modes": modes,
               "modes_until": modes_until,
               "excluded": excluded,

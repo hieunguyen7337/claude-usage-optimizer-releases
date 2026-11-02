@@ -99,12 +99,14 @@ class LaneCloudTests(unittest.TestCase):
                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=10, check=True)
                     git("remote", "set-url", "origin", os.environ["FAKE_ORIGIN"])
                     git("commit", "--allow-empty", "-m", "lane: start " + run_id)
-                    pushed = subprocess.run([sys.executable, os.environ["FAKE_GIT_SCRIPT"], "-C", helper,
-                                             "push", "-u", "origin", "HEAD"], stdout=subprocess.PIPE,
-                                            stderr=subprocess.PIPE, timeout=10, check=False)
-                    if pushed.returncode:
-                        raise RuntimeError(pushed.stderr.decode("utf-8", "replace"))
-                    if mode in ("ok", "partial", "report", "subagents", "verify-change"):
+                    if mode != "single-push":
+                        pushed = subprocess.run([sys.executable, os.environ["FAKE_GIT_SCRIPT"], "-C", helper,
+                                                 "push", "-u", "origin", "HEAD"], stdout=subprocess.PIPE,
+                                                stderr=subprocess.PIPE, timeout=10, check=False)
+                        if pushed.returncode:
+                            raise RuntimeError(pushed.stderr.decode("utf-8", "replace"))
+                    if mode in ("ok", "partial", "report", "subagents", "verify-change", "new-branch",
+                                "single-push"):
                         with open(os.path.join(helper, "cloud-result.txt"), "w", encoding="utf-8") as stream:
                             stream.write("returned from cloud\\n")
                         git("add", "cloud-result.txt")
@@ -124,11 +126,19 @@ class LaneCloudTests(unittest.TestCase):
                         git("commit", "--allow-empty", "-F", report)
                     else:
                         git("commit", "--allow-empty", "-m", done)
+                    destination = "HEAD:refs/heads/claude/done" if mode == "new-branch" else "HEAD"
                     pushed = subprocess.run([sys.executable, os.environ["FAKE_GIT_SCRIPT"], "-C", helper,
-                                             "push", "origin", "HEAD"], stdout=subprocess.PIPE,
+                                             "push", "origin", destination], stdout=subprocess.PIPE,
                                             stderr=subprocess.PIPE, timeout=10, check=False)
                     if pushed.returncode:
                         raise RuntimeError(pushed.stderr.decode("utf-8", "replace"))
+                    if mode == "verify-after-done":
+                        git("commit", "--allow-empty", "-m", "Stop-hook commit your changes")
+                        pushed = subprocess.run([sys.executable, os.environ["FAKE_GIT_SCRIPT"], "-C", helper,
+                                                 "push", "origin", "HEAD"], stdout=subprocess.PIPE,
+                                                stderr=subprocess.PIPE, timeout=10, check=False)
+                        if pushed.returncode:
+                            raise RuntimeError(pushed.stderr.decode("utf-8", "replace"))
                 finally:
                     subprocess.run(["git", "-C", os.environ["FAKE_WORKSPACE"], "worktree", "remove",
                                     "--force", helper], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -330,6 +340,11 @@ class LaneCloudTests(unittest.TestCase):
                 emit(updated)
             if args and args[0] == "fetch":
                 refspec = args[-1].lstrip("+")
+                fail_marker = os.environ.get("FAKE_FAIL_FETCH_ONCE")
+                if fail_marker and "refs/heads/claude/test:" in refspec and not os.path.exists(fail_marker):
+                    with open(fail_marker, "w", encoding="ascii") as stream:
+                        stream.write("failed once")
+                    sys.exit(1)
                 source, separator, destination = refspec.partition(":")
                 if not separator:
                     sys.exit(2)
@@ -525,6 +540,43 @@ class LaneCloudTests(unittest.TestCase):
             self.assertEqual(stream.read(), "Fake report line\n# Kept heading\n")
         meta = self.read_json(os.path.join(self.outdir, "meta.json"))
         self.assertEqual(meta["cloud"]["report"], report_path)
+        with open(os.path.join(self.workspace, "cloud-result.txt"), "r", encoding="utf-8") as stream:
+            self.assertEqual(stream.read(), "returned from cloud\n")
+
+    def test_claude_cloud_uses_done_marker_before_a_followup_commit(self):
+        result = self.run_verify("verify-after-done")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn("verdict=OK", result.stdout)
+        report_path = os.path.join(self.outdir, "report.md")
+        with open(report_path, "r", encoding="utf-8") as stream:
+            self.assertEqual(stream.read(), "Fake report line\n# Kept heading\n")
+        warnings = [line for line in result.stderr.splitlines() if line.startswith("warning:")]
+        self.assertEqual(len(warnings), 1, result.stderr)
+        self.assertIn("1 commit followed lane: done", warnings[0])
+        meta = self.read_json(os.path.join(self.outdir, "meta.json"))
+        done_subject = self.git("-C", self.workspace, "show", "-s", "--format=%s",
+                                meta["cloud"]["result_sha"]).stdout.decode("utf-8").strip()
+        self.assertEqual(done_subject, "lane: done " + os.path.basename(self.outdir))
+
+    def test_claude_cloud_finds_done_marker_on_a_new_branch(self):
+        result = self.run_lane(extra=["--cloud", "--outdir", self.outdir], env={"FAKE_CLAUDE_MODE": "new-branch"})
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn("verdict=OK", result.stdout)
+        with open(os.path.join(self.workspace, "cloud-result.txt"), "r", encoding="utf-8") as stream:
+            self.assertEqual(stream.read(), "returned from cloud\n")
+        meta = self.read_json(os.path.join(self.outdir, "meta.json"))
+        self.assertEqual(meta["cloud"]["result_branch"], "claude/done")
+        done_subject = self.git("-C", self.workspace, "show", "-s", "--format=%s",
+                                meta["cloud"]["result_sha"]).stdout.decode("utf-8").strip()
+        self.assertEqual(done_subject, "lane: done " + os.path.basename(self.outdir))
+
+    def test_claude_cloud_retries_a_failed_fetch_for_a_single_push(self):
+        fail_marker = os.path.join(self.root, "failed-fetch-once")
+        result = self.run_lane(extra=["--cloud", "--outdir", self.outdir],
+                               env={"FAKE_CLAUDE_MODE": "single-push", "FAKE_FAIL_FETCH_ONCE": fail_marker})
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn("verdict=OK", result.stdout)
+        self.assertTrue(os.path.isfile(fail_marker))
         with open(os.path.join(self.workspace, "cloud-result.txt"), "r", encoding="utf-8") as stream:
             self.assertEqual(stream.read(), "returned from cloud\n")
 

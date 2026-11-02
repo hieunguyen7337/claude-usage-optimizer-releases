@@ -782,6 +782,37 @@ class LaneStatsTests(unittest.TestCase):
         os.environ["USAGE_OPTIMIZER_MODE"] = "utilization"
         self.assertEqual(self.direct_cli("mode", live=live).splitlines()[0], "claude  utilization  (setting utilization)")
 
+    def test_mode_places_warnings_preserve_text_and_json_stdout(self):
+        os.environ["USAGE_OPTIMIZER_MODE"] = "utilization"
+        os.environ["LANES_PLACES"] = "cloud,subagent"
+        for lane in ("luna", "sol", "gemini"):
+            self.catalog["lanes"][lane]["places"] = ["process"]
+        self.save_catalog()
+        expected = "".join(
+            "warning: no {} arm can run here: the allowed places (subagent, cloud, from LANES_PLACES) "
+            "leave out process, while {} is in utilization mode; "
+            "add one of them to explore.places or LANES_PLACES\n".format(provider, provider)
+            for provider in ("codex", "gemini"))
+        for args in ((), ("--json",)):
+            with self.subTest(args=args):
+                result = self.run_cli("mode", "--no-usage", *args)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stderr, expected)
+                with mock.patch.object(stats, "warn_unusable_places"):
+                    self.assertEqual(result.stdout, self.direct_cli("mode", "--no-usage", *args))
+                if args:
+                    data = json.loads(result.stdout)
+                    self.assertEqual(set(data), {"setting", "providers"})
+        for case in ("process", "default", "saving", "absent"):
+            with self.subTest(case=case):
+                os.environ["LANES_PLACES"] = "process" if case == "process" else "cloud,subagent"
+                os.environ["USAGE_OPTIMIZER_MODE"] = case if case in ("default", "saving") else "utilization"
+                for provider in ("CODEX", "GEMINI"):
+                    os.environ["USAGE_OPTIMIZER_PLAN_" + provider] = "none" if case == "absent" else ""
+                result = self.run_cli("mode", "--no-usage", "--json")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stderr, "")
+
     def test_live_usage_command_failure_timeout_and_no_usage(self):
         with mock.patch.object(stats.subprocess, "run") as run:
             self.assertEqual(stats.read_live_usage(True), {})

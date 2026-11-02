@@ -250,6 +250,74 @@ class MainPicksTests(OrchTestCase):
         data, _ = self.main_picks()
         self.assertEqual(data["modes"], {"claude": "saving", "codex": "saving", "gemini": "saving"})
 
+    def places_warning_catalog(self):
+        os.environ["USAGE_OPTIMIZER_MODE"] = "utilization"
+        os.environ["LANES_PLACES"] = "cloud,subagent"
+        for lane in ("luna", "sol"):
+            self.catalog["lanes"][lane]["places"] = ["process"]
+        self.catalog["lanes"]["codex-cloud"] = {"model": "cloud-model", "provider": "codex", "places": ["cloud"]}
+        self.catalog["arms"].append(dict(self.catalog["arms"][0], lane="codex-cloud", model="cloud-model",
+                                          status="manual"))
+        self.save_catalog()
+
+    def test_places_warning_ignores_manual_retired_and_disabled_cloud_arms(self):
+        self.places_warning_catalog()
+        expected = ("warning: no codex arm can run here: the allowed places (subagent, cloud, from LANES_PLACES) "
+                    "leave out process, while codex is in utilization mode; "
+                    "add one of them to explore.places or LANES_PLACES\n")
+        for status in ("manual", "retired", "disabled"):
+            with self.subTest(status=status):
+                self.catalog["arms"][-1]["status"] = status
+                self.save_catalog()
+                result = self.run_cli("main-picks", "--no-usage", "--seed", "1")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stderr, expected)
+                data = json.loads(result.stdout)
+                self.assertEqual(set(data), TOP_KEYS)
+                self.assertEqual(data["modes"]["codex"], "utilization")
+                for block in data["classes"].values():
+                    self.assertEqual(set(block), {"status", "arms"})
+                    for row in block["arms"]:
+                        self.assertEqual(set(row), ARM_KEYS)
+                with mock.patch.object(stats, "iso_now", return_value=data["at"]), \
+                        mock.patch.object(stats, "warn_unusable_places"):
+                    self.assertEqual(result.stdout, self.direct_cli("main-picks", "--no-usage", "--seed", "1"))
+
+    def test_places_warning_reports_catalog_source(self):
+        self.places_warning_catalog()
+        os.environ.pop("LANES_PLACES")
+        self.catalog["explore"]["places"] = ["cloud", "subagent"]
+        self.save_catalog()
+        result = self.run_cli("main-picks", "--no-usage")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "warning: no codex arm can run here: the allowed places "
+                         "(subagent, cloud, from explore.places) leave out process, while codex is in utilization mode; "
+                         "add one of them to explore.places or LANES_PLACES\n")
+
+    def test_places_warning_suppressed_when_provider_can_run_or_is_not_utilizing(self):
+        self.places_warning_catalog()
+        for case in ("process", "active-cloud", "default", "saving", "absent", "exclude", "exclude-manual"):
+            with self.subTest(case=case):
+                os.environ["USAGE_OPTIMIZER_MODE"] = "utilization"
+                os.environ["LANES_PLACES"] = "cloud,subagent"
+                os.environ.pop("USAGE_OPTIMIZER_PLAN_CODEX", None)
+                self.catalog["arms"][-1]["status"] = "manual"
+                args = []
+                if case == "process":
+                    os.environ["LANES_PLACES"] = "process,cloud,subagent"
+                elif case == "active-cloud":
+                    self.catalog["arms"][-1]["status"] = "active"
+                elif case in ("default", "saving"):
+                    os.environ["USAGE_OPTIMIZER_MODE"] = case
+                elif case == "absent":
+                    os.environ["USAGE_OPTIMIZER_PLAN_CODEX"] = "none"
+                else:
+                    args = ["--exclude", "luna" if case == "exclude" else "codex-cloud"]
+                self.save_catalog()
+                result = self.run_cli("main-picks", "--no-usage", *args)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stderr, "")
+
     def test_p_pick_sums_to_one_per_class_and_is_deterministic_for_a_seed(self):
         self.review_runs(self.SONNET_HIGH, 5, "hard")
         self.review_runs(self.HAIKU_MEDIUM, 3, "mechanical", "rework")

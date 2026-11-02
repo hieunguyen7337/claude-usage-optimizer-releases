@@ -283,6 +283,20 @@ ships.
 
 ## 11. Release lessons
 
+**2026-11-02.3.**
+- *Wait on what was pushed, not on a branch tip.* One verify run waited 52 minutes with its report already on GitHub:
+  lane read only the tip of the first branch it saw, so a later commit, a move to a `claude/…` branch or one failed
+  fetch hid the done marker. lane now looks for the marker in every changed branch's history and marks a branch seen
+  only after reading it.
+- *A local place setting can silently drop a whole provider.* `explore.places` of cloud and subagent left no Codex
+  arm to pick (codex-cloud is manual), so mirrors ran Claude only while Codex sat in utilization. `main-picks` and
+  `mode` now print a warning when that happens.
+- *Fast-forward a checkout before `lane --cloud`.* A checkout behind its remote cannot push the cloud base branch, and
+  the run is REFUSED (exit 8) before any session starts.
+- *Attaching a repository is what opens it.* In a project's cloud session the private kit repository fails to clone
+  until `add_repo` attaches it read-only, then clones; the environment's setup script still installs the public
+  release, so a new setup script must be uploaded after each release that changes it.
+
 **2026-11-02.2.**
 - *A Button holds only strings and Text.* The engine refuses a tree with a Box inside a Button, and the whole list
   stops drawing. The text functions' own tests cannot see it; a test that mounts the pane can.

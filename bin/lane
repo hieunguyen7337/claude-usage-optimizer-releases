@@ -1558,87 +1558,104 @@ def run_claude_cloud(opts, path, outdir, sent_text, model, effort, executable, p
             raise LaneError("Claude cloud session was not found in {}; see that screen file".format(screen_path), 4, "FAILED")
         start_deadline = min(deadline, time.monotonic() + start_timeout)
         seen_refs = before_refs
-        local_ref = None
-        fetched_sha = None
-        done_subject = None
+        done_pattern = re.compile(r"^lane: done {}(?:$| .+)".format(re.escape(run_id)))
         while True:
             refs = cloud_remote_refs(path, deadline)
-            if result_branch is None:
-                for branch, sha in refs.items():
-                    if sha == seen_refs.get(branch):
-                        continue
-                    fetched, local_ref_candidate = cloud_fetch_branch(path, run_id, branch, deadline)
-                    if not fetched:
-                        continue
-                    commits = cloud_git_until(path, ["log", "--format=%H%x09%s",
-                                                     "{}..{}".format(plan["base"], local_ref_candidate)], deadline, 30)
-                    marker = "lane: start " + run_id
-                    starts = [line.split("\t", 1)[0] for line in cloud_output(commits).splitlines()
-                              if line.split("\t", 1)[1:] == [marker]] if commits.returncode == 0 else []
-                    if starts:
-                        # The diff is taken from the (oldest) start marker, not from our base: a session that cloned
-                        # another commit would otherwise hand back the difference between the two as its work.
-                        result_branch, local_ref, fetched_sha = branch, local_ref_candidate, sha
-                        cloud.update({"result_branch": branch, "result_sha": sha, "start_sha": starts[-1]})
-                        parent = cloud_git_until(path, ["rev-parse", starts[-1] + "^"], deadline, 30)
-                        cloud["started_from"] = cloud_output(parent) if parent.returncode == 0 else None
-                        if cloud["started_from"] != plan["base"]:
-                            print("warning: the cloud session started from {}, not the pushed base {}; the diff is "
-                                  "taken from its start marker".format(cloud["started_from"], plan["base"]),
-                                  file=sys.stderr)
-                        cloud_update_meta(meta, meta_path, cloud)
-                        break
-                seen_refs = refs
-            if result_branch is not None:
-                sha = refs.get(result_branch)
-                if sha is None:
-                    cloud_sleep(poll, deadline)
+            done_marker = None
+            for branch, sha in refs.items():
+                if sha == seen_refs.get(branch):
                     continue
-                if sha != fetched_sha:
-                    fetched, local_ref_candidate = cloud_fetch_branch(path, run_id, result_branch, deadline)
-                    if fetched:
-                        local_ref, fetched_sha = local_ref_candidate, sha
-                head = cloud_ref_head(path, local_ref, deadline)
-                done_subject = head[1] if head else None
-                if done_subject and done_subject.startswith("lane: done " + run_id):
-                    result_sha = head[0]
-                    cloud.update({"result_branch": result_branch, "result_sha": result_sha})
+                fetched, local_ref_candidate = cloud_fetch_branch(path, run_id, branch, deadline)
+                if not fetched:
+                    continue
+                commits_result = cloud_git_until(path, ["log", "--format=%H%x09%s",
+                                                         "{}..{}".format(plan["base"], local_ref_candidate)],
+                                                 deadline, 30)
+                if commits_result.returncode:
+                    continue
+                seen_refs[branch] = sha
+                commits = []
+                for line in cloud_output(commits_result).splitlines():
+                    commit_sha, separator, subject = line.partition("\t")
+                    if separator:
+                        commits.append((commit_sha, subject))
+                marker = "lane: start " + run_id
+                starts = [commit_sha for commit_sha, subject in commits if subject == marker]
+                if not starts:
+                    continue
+                # The diff is taken from the oldest start marker, not from our base: a session that cloned
+                # another commit would otherwise hand back the difference between the two as its work.
+                branch_start_sha = starts[-1]
+                if not cloud.get("start_sha"):
+                    cloud["start_sha"] = branch_start_sha
+                    parent = cloud_git_until(path, ["rev-parse", branch_start_sha + "^"], deadline, 30)
+                    cloud["started_from"] = cloud_output(parent) if parent.returncode == 0 else None
+                    if cloud["started_from"] != plan["base"]:
+                        print("warning: the cloud session started from {}, not the pushed base {}; the diff is "
+                              "taken from its start marker".format(cloud["started_from"], plan["base"]),
+                              file=sys.stderr)
+                if result_branch is None:
+                    result_branch = branch
+                    cloud.update({"result_branch": branch, "result_sha": sha, "start_sha": branch_start_sha})
                     cloud_update_meta(meta, meta_path, cloud)
-                    diff_result = cloud_git_until(path, ["diff", "--binary", cloud["start_sha"], result_sha],
-                                                  deadline, 30)
-                    if diff_result.returncode:
-                        raise LaneError("could not collect the Claude cloud diff", 4, "FAILED")
-                    diff_path = os.path.join(outdir, "cloud.diff")
+                elif branch == result_branch:
+                    cloud.update({"result_sha": sha, "start_sha": branch_start_sha})
+                    cloud_update_meta(meta, meta_path, cloud)
+                start_index = next((index for index, (commit_sha, _) in enumerate(commits)
+                                    if commit_sha == branch_start_sha), None)
+                if start_index is None:
+                    continue
+                for following, (commit_sha, subject) in enumerate(commits[:start_index]):
+                    if done_pattern.match(subject):
+                        done_marker = (branch, branch_start_sha, commit_sha, subject, following)
+                        break
+                if done_marker:
+                    break
+            if done_marker:
+                result_branch, start_sha, result_sha, done_subject, followed_commits = done_marker
+                cloud.update({"result_branch": result_branch, "result_sha": result_sha, "start_sha": start_sha})
+                parent = cloud_git_until(path, ["rev-parse", start_sha + "^"], deadline, 30)
+                cloud["started_from"] = cloud_output(parent) if parent.returncode == 0 else None
+                cloud_update_meta(meta, meta_path, cloud)
+                if followed_commits:
+                    noun = "commit" if followed_commits == 1 else "commits"
+                    print("warning: {} {} followed lane: done {} on {}; using the marker commit".format(
+                        followed_commits, noun, run_id, result_branch), file=sys.stderr)
+                diff_result = cloud_git_until(path, ["diff", "--binary", cloud["start_sha"], result_sha],
+                                              deadline, 30)
+                if diff_result.returncode:
+                    raise LaneError("could not collect the Claude cloud diff", 4, "FAILED")
+                diff_path = os.path.join(outdir, "cloud.diff")
+                if opts.verify:
+                    # A verifier changes nothing: an empty diff is the normal case, and any diff is kept, never
+                    # applied; the verdict follows the marker either way.
+                    with open(diff_path, "wb") as stream:
+                        stream.write(diff_result.stdout)
+                    if diff_result.stdout:
+                        print("warning: verify run changed files; cloud.diff kept, not applied", file=sys.stderr)
+                else:
+                    cloud_apply_diff(path, diff_path, diff_result.stdout, deadline)
+                if not diff_result.stdout and not opts.verify:
+                    verdict, exit_code = "NOOP", 3
+                    cloud_noop_ignored_warning(path, sent_text, meta, meta_path, cloud)
+                elif "PARTIAL:" in done_subject:
+                    verdict, exit_code = "PARTIAL", 6
+                else:
+                    verdict, exit_code = "OK", 0
+                report = cloud_commit_body(path, result_sha, deadline)
+                if report:
+                    report_path = os.path.join(outdir, "report.md")
+                    with open(report_path, "w", encoding="utf-8", newline="\n") as stream:
+                        stream.write(report + "\n")
+                    cloud["report"] = report_path
+                    found = re.search(r"^Subagents:\s*(\d+)", report, re.IGNORECASE | re.MULTILINE)
+                    if found:
+                        cloud["subagents"] = int(found.group(1))
+                    cloud_update_meta(meta, meta_path, cloud)
+                    print("lane: cloud report saved to {}".format(report_path))
                     if opts.verify:
-                        # A verifier changes nothing: an empty diff is the normal case, and any diff is kept, never
-                        # applied; the verdict follows the marker either way.
-                        with open(diff_path, "wb") as stream:
-                            stream.write(diff_result.stdout)
-                        if diff_result.stdout:
-                            print("warning: verify run changed files; cloud.diff kept, not applied", file=sys.stderr)
-                    else:
-                        cloud_apply_diff(path, diff_path, diff_result.stdout, deadline)
-                    if not diff_result.stdout and not opts.verify:
-                        verdict, exit_code = "NOOP", 3
-                        cloud_noop_ignored_warning(path, sent_text, meta, meta_path, cloud)
-                    elif "PARTIAL:" in done_subject:
-                        verdict, exit_code = "PARTIAL", 6
-                    else:
-                        verdict, exit_code = "OK", 0
-                    report = cloud_commit_body(path, result_sha, deadline)
-                    if report:
-                        report_path = os.path.join(outdir, "report.md")
-                        with open(report_path, "w", encoding="utf-8", newline="\n") as stream:
-                            stream.write(report + "\n")
-                        cloud["report"] = report_path
-                        found = re.search(r"^Subagents:\s*(\d+)", report, re.IGNORECASE | re.MULTILINE)
-                        if found:
-                            cloud["subagents"] = int(found.group(1))
-                        cloud_update_meta(meta, meta_path, cloud)
-                        print("lane: cloud report saved to {}".format(report_path))
-                        if opts.verify:
-                            print(report)
-                    return verdict, exit_code, cloud["session_id"], screen_text, screen_text
+                        print(report)
+                return verdict, exit_code, cloud["session_id"], screen_text, screen_text
             now = time.monotonic()
             if now >= deadline:
                 raise LaneError("Claude cloud run timed out. Session: {}".format(cloud["url"]), 124, "TIMEOUT")
@@ -5488,12 +5505,15 @@ def main_start(parser, opts):
                     continue
                 commits = cloud_git_until(dir_path, ["log", "--format=%H%x09%s", "{}..{}".format(plan["base"], local_ref)],
                                           deadline, 30)
+                if commits.returncode != 0:
+                    continue
+                # A branch counts as seen only once its fetch and log succeeded, so a failed read is retried.
+                seen_refs[branch] = sha
                 starts = [line.split("\t", 1)[0] for line in cloud_output(commits).splitlines()
-                          if line.split("\t", 1)[1:] == [marker]] if commits.returncode == 0 else []
+                          if line.split("\t", 1)[1:] == [marker]]
                 if starts:
                     found = (branch, starts[-1])
                     break
-            seen_refs = refs
             if found is not None:
                 break
             now = time.monotonic()
