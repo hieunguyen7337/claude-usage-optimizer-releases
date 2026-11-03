@@ -43,8 +43,7 @@ drawn as a button.
 - Every kit mirror (from `~/.local/state/lanes/mains.json`) is listed and tagged `mirror`, even when it is archived or
   offline. A mirror the list API leaves out is read by its id; one that cannot be read becomes a row naming the
   reason, such as a session bound to the device that started it. A mirror whose session was deleted on claude.ai
-  (HTTP 404) is shown as an archived row, `<repo> mirror`, only with `a`; opening it says the session no longer
-  exists and that `lane main --forget <repo>` drops it from the registry.
+  (HTTP 404) is left out of the list; opening a session that turns out deleted goes back to the list with a note.
 - The footer gives the keys, wrapped at the pane's width, and a note when the read was cut short.
 
 ## What the session view shows

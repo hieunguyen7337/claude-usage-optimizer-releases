@@ -369,11 +369,11 @@ export function refusedView(
   return { header: headerOf(null, row), lines: [], status: 'error', note }
 }
 
-/** The explanatory note for a session confirmed absent by both detail endpoints. */
+/** The note shown after both detail endpoints confirm that a session was deleted. */
 export function deletedSessionNote(row: Pick<SessionRow, 'role' | 'repo'>): string {
-  const missing = 'This session no longer exists on claude.ai (HTTP 404).'
+  const missing = 'This session was deleted on claude.ai.'
   return row.role === 'mirror' && row.repo !== null
-    ? `${missing} A kit mirror stays in the registry until you run: lane main --forget ${row.repo}`
+    ? `${missing} Its kit registry entry stays until you run: lane main --forget ${row.repo}`
     : missing
 }
 
@@ -402,12 +402,14 @@ export async function refreshOpen($: any): Promise<boolean> {
       if (session === null && events === null) {
         const deleted = 'value' in detail && !detail.value.ok && detail.value.status === 404 &&
           'value' in page && !page.value.ok && page.value.status === 404
+        if (deleted) {
+          await dropOpenRow($, key, deletedSessionNote(row))
+          return false
+        }
         const failed =
           'value' in page && !page.value.ok ? page.value : 'value' in detail && !detail.value.ok ? detail.value : null
         const refusal = failed?.status === 403 ? refusedView(row, failed.reason, failed.code) : null
-        const note = deleted
-          ? deletedSessionNote(row)
-          : refusal !== null
+        const note = refusal !== null
           ? refusal.note
           : failed !== null
             ? `sessions API failed (${failed.reason})`
@@ -631,6 +633,18 @@ async function backToList($: any) {
   }
 }
 
+/** Removes a gone session, leaves its view if still open, reports why, then reconciles the list. */
+async function dropOpenRow($: any, key: string, note: string) {
+  await update($, ROWS, rows => rows.filter(candidate => candidate.key !== key))
+  const current = await read($, OPEN)
+  if (current !== null && current.key === key) {
+    await backToList($)
+    await update($, FOCUSED, () => null)
+  }
+  $.ui.toast(note)
+  await refreshList($)
+}
+
 /** The pane is gone: the polls stop and the next open starts at the list. */
 async function closed($: any) {
   pendingDelete = null
@@ -727,14 +741,7 @@ async function act($: any, id: ActionId, text?: string): Promise<ActionNotice | 
   if (id === 'delete' && notice.tone === 'ok') {
     // The session is gone: drop its row, and leave its view the way Back does (which also stops its poll), unless
     // another session was opened meanwhile. The list draws no notice, so a toast says it.
-    await update($, ROWS, rows => rows.filter(candidate => candidate.key !== row.key))
-    const current = await read($, OPEN)
-    if (current !== null && current.key === open.key) {
-      await backToList($)
-      await update($, FOCUSED, () => null)
-    }
-    $.ui.toast(notice.text)
-    await refreshList($)
+    await dropOpenRow($, row.key, notice.text)
     return notice
   }
   if (id === 'archive' && notice.tone === 'ok') await refreshList($)

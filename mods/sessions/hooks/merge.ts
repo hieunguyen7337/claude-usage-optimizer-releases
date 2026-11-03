@@ -183,11 +183,11 @@ export function mergeRows(input: MergeInput): SessionRow[] {
   }
   for (const mirror of input.missingMirrors ?? []) {
     if (rows.some((row) => sameSessionId(row.id, mirror.sessionId))) continue
-    const gone = mirror.status === 404
+    if (mirror.status === 404) continue
     rows.push({
       key: `mirror:${mirror.sessionId}`, id: mirror.sessionId,
-      title: gone ? `${mirror.repo} mirror` : `${mirror.repo} mirror (${mirror.reason})`,
-      repo: mirror.repo, kind: 'cloud', state: gone ? 'archived' : 'offline', role: 'mirror', from: ['registry'],
+      title: `${mirror.repo} mirror (${mirror.reason})`,
+      repo: mirror.repo, kind: 'cloud', state: 'offline', role: 'mirror', from: ['registry'],
       localId: null, localSessionId: null, branch: null, activeAt: null, unread: false,
       context: null, model: null, effort: null, checkout: null,
     })
@@ -199,8 +199,7 @@ export function mergeRows(input: MergeInput): SessionRow[] {
 export function groupRows(rows: readonly SessionRow[], showArchived: boolean): RepoGroup[] {
   const groups = new Map<string | null, SessionRow[]>()
   for (const row of rows) {
-    const deletedMirror = row.role === 'mirror' && row.state === 'archived' && row.key.startsWith('mirror:')
-    if ((isInactive(row) || deletedMirror) && !showArchived) continue
+    if (isInactive(row) && !showArchived) continue
     const group = groups.get(row.repo)
     if (group) group.push(row)
     else groups.set(row.repo, [row])

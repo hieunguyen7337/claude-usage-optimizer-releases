@@ -283,6 +283,12 @@ ships.
 
 ## 11. Release lessons
 
+**2026-11-03.2.**
+- *Deleted means gone.* The owner wants a session deleted on claude.ai to leave the pane, not to linger as a hidden
+  archived row. A 404 mirror now adds no row, and an open session whose reads both return 404 leaves the view the way
+  the pane's own delete does. The registry entry still needs `lane main --forget <repo>`, since the mod never writes
+  the kit's files.
+
 **2026-11-03.1.**
 - *A registry outlives the sessions it names.* A kit mirror deleted on claude.ai stayed "live" in `mains.json`, so
   the Sessions pane read it by id on every refresh and drew the API's 404 as the row's title. A 404 now means
