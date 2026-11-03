@@ -2,6 +2,7 @@
 // $.http.fetch with the handle $.session.authorize() returns; the handle is never logged, stored or drawn.
 // Unknown fields are ignored and missing ones tolerated: parse* return null only when `id` is missing.
 import type { ApiEvent, ApiSession, Fetched, WorktreeState } from '../types'
+import { cleanText as cleanLogText } from './transcript'
 
 export const API_BASE = 'https://api.anthropic.com/v1/code/sessions'
 export const API_HEADERS = { 'anthropic-version': '2023-06-01' } as const
@@ -175,6 +176,53 @@ async function authorize($: any, fresh: boolean): Promise<string | null> {
 function errorName(error: unknown): string {
   const name = error !== null && typeof error === 'object' ? (error as { name?: unknown }).name : null
   return typeof name === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,40}$/.test(name) ? name : 'Error'
+}
+
+export type RunLogResult =
+  | { ok: true; text: string }
+  | { ok: false; reason: string; needsAsk?: true }
+
+/** Reads a device-bound session through Claude Code's own RemoteTrigger client. */
+export async function readRunLog($: any, id: string, options: { ask: boolean }): Promise<RunLogResult> {
+  let checked: { decision?: unknown; reason?: unknown }
+  try {
+    checked = await $.tool.check({ tool: 'RemoteTrigger', input: { action: 'get_run_log', session_id: id } })
+  } catch (error) {
+    return { ok: false, reason: `RemoteTrigger check: ${errorName(error)}` }
+  }
+  const detail = typeof checked.reason === 'string' && checked.reason !== '' ? `: ${checked.reason}` : ''
+  if (checked.decision === 'deny') {
+    return { ok: false, reason: `Claude Code refused RemoteTrigger${detail}` }
+  }
+  if (checked.decision === 'ask' && !options.ask) {
+    return { ok: false, reason: `Claude Code requires permission for RemoteTrigger${detail}`, needsAsk: true }
+  }
+
+  let called: any
+  try {
+    called = await $.tool.call({ tool: 'RemoteTrigger', action: 'get_run_log', session_id: id })
+  } catch (error) {
+    return { ok: false, reason: `RemoteTrigger: ${errorName(error)}` }
+  }
+  if (typeof called?.deny === 'string') {
+    return { ok: false, reason: `Claude Code refused RemoteTrigger: ${called.deny}` }
+  }
+  if (called?.isError === true) return { ok: false, reason: 'RemoteTrigger failed' }
+  const status = called?.result?.status
+  if (status !== 200) {
+    return { ok: false, reason: `RemoteTrigger: HTTP ${typeof status === 'number' ? status : 'unknown'}` }
+  }
+  const lines = (typeof called.result.json === 'string' ? called.result.json : '').split(/\r?\n/)
+  if (lines.length > 0) {
+    try {
+      const header = JSON.parse(lines[0])
+      if (header !== null && typeof header === 'object' && !Array.isArray(header)) lines.shift()
+    } catch {
+      // A log without its JSON header starts with transcript text and keeps that first line.
+    }
+  }
+  const text = lines.filter(line => !/^\(.*\)$/.test(line.trim())).join('\n')
+  return { ok: true, text: cleanLogText(text, 200_000) }
 }
 
 type RequestOptions = {

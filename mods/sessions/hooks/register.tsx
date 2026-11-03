@@ -15,7 +15,7 @@ import type {
   SessionRow,
 } from '../types'
 import { actionsFor, appUrl, cleanOutput, runAction } from './actions'
-import { getEvents, getSession, listSessions } from './api'
+import { getEvents, getSession, listSessions, readRunLog } from './api'
 import { readAgents, readListAgents, readRegistry, resetRegistryCache } from './local'
 import { groupRows, headerOf, mergeRows, sameSessionId } from './merge'
 import type { MergeInput } from './merge'
@@ -68,6 +68,9 @@ const timers: { list: Pending; open: Pending; band: Pending } = { list: null, op
 const failures = { list: 0, open: 0, band: 0 }
 /** Reads in flight, so a key press and a timer do not read the same thing twice at once. */
 const busy = { list: false, open: false, older: false }
+// When each open session last read its run log through Claude Code (a device-bound session's fallback).
+const runLogAt = new Map<string, number>()
+const RUN_LOG_MS = 30_000
 /** A delete confirmation lives only for this module load, so a reload can never leave one armed. */
 let pendingDelete: { key: string; at: number } | null = null
 
@@ -378,7 +381,7 @@ export function deletedSessionNote(row: Pick<SessionRow, 'role' | 'repo'>): stri
 }
 
 /** Reads the open session: an API row's detail and newest events, or a local row's `claude logs`. */
-export async function refreshOpen($: any): Promise<boolean> {
+export async function refreshOpen($: any, options: { manual?: boolean } = {}): Promise<boolean> {
   const open = await read($, OPEN)
   if (open === null || busy.open) {
     return true
@@ -408,7 +411,42 @@ export async function refreshOpen($: any): Promise<boolean> {
         }
         const failed =
           'value' in page && !page.value.ok ? page.value : 'value' in detail && !detail.value.ok ? detail.value : null
-        const refusal = failed?.status === 403 ? refusedView(row, failed.reason, failed.code) : null
+        const forbidden = [detail, page].find(
+          result => 'value' in result && !result.value.ok && result.value.status === 403,
+        )
+        const forbiddenFailure = forbidden !== undefined && 'value' in forbidden && !forbidden.value.ok
+          ? forbidden.value
+          : null
+        const refusal = forbiddenFailure !== null
+          ? refusedView(row, forbiddenFailure.reason, forbiddenFailure.code)
+          : null
+        if (refusal !== null) {
+          // A tool call is heavier than a fetch: the timed poll reads the run log at most every RUN_LOG_MS, and keeps
+          // the last one shown in between; r and opening the session read it at once.
+          const now = await $.clock.now()
+          const last = runLogAt.get(key)
+          if (options.manual !== true && open.logText !== undefined && last !== undefined && now - last < RUN_LOG_MS) {
+            return true
+          }
+          runLogAt.set(key, now)
+          const log = await readRunLog($, id, { ask: options.manual === true })
+          if (log.ok) {
+            await putOpen($, key, now => ({
+              ...now,
+              header: refusal.header,
+              lines: [],
+              logText: log.text,
+              status: 'ready',
+              note: "Read through Claude Code: this session is bound to the computer that started it, which the pane's own request cannot prove.",
+            }))
+            return true
+          }
+          const suffix = log.needsAsk
+            ? ' Press r to read it through Claude Code (it asks your permission).'
+            : ` (${log.reason})`
+          await putOpen($, key, now => ({ ...now, ...refusal, status: 'error', note: refusal.note + suffix }))
+          return false
+        }
         const note = refusal !== null
           ? refusal.note
           : failed !== null
@@ -438,6 +476,8 @@ export async function refreshOpen($: any): Promise<boolean> {
         ...now,
         header,
         lines,
+        // A run log read while the API refused is replaced by the transcript once the API answers again.
+        logText: undefined,
         needsYou,
         newestSeq,
         // Once older pages were read, the poll keeps the cursor they left (the oldest one); until then it takes the
@@ -504,7 +544,7 @@ function armList($: any, delay?: number) {
 }
 
 /** Arms the open session's poll while a session is open. */
-function armOpen($: any, delay?: number) {
+function armOpen($: any, delay?: number, manual = false) {
   if (timers.open !== null) {
     return
   }
@@ -514,7 +554,7 @@ function armOpen($: any, delay?: number) {
       if (!(await read($, PANE_OPEN)) || (await read($, OPEN)) === null) {
         return
       }
-      failures.open = (await refreshOpen($)) ? 0 : failures.open + 1
+      failures.open = (await refreshOpen($, { manual })) ? 0 : failures.open + 1
       armOpen($)
     })
   } catch {
@@ -550,7 +590,7 @@ async function refreshNow($: any) {
   if ((await read($, OPEN)) !== null) {
     cancel('open')
     failures.open = 0
-    armOpen($, 0)
+    armOpen($, 0, true)
   }
   armList($, 0)
 }
@@ -618,7 +658,7 @@ async function openRow($: any, row: SessionRow) {
   await update($, EXPANDED, () => false)
   cancel('open')
   failures.open = 0
-  armOpen($, 0)
+  armOpen($, 0, true)
 }
 
 /** Back from the session view to the list. */

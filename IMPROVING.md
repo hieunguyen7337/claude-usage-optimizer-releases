@@ -283,6 +283,20 @@ ships.
 
 ## 11. Release lessons
 
+**2026-11-03.3.**
+- *A 403 is a device proof, not a missing sign-in.* Claude Code 2.1.317's own client reads `untrusted_device` /
+  `bound_unattested` as "this machine could not prove it is the computer the session is bound to, or a trusted
+  device"; it sends a trusted-device token that a mod's `$.http.fetch` cannot. A mod can still read such a session
+  through a built-in tool that uses Claude Code's client: `RemoteTrigger`'s `get_run_log` answered HTTP 200 for a
+  session bound to this PC. The pane now falls back to it through `$.tool.check` (never a dialog from a poll) and
+  `$.tool.call`, throttled to one read per 30 s, since a tool call is heavier than a fetch.
+- *Registries go stale in bulk.* All four registered mirrors were 404 on the same day; `lane main --forget` cleared
+  them. A periodic registry check would catch this sooner.
+- *A plugin MCP server can fail on an unset variable.* The claude.ai-synced GitHub plugin sends
+  `Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}`; unset, every session logged "Authorization header is badly formatted". A
+  user-scope server with a `headersHelper` that prints `gh auth token` fixes it without putting a token in a file or
+  an environment variable.
+
 **2026-11-03.2.**
 - *Deleted means gone.* The owner wants a session deleted on claude.ai to leave the pane, not to linger as a hidden
   archived row. A 404 mirror now adds no row, and an open session whose reads both return 404 leaves the view the way

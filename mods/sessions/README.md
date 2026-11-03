@@ -81,4 +81,8 @@ The view opens folded every time a session is opened, so the expansion is reset 
   pane. The action row, with `e`, is drawn there too.
 - Cloud sessions are read from the Claude sessions API. A local session shows the text of `claude logs` for it instead of
   a transcript, so the transcript keys and `e` change nothing there.
+- A session bound to the computer that started it answers the pane's own reads with HTTP 403 (claude.ai wants a
+  trusted-device proof that only Claude Code's client sends). The view then shows its condensed log, read through
+  Claude Code's RemoteTrigger tool: at once when that tool is allowed, else after `r`, which asks your permission. The
+  log is read again at most every 30 seconds.
 - Reads are on a timer while the pane is open; the band reads the list only while the pane is closed.
