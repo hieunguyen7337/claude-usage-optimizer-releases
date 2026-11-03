@@ -263,7 +263,7 @@ async function mirrorsOf($: any, sessions: ApiSession[], registry: Registry): Pr
     if (result.ok) {
       if (![...sessions, ...found].some((session) => sameSessionId(session.id, result.value.id))) found.push(result.value)
     } else {
-      missingMirrors.push({ repo, sessionId, reason: result.reason })
+      missingMirrors.push({ repo, sessionId, reason: result.reason, status: result.status })
     }
   }
   return { sessions: found, missingMirrors }
@@ -369,6 +369,14 @@ export function refusedView(
   return { header: headerOf(null, row), lines: [], status: 'error', note }
 }
 
+/** The explanatory note for a session confirmed absent by both detail endpoints. */
+export function deletedSessionNote(row: Pick<SessionRow, 'role' | 'repo'>): string {
+  const missing = 'This session no longer exists on claude.ai (HTTP 404).'
+  return row.role === 'mirror' && row.repo !== null
+    ? `${missing} A kit mirror stays in the registry until you run: lane main --forget ${row.repo}`
+    : missing
+}
+
 /** Reads the open session: an API row's detail and newest events, or a local row's `claude logs`. */
 export async function refreshOpen($: any): Promise<boolean> {
   const open = await read($, OPEN)
@@ -392,10 +400,14 @@ export async function refreshOpen($: any): Promise<boolean> {
       const session = 'value' in detail && detail.value.ok ? detail.value.value : null
       const events = 'value' in page && page.value.ok ? page.value.value : null
       if (session === null && events === null) {
+        const deleted = 'value' in detail && !detail.value.ok && detail.value.status === 404 &&
+          'value' in page && !page.value.ok && page.value.status === 404
         const failed =
           'value' in page && !page.value.ok ? page.value : 'value' in detail && !detail.value.ok ? detail.value : null
         const refusal = failed?.status === 403 ? refusedView(row, failed.reason, failed.code) : null
-        const note = refusal !== null
+        const note = deleted
+          ? deletedSessionNote(row)
+          : refusal !== null
           ? refusal.note
           : failed !== null
             ? `sessions API failed (${failed.reason})`

@@ -1,6 +1,6 @@
 # Claude Usage Optimizer: usage policy
 
-Claude Usage Optimizer version: 2026-11-02.3. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Claude Usage Optimizer version: 2026-11-03.1. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
 Machine-specific rules (project dispatchers, locked lanes, local paths) belong in
 `~/.claude/CLAUDE.md` above the import line, and they win when the two conflict.
 

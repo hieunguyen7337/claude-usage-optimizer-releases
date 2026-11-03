@@ -132,8 +132,8 @@ export function toolLabel(name: string, input: unknown): string {
       label = field('description')
       break
   }
-  const line = oneLine(label, 120)
-  return line !== '' ? line : oneLine(asString(name), 120)
+  const line = oneLine(label, 400)
+  return line !== '' ? line : oneLine(asString(name), 400)
 }
 
 type Fold = {

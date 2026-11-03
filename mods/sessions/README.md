@@ -35,22 +35,29 @@ drawn as a button.
   offline or archived.
 - Sessions grouped by repository. Rows that need you lead their group, and groups holding one lead the list; Other
   (no repository) stays last. Below 80 cells a group header drops the repository's owner.
-- At 100 cells or more a row is one line. Narrower, it is two: the state mark, the unread mark and the full title,
-  then a dim line of facts (state, where it runs, its role, branch, age, context and model with effort).
+- At 100 cells or more a row is one line. Narrower, it is the state mark, the unread mark and the title, wrapped to
+  at most two rows, then a dim line of facts (state, where it runs, its role, branch, age, context and model with
+  effort), wrapped too.
 - A session shows once. A local session joins its Claude app row by title, or by repository and branch when only one
   app row matches both.
 - Every kit mirror (from `~/.local/state/lanes/mains.json`) is listed and tagged `mirror`, even when it is archived or
   offline. A mirror the list API leaves out is read by its id; one that cannot be read becomes a row naming the
-  reason, such as a session bound to the device that started it.
+  reason, such as a session bound to the device that started it. A mirror whose session was deleted on claude.ai
+  (HTTP 404) is shown as an archived row, `<repo> mirror`, only with `a`; opening it says the session no longer
+  exists and that `lane main --forget <repo>` drops it from the registry.
 - The footer gives the keys, wrapped at the pane's width, and a note when the read was cut short.
 
 ## What the session view shows
 
+Nothing is cut at the pane's width: a longer header, note, text, tool head, result line or notice wraps onto more
+rows, with wide characters counted as two cells.
+
 - The header: title; repository, branch, head, dirty and unpushed; state, kind, model, permission mode, context.
-- The transcript, oldest first. A prompt or assistant text is drawn at four rows, and the rows it does not show are
+- The transcript, oldest first. A prompt or assistant text is drawn at four wrapped rows, and the rows it does not show are
   marked "+N lines". The newest assistant text is the exception: it is drawn in full, so the latest answer can be read
   without expanding anything.
-- A tool call is one head line: its name, its label and its status. A call with subagent lines is a button: opened, it
+- A tool call is a head line: its name, its label (up to 400 characters) and its status, wrapped to at most two
+  rows, all of them in the expanded view. A call with subagent lines is a button: opened, it
   shows them under its head.
 - A tool result keeps its text: a string, or the text blocks of a content list; images are skipped. The text is cleaned
   as assistant text is (control, ANSI and bidi characters removed) and kept to 4000 characters per result. A result

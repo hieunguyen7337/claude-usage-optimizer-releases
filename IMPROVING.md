@@ -283,6 +283,17 @@ ships.
 
 ## 11. Release lessons
 
+**2026-11-03.1.**
+- *A registry outlives the sessions it names.* A kit mirror deleted on claude.ai stayed "live" in `mains.json`, so
+  the Sessions pane read it by id on every refresh and drew the API's 404 as the row's title. A 404 now means
+  deleted: the row is archived and hidden, and opening it names `lane main --forget <repo>`.
+- *Cutting text to the width hides what the owner needs.* A 56-cell pane cut titles, tool labels and error notes with
+  an ellipsis, so even the expanded view could not show them. Sessions 0.7.0 wraps every row instead, and keeps the
+  folding (four rows, "+N lines") as the only limit.
+- *Two Codex Cloud units on seams take minutes.* Both units, on separate files, came back in 3.5 minutes each; the
+  run record keeps a Codex Cloud task's diff but not its report, so its test claims are unseen and the mod's tests run
+  in a Claude cloud verify.
+
 **2026-11-02.3.**
 - *Wait on what was pushed, not on a branch tip.* One verify run waited 52 minutes with its report already on GitHub:
   lane read only the tip of the first branch it saw, so a later commit, a move to a `claude/…` branch or one failed

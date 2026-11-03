@@ -118,6 +118,35 @@ export function fit(raw: string, width: number): string {
   return out + ELLIPSIS
 }
 
+/** Wrap cleaned text to terminal-cell widths, repeating the supplied row prefix on continuations. */
+function wrapText(raw: string, width: number, firstPrefix = '', nextPrefix = firstPrefix): string[] {
+  const text = clean(raw)
+  if (text === '') return [fit(firstPrefix, width)]
+  const rows: string[] = []
+  let rest = text
+  let prefix = firstPrefix
+  while (rest !== '') {
+    const room = Math.max(1, width - cells(prefix))
+    let used = 0
+    let end = 0
+    let space = 0
+    for (const ch of rest) {
+      const code = ch.codePointAt(0) ?? 0
+      const size = isZero(code) ? 0 : isWide(code) ? 2 : 1
+      if (used + size > room) break
+      used += size
+      end += ch.length
+      if (/\s/u.test(ch)) space = end
+    }
+    if (end === 0) end = [...rest][0]?.length ?? 1
+    if (end < rest.length && space > 0) end = space
+    rows.push(fit(prefix + rest.slice(0, end), width))
+    rest = rest.slice(end)
+    prefix = nextPrefix
+  }
+  return rows
+}
+
 /** The text cut to `width` cells, then padded with spaces to exactly that many. */
 function pad(text: string, width: number): string {
   const cut = fit(text, width)
@@ -233,7 +262,6 @@ export function rowText(row: SessionRow, width: number, now: number, isFocused: 
 export function rowLines(row: SessionRow, width: number, now: number, isFocused: boolean): string[] {
   if (width >= 100) return [rowText(row, width, now, isFocused)]
   const title = oneLine(row.title) || '(untitled)'
-  const first = `${isFocused ? FOCUS_MARK : '  '}${STATE_GLYPH[row.state]} ${row.unread ? UNREAD : ' '} ${title}`
   const age = ageText(row.activeAt, now)
   const facts = [
     STATE_LABEL[row.state],
@@ -246,7 +274,17 @@ export function rowLines(row: SessionRow, width: number, now: number, isFocused:
   ]
     .filter(part => part !== '')
     .join(DOT)
-  return [fit(first, width), fit(`    ${facts}`, width)]
+  const titleRows = wrapText(
+    title,
+    width,
+    `${isFocused ? FOCUS_MARK : '  '}${STATE_GLYPH[row.state]} ${row.unread ? UNREAD : ' '} `,
+    '    ',
+  )
+  const shownTitle =
+    titleRows.length <= 2
+      ? titleRows
+      : [titleRows[0] ?? '', fit(`${titleRows[1] ?? ''}${ELLIPSIS}`, width)]
+  return [...shownTitle, ...wrapText(facts, width, '    ', '    ')]
 }
 
 /** The order the summary counts states in: what needs the owner first. */
@@ -270,13 +308,13 @@ export function wrapParts(text: string, width: number): string[] {
   for (const part of text.split(DOT)) {
     const next = line === '' ? part : `${line}${DOT}${part}`
     if (line !== '' && cells(next) > width) {
-      lines.push(fit(line, width))
+      lines.push(...wrapText(line, width))
       line = part
     } else {
       line = next
     }
   }
-  lines.push(fit(line, width))
+  lines.push(...wrapText(line, width))
   return lines
 }
 
@@ -378,7 +416,11 @@ export function headerText(header: SessionHeader, width: number): string[] {
     header.permissionMode === null ? '' : `mode ${header.permissionMode}`,
     context === '' ? '' : `ctx ${context}`,
   ].filter(part => part !== '')
-  return [fit(oneLine(header.title) || '(untitled)', width), fit(where.join(DOT), width), fit(facts.join(DOT), width)]
+  return [
+    ...wrapText(oneLine(header.title) || '(untitled)', width),
+    ...wrapParts(where.join(DOT), width),
+    ...wrapParts(facts.join(DOT), width),
+  ]
 }
 
 const TOOL_GLYPH = { running: '\u2026', ok: '\u2713', error: '\u2717' } as const
@@ -405,16 +447,16 @@ export function latestTextKey(lines: readonly TranscriptLine[]): string | null {
 const capOf = (expanded: boolean): number => (expanded ? MAX_EXPANDED_LINES : MAX_LINES)
 
 /** A tool call's head row: fold mark, status glyph, name and label, and its subagent line count while it is shut. */
-function callHead(line: TranscriptLine, width: number, indent: number, opened: boolean): string {
+function callHead(line: TranscriptLine, width: number, indent: number, opened: boolean, expanded: boolean): string[] {
   const lead = ' '.repeat(indent)
-  const room = width - indent
   const tool = line.tool
   const children = line.children ?? []
   const fold = children.length === 0 ? ' ' : opened ? '\u25be' : '\u25b8'
   const label = tool === undefined ? oneLine(line.text) : `${tool.name}  ${oneLine(tool.label)}`
   const more = children.length > 0 && !opened ? ` (+${children.length})` : ''
   const glyph = tool === undefined ? ' ' : TOOL_GLYPH[tool.status]
-  return fit(`${lead}${fold}${glyph} ${fit(label, Math.max(1, room - 3 - cells(more)))}${more}`, width)
+  const rows = wrapText(`${label}${more}`, width, `${lead}${fold}${glyph} `, `${lead}   `)
+  return expanded ? rows : rows.slice(0, 2)
 }
 
 /** A tool call's result body, expanded only: its lines at indent + 4, RESULT_ROWS of them, then how many more. */
@@ -427,9 +469,10 @@ function resultRows(line: TranscriptLine, width: number, indent: number, unfold:
     .split('\n')
     .map(part => part.replace(/\t/g, '  ').trimEnd())
     .filter(part => part.trim() !== '')
-  const rows = parts.slice(0, RESULT_ROWS).map(part => fit(`${lead}${part}`, width))
-  if (parts.length > RESULT_ROWS) {
-    rows.push(fit(`${lead}${ELLIPSIS} +${parts.length - RESULT_ROWS} lines`, width))
+  const wrapped = parts.flatMap(part => wrapText(part, width, lead, lead))
+  const rows = wrapped.slice(0, RESULT_ROWS)
+  if (wrapped.length > RESULT_ROWS) {
+    rows.push(fit(`${lead}${ELLIPSIS} +${wrapped.length - RESULT_ROWS} lines`, width))
   }
   return rows
 }
@@ -447,7 +490,7 @@ export function lineText(
   if (line.kind === 'tool') {
     const children = line.children ?? []
     const opened = children.length > 0 && isOpened(line.key)
-    const rows = [callHead(line, width, indent, opened), ...resultRows(line, width, indent, unfold)]
+    const rows = [...callHead(line, width, indent, opened, unfold.expanded), ...resultRows(line, width, indent, unfold)]
     if (opened) {
       for (const child of children) {
         rows.push(...lineText(child, width, indent + 4, isOpened, unfold))
@@ -462,22 +505,25 @@ export function lineText(
       .filter(part => part.trim() !== '')
     const first = line.kind === 'prompt' ? FOCUS_MARK : '  '
     const unfolded = unfold.expanded || (line.kind === 'text' && line.key === unfold.latestText)
-    const shown = unfolded ? parts : parts.slice(0, TEXT_ROWS)
-    const rows = shown.map((part, index) => fit(`${lead}${index === 0 ? first : '  '}${part}`, width))
-    if (parts.length > shown.length) {
-      rows.push(fit(`${lead}  ${ELLIPSIS} +${parts.length - shown.length} lines`, width))
+    const wrapped = parts.flatMap((part, index) =>
+      wrapText(part, width, `${lead}${index === 0 ? first : '  '}`, `${lead}  `),
+    )
+    const shown = unfolded ? wrapped : wrapped.slice(0, TEXT_ROWS)
+    const rows = [...shown]
+    if (wrapped.length > shown.length) {
+      rows.push(fit(`${lead}  ${ELLIPSIS} +${wrapped.length - shown.length} lines`, width))
     }
     return rows.length > 0 ? rows : [fit(`${lead}${first}`, width)]
   }
   const prefix = line.kind === 'result' ? '\u2500\u2500 ' : line.kind === 'held' ? '! held: ' : '\u00b7 '
-  return [fit(`${lead}${prefix}${oneLine(line.text)}`, width)]
+  return wrapText(oneLine(line.text), width, `${lead}${prefix}`, `${lead}${' '.repeat(cells(prefix))}`)
 }
 
 /** A notice's rows: the tone glyph before its first line; at most NOTICE_ROWS, the last naming what is left. */
 export function noticeText(notice: ActionNotice, width: number): string[] {
   const glyph = notice.tone === 'ok' ? '\u2713' : notice.tone === 'error' ? '\u2717' : '\u00b7'
   const parts = strip(notice.text).split('\n').map(part => part.replace(/\t/g, '  ').trimEnd())
-  const rows = parts.map((part, index) => `${index === 0 ? `${glyph} ` : '  '}${part}`)
+  const rows = parts.flatMap((part, index) => wrapText(part, width, index === 0 ? `${glyph} ` : '  ', '  '))
   if (rows.length > NOTICE_ROWS) {
     const kept = rows.slice(0, NOTICE_ROWS - 1)
     kept.push(`  ${ELLIPSIS} +${rows.length - kept.length} more`)
@@ -501,7 +547,7 @@ export function actionsText(actions: ReadonlyArray<{ key: string; label: string 
   if (row !== '') {
     rows.push(row)
   }
-  return rows.map(one => fit(one, width))
+  return rows.flatMap(one => wrapText(one, width))
 }
 
 /**
@@ -519,7 +565,7 @@ export function bodyText(
   if (open.status === 'loading') {
     rows.push(fit('loading\u2026', width))
   } else if (open.status === 'error') {
-    rows.push(fit(`! ${oneLine(open.note ?? 'could not read the session')}`, width))
+    rows.push(...wrapText(oneLine(open.note ?? 'could not read the session'), width, '! ', '  '))
   }
   if (open.logText !== undefined) {
     const parts = strip(open.logText).split('\n').map(part => part.replace(/\t/g, '  ').trimEnd())
@@ -669,15 +715,25 @@ function lineTree(
   if (line.kind === 'tool') {
     const children = line.children ?? []
     const opened = children.length > 0 && data.isOpened(line.key)
-    const head = callHead(line, data.width, indent, opened)
+    const head = callHead(line, data.width, indent, opened, unfold.expanded)
     const body = resultRows(line, data.width, indent, unfold)
+    // A Button holds only strings and Text, so a wrapped head is pressable on its first row; the rest sit under it.
     const headNode =
       children.length > 0 ? (
-        <Button key={`call:${line.key}`} plain onPress={() => handlers.toggleCall(line.key)}>
-          <Text color={color}>{head}</Text>
-        </Button>
+        <Box flexDirection="column">
+          <Button key={`call:${line.key}`} plain onPress={() => handlers.toggleCall(line.key)}>
+            <Text color={color}>{head[0] ?? ''}</Text>
+          </Button>
+          {head.slice(1).map(row => (
+            <Text color={color}>{row}</Text>
+          ))}
+        </Box>
       ) : (
-        <Text color={color}>{head}</Text>
+        <Box flexDirection="column">
+          {head.map(row => (
+            <Text color={color}>{row}</Text>
+          ))}
+        </Box>
       )
     return (
       <Box flexDirection="column">
