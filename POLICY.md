@@ -1,6 +1,6 @@
 # Claude Usage Optimizer: usage policy
 
-Claude Usage Optimizer version: 2026-11-03.3. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Claude Usage Optimizer version: 2026-11-07.1. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
 Machine-specific rules (project dispatchers, locked lanes, local paths) belong in
 `~/.claude/CLAUDE.md` above the import line, and they win when the two conflict.
 
@@ -159,6 +159,8 @@ per-lane gotchas are in `~/.claude/usage-optimizer/LANES.md`.
 | sol | gpt-6.1-sol (codex-cli ≥ 0.159.1) | The same window, 20x luna per token | Scarce on Plus |
 | astra | gpt-6-astra (codex-cli ≥ 0.159.1) | The same window, 100x luna per token | A second frontier view |
 | gemini | gemini-3.8-flash low/medium/high (agy) | Google AI Pro, $0; at least about 100M tokens/week | Non-sensitive work only (consumer data terms) |
+| cursor | Cursor CLI (`cursor-agent -p`): grok-4.7 low–xhigh (composer retired by the owner; gpt-5.6-sol is outside the plan) | The owner's Cursor subscription; no account-wide meter (priced from priors) | Private code allowed while Cursor's privacy mode is on; never a `(NO ZDR)` or `claude-*` model (from 2026-11-07.1) |
+| grok | Grok Build CLI (`grok -p`): grok-4.7 low/medium/high, grok-4.7-build-fast | The owner's grok.com subscription; no account-wide meter; each run records its own cost | Non-sensitive work only, like gemini, until the owner confirms grok.com does not train on it (from 2026-11-07.1) |
 | haiku | claude-haiku-5-5 (`claude -p`) | The Claude plan; list price 1/40 of Opus | The cheap Claude worker |
 | sonnet | claude-sonnet-5-5 (`claude -p`) | The Claude plan | |
 | opus | claude-opus-5-5 (`claude -p`) | The Claude plan; the dearest worker | Measured, not assumed |

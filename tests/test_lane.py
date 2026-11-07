@@ -297,7 +297,7 @@ class LaneTests(unittest.TestCase):
         self.assertIn("--force", refused.stderr)
 
     def test_retired_names_have_one_line_diagnostic(self):
-        for name in ("muse", "grok", "prep-muse"):
+        for name in ("muse", "prep-muse"):
             for extra in ([], ["--help"], ["unused", "arguments"]):
                 with self.subTest(name=name, extra=extra):
                     result = subprocess.run([sys.executable, SCRIPT, name] + extra, env=self.env,
@@ -1219,6 +1219,274 @@ class UsageTests(unittest.TestCase):
             with mock.patch.object(lane, "run_quiet", return_value=result):
                 check = lane.version_check("terra", sys.executable)
             self.assertEqual("accepted" in check, accepted, check)
+
+
+class CursorGrokLaneTests(LaneTests):
+    CURSOR_OK = json.dumps({"type": "result", "subtype": "success", "is_error": False, "duration_ms": 10,
+                            "result": "OK", "session_id": "s1", "request_id": "r1",
+                            "usage": {"inputTokens": 100, "outputTokens": 5, "cacheReadTokens": 7,
+                                      "cacheWriteTokens": 0}})
+    GROK_OK = json.dumps({"text": "OK", "stopReason": "end_turn", "sessionId": "g1", "requestId": "r1", "cwd": "x",
+                          "thought": "secret thought",
+                          "usage": {"input_tokens": 100, "cache_read_input_tokens": 7,
+                                    "cache_creation_input_tokens": 0, "output_tokens": 5, "reasoning_tokens": 4,
+                                    "total_tokens": 112}, "num_turns": 1, "total_cost_usd": 0.0123})
+
+    def setUp(self):
+        super().setUp()
+        self.install_fake_cursor_agent()
+        self.install_fake_grok()
+        self.cursor_bin = os.path.join(self.bin, "cursor-agent.cmd" if os.name == "nt" else "cursor-agent")
+        self.grok_bin = os.path.join(self.bin, "grok.cmd" if os.name == "nt" else "grok")
+        self.bin_env = {"LANES_CURSOR_AGENT_BIN": self.cursor_bin, "LANES_GROK_BIN": self.grok_bin}
+
+    def read_capture(self):
+        self.assertTrue(os.path.isfile(self.capture))
+        return self.read_json(self.capture)
+
+    def dry_preview(self, name, extra=()):
+        result = self.run_lane(name, list(extra) + ["--dry-run"], effort=None, env=self.bin_env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout.splitlines()[0].split("argv: ", 1)[1])
+
+    def install_fake_cursor_agent(self):
+        self.install_cli("cursor-agent", '''
+            import json
+            import os
+            import sys
+
+            brief = sys.stdin.read()
+            with open(os.environ["FAKE_CAPTURE"], "w", encoding="utf-8") as stream:
+                json.dump({"argv": sys.argv[1:], "brief": brief}, stream)
+            mode = os.environ.get("FAKE_MODE", "ok")
+            payload = ''' + repr(self.CURSOR_OK) + '''
+            data = json.loads(payload)
+            if mode == "mentions-limit":
+                data["result"] = "The rate limit resets soon; please login again to continue."
+            elif mode == "quota":
+                print("Error: you have hit your usage limit", file=sys.stderr)
+                sys.exit(1)
+            elif mode == "auth":
+                print("You are not authenticated", file=sys.stderr)
+                sys.exit(1)
+            elif mode == "ok":
+                with open("worker.txt", "w", encoding="utf-8") as stream:
+                    stream.write("edited by fake cursor\\n")
+            if mode != "quota" and mode != "auth":
+                print(json.dumps(data))
+        ''')
+
+    def install_fake_grok(self):
+        self.install_cli("grok", '''
+            import json
+            import os
+            import sys
+
+            prompt_path = None
+            if "--prompt-file" in sys.argv:
+                prompt_path = sys.argv[sys.argv.index("--prompt-file") + 1]
+            brief = ""
+            if prompt_path:
+                with open(prompt_path, "r", encoding="utf-8") as stream:
+                    brief = stream.read()
+            with open(os.environ["FAKE_CAPTURE"], "w", encoding="utf-8") as stream:
+                json.dump({"argv": sys.argv[1:], "brief": brief}, stream)
+            mode = os.environ.get("FAKE_MODE", "ok")
+            payload = ''' + repr(self.GROK_OK) + '''
+            data = json.loads(payload)
+            if mode == "mentions-limit":
+                data["text"] = "The rate limit resets soon; please login again to continue."
+            elif mode == "quota":
+                print("Error: you have hit your usage limit", file=sys.stderr)
+                sys.exit(1)
+            elif mode == "auth":
+                print("You are not authenticated", file=sys.stderr)
+                sys.exit(1)
+            elif mode == "ok":
+                with open("worker.txt", "w", encoding="utf-8") as stream:
+                    stream.write("edited by fake grok\\n")
+            if mode != "quota" and mode != "auth":
+                print(json.dumps(data))
+        ''')
+
+    def test_resolve_binary_uses_lane_bin_overrides(self):
+        with mock.patch.dict(os.environ, self.bin_env, clear=False):
+            self.assertEqual(lane.resolve_binary("cursor-agent")[0], os.path.expanduser(self.cursor_bin))
+            self.assertEqual(lane.resolve_binary("grok")[0], os.path.expanduser(self.grok_bin))
+
+    def test_cursor_dry_run_argv_and_brief_contract(self):
+        command = self.dry_preview("cursor", ["-e", "medium"])
+        # On Windows lane unwraps the fake's .cmd launcher, so the argv starts with the interpreter and its script.
+        if os.name != "nt":
+            self.assertEqual(os.path.normcase(command[0]), os.path.normcase(self.cursor_bin))
+        start = command.index("-p")
+        self.assertEqual(command[start:start + 7], ["-p", "--output-format", "json", "--model", "grok-4.7-medium",
+                                                    "--trust", "--workspace"])
+        self.assertEqual(command[start + 7], self.workspace)
+        self.assertEqual(command[start + 8:], ["--force"])
+        command = self.dry_preview("cursor", ["-e", "medium", "--ro"])
+        self.assertEqual(command[-2:], ["--mode", "ask"])
+        self.assertNotIn("--force", command)
+
+    def test_grok_dry_run_argv_and_prompt_file_contract(self):
+        os.makedirs(self.outdir, exist_ok=True)
+        command = self.dry_preview("grok", ["-e", "medium", "--outdir", self.outdir])
+        model_index = command.index("-m")
+        self.assertEqual(command[model_index + 1], "grok-4.7")
+        self.assertIn("--prompt-file", command)
+        self.assertEqual(command[command.index("--prompt-file") + 1], os.path.join(self.outdir, "brief.sent.md"))
+        self.assertEqual(command[command.index("--cwd") + 1], self.workspace)
+        self.assertIn("--always-approve", command)
+        self.assertEqual(command[command.index("--reasoning-effort") + 1], "medium")
+        fast = self.dry_preview("grok", ["--model", "grok-4.7-build-fast", "-e", "low", "--outdir", self.outdir])
+        self.assertNotIn("--reasoning-effort", fast)
+        self.assertIn("--always-approve", fast)
+        read_only = self.dry_preview("grok", ["-e", "high", "--ro", "--outdir", self.outdir])
+        self.assertEqual(read_only[read_only.index("--permission-mode") + 1], "plan")
+        self.assertNotIn("--always-approve", read_only)
+
+    def test_web_is_refused_for_cursor_and_grok(self):
+        for name in ("cursor", "grok"):
+            with self.subTest(name=name):
+                for extra in (["--web", "--dry-run"], ["--web", "--class", "mechanical"]):
+                    result = self.run_lane(name, extra, effort=None, env=self.bin_env)
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertIn("{} cannot take --web".format(name), result.stderr)
+                effort = ["-e", "medium"] if name == "cursor" else ["-e", "medium"]
+                self.assertEqual(self.run_lane(name, ["--dry-run"] + effort, effort=None,
+                                               env=self.bin_env).returncode, 0)
+
+    def test_catalog_accepts_every_cursor_and_grok_arm(self):
+        catalog = lane.load_catalog()
+        for arm in catalog["arms"]:
+            if arm["lane"] not in ("cursor", "grok") or arm["status"] != "active":
+                continue
+            with self.subTest(arm=lane.arm_key(arm)):
+                result = self.run_lane(arm["lane"], ["--model", arm["model"], "-e", arm["effort"], "--dry-run"],
+                                       effort=None, env=self.bin_env)
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+
+    def test_cursor_success_records_tokens_session_and_final_without_thought(self):
+        self.init_git()
+        os.makedirs(self.outdir, exist_ok=True)
+        result = self.run_lane("cursor", ["-e", "medium", "--class", "substantive", "--outdir", self.outdir],
+                               effort=None, env=dict(self.bin_env, FAKE_MODE="ok"))
+        self.assertEqual(result.returncode, 0, result.stdout + without_mode_line(result.stderr))
+        self.assertIn("verdict=OK", result.stdout)
+        captured = self.read_capture()
+        self.assertNotIn(self.brief, captured["argv"])
+        self.assertIn("Edit worker.txt", captured["brief"])
+        self.assertEqual(captured["argv"], ["-p", "--output-format", "json", "--model", "grok-4.7-medium", "--trust",
+                                            "--workspace", self.workspace, "--force"])
+        meta = self.read_json(os.path.join(self.outdir, "meta.json"))
+        self.assertEqual(meta["session_id"], "s1")
+        self.assertEqual(meta["usage"]["tokens"], {"input": 100, "cached": 7, "output": 5, "total": 112})
+        self.assertIsNone(meta["usage"].get("list_usd"))
+        meta_text = json.dumps(meta)
+        final = open(os.path.join(self.outdir, "final.md"), encoding="utf-8").read()
+        self.assertEqual(final.strip(), "OK")
+        self.assertNotIn("secret thought", meta_text + final)
+        self.assertNotIn("login", result.stderr.lower())
+
+    def test_grok_success_records_tokens_cost_and_omits_thought(self):
+        self.init_git()
+        os.makedirs(self.outdir, exist_ok=True)
+        result = self.run_lane("grok", ["-e", "medium", "--class", "substantive", "--outdir", self.outdir],
+                               effort=None, env=dict(self.bin_env, FAKE_MODE="ok"))
+        self.assertEqual(result.returncode, 0, result.stdout + without_mode_line(result.stderr))
+        captured = self.read_capture()
+        self.assertEqual(captured["argv"][captured["argv"].index("--prompt-file") + 1],
+                         os.path.join(self.outdir, "brief.sent.md"))
+        self.assertNotIn(self.brief, captured["argv"])
+        meta = self.read_json(os.path.join(self.outdir, "meta.json"))
+        self.assertEqual(meta["session_id"], "g1")
+        self.assertEqual(meta["usage"]["list_usd"], 0.0123)
+        self.assertEqual(meta["usage"]["tokens"]["total"], 112)
+        # run.log keeps the CLI's raw output, as every lane's does; the record and final.md leave the thought out.
+        self.assertNotIn("secret thought", json.dumps(meta) + open(
+            os.path.join(self.outdir, "final.md"), encoding="utf-8").read())
+
+    def test_cursor_and_grok_quota_failed_and_limit_mentions(self):
+        cases = (
+            ("cursor", "quota", 75, "QUOTA"),
+            ("grok", "quota", 75, "QUOTA"),
+            ("cursor", "auth", 4, "FAILED"),
+            ("grok", "auth", 4, "FAILED"),
+            ("cursor", "mentions-limit", 0, "OK"),
+            ("grok", "mentions-limit", 0, "OK"),
+        )
+        for lane_name, mode, code, verdict in cases:
+            with self.subTest(lane=lane_name, mode=mode):
+                self.init_git()
+                outdir = os.path.join(self.root, lane_name + "-" + mode)
+                os.makedirs(outdir, exist_ok=True)
+                # The limit-mentioning answer edits nothing, so it runs read-only (a writing run would be NOOP).
+                effort = ["-e", "medium"] + (["--ro"] if mode == "mentions-limit" else [])
+                result = self.run_lane(lane_name, effort + ["--outdir", outdir], effort=None,
+                                       env=dict(self.bin_env, FAKE_MODE=mode))
+                self.assertEqual(result.returncode, code, result.stdout + result.stderr)
+                self.assertIn("verdict={}".format(verdict), result.stdout)
+                if mode == "auth":
+                    self.assertIn("warning: run the {} CLI's login command before retrying".format(lane_name),
+                                  result.stderr)
+                if mode == "mentions-limit":
+                    self.assertNotIn("warning: run the", result.stderr)
+
+    def test_writing_run_without_git_change_is_noop(self):
+        self.init_git()
+        os.makedirs(self.outdir, exist_ok=True)
+        for lane_name in ("cursor", "grok"):
+            with self.subTest(lane=lane_name):
+                outdir = os.path.join(self.root, lane_name + "-noop")
+                os.makedirs(outdir, exist_ok=True)
+                effort = ["-e", "medium"]
+                result = self.run_lane(lane_name, effort + ["--outdir", outdir], effort=None,
+                                       env=dict(self.bin_env, FAKE_MODE="noop"))
+                self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+                self.assertIn("verdict=NOOP", result.stdout)
+
+
+# CursorGrokLaneTests borrows LaneTests' fixtures; without this, unittest would run every LaneTests test twice.
+for _name in dir(LaneTests):
+    if _name.startswith("test_") and _name not in CursorGrokLaneTests.__dict__:
+        setattr(CursorGrokLaneTests, _name, None)
+
+
+class CursorLauncherTests(unittest.TestCase):
+    """Cursor's Windows launcher chains cmd.exe, PowerShell and node; lane starts node and index.js directly."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root)
+        self.shim = os.path.join(self.root, "cursor-agent.cmd")
+        with open(self.shim, "w", encoding="utf-8") as stream:
+            stream.write('@echo off\r\n%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile '
+                         '-ExecutionPolicy Bypass -File "%SCRIPT_DIR%\\cursor-agent.ps1" %*\r\n')
+
+    def version(self, name, complete=True):
+        folder = os.path.join(self.root, "versions", name)
+        os.makedirs(folder)
+        for file_name in ("node.exe", "index.js") if complete else ("index.js",):
+            open(os.path.join(folder, file_name), "w").close()
+        return folder
+
+    def test_the_newest_complete_dated_version_is_started(self):
+        self.version("2026.9.28-64d2043")
+        newest = self.version("2026.10.22-27dcf5f")
+        self.version("2026.11.05-86047df", complete=False)
+        self.version("not-a-version")
+        self.assertEqual(lane.windows_shim_target(self.shim),
+                         [os.path.join(newest, "node.exe"), os.path.join(newest, "index.js")])
+
+    def test_a_node_beside_the_launcher_wins(self):
+        self.version("2026.10.22-27dcf5f")
+        for file_name in ("node.exe", "index.js"):
+            open(os.path.join(self.root, file_name), "w").close()
+        self.assertEqual(lane.windows_shim_target(self.shim),
+                         [os.path.join(self.root, "node.exe"), os.path.join(self.root, "index.js")])
+
+    def test_no_version_folder_means_no_target(self):
+        self.assertIsNone(lane.windows_shim_target(self.shim))
 
 
 class BriefAndTextCheckTests(unittest.TestCase):

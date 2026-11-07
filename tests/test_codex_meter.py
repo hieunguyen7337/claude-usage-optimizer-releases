@@ -62,6 +62,7 @@ class CodexMeterTests(unittest.TestCase):
             "USAGE_OPTIMIZER_CODEX_LIVE": "1",
             "USAGE_OPTIMIZER_CODEX": "auto",
             "NO_COLOR": "1",
+            "USAGE_OPTIMIZER_CLOUD_PROBE_MIN": "off",
             "USAGE_OPTIMIZER_KIT_LABEL": "off",
             "FAKE_CODEX_MODE": "pro",
             "FAKE_CODEX_LOG": self.log,

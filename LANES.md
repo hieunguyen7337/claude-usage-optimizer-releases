@@ -3,12 +3,12 @@
 Reference, not loaded into sessions. `bin/lane` encodes everything here; read it when `lane` is
 unavailable, when a lane misbehaves, or when you change `lane` itself. Which lane and effort to use,
 the brief format and the failure ladder are in `POLICY.md`. (This was the `codex-delegation` skill
-until kit 2026-10-16.1. muse and grok were retired on 2026-10-17.)
+until kit 2026-10-16.1. muse was retired on 2026-10-17.)
 
 ## `lane`
 
 ```bash
-~/.claude/usage-optimizer/bin/lane <luna|terra|sol|astra|gemini|haiku|sonnet|opus|glm> -C <abs dir> -b <brief file> -e <effort> \
+~/.claude/usage-optimizer/bin/lane <luna|terra|sol|astra|gemini|cursor|grok|haiku|sonnet|opus|glm> -C <abs dir> -b <brief file> -e <effort> \
     --class <mechanical|substantive|hard|design|review|research> [--tag <name>] [--pick <id>] [--off-catalog] \
     [--ro] [--resume <id>] [--timeout <sec>] [--dry-run]
 ~/.claude/usage-optimizer/bin/lane <haiku|sonnet|opus> --subagent -C <abs dir> -b <brief file> -e <effort> --class <class> [--pick <id>] [--ro]
@@ -912,6 +912,38 @@ cd <dir> && agy --sandbox --dangerously-skip-permissions --add-dir <dir> --outpu
 - Handed 38 page images and nothing else, gemini low answered twice that it could not view them; 21 images alone
   worked, and the same 38 images with a transcript worked (2026-10-31). The cause is not known: the image count, the
   total size or the prompt's shape. Split image sets of more than about 20, and check the answer before using it.
+
+### cursor — `cursor-agent` (Cursor subscription)
+
+```bash
+cursor-agent -p --output-format json --model grok-4.7-medium --trust --workspace <dir> --force < brief.md
+```
+
+- `lane cursor` passes the brief on stdin, never as an argument. `LANES_CURSOR_AGENT_BIN` overrides the executable;
+  the fallback is `%LOCALAPPDATA%/cursor-agent/cursor-agent.cmd` on Windows or `~/.local/bin/cursor-agent` elsewhere.
+  On Windows that `.cmd` chains cmd.exe, PowerShell (`cursor-agent.ps1`) and node, so `lane` starts the newest dated
+  `versions/<YYYY.MM.DD-commit>/node.exe index.js` directly, as the `.ps1` would (it skips the staged-update step,
+  which the next interactive start runs).
+- Writing runs use `--force`; `--ro` uses `--mode ask`. JSON records `session_id` and usage tokens, but Cursor has
+  no account-wide meter or list-cost field. Catalog arms exclude Cursor's `(NO ZDR)` entries and every Claude model.
+- **The plan covers some models only** (2026-11-07): GPT-5.6 Sol answered "not included in your weekly usage Buy
+  credits or switch to a Grok model", so its arms are retired; composer-2.5 and grok-4.7 run. That answer is QUOTA.
+- **No composer** (the owner's call, 2026-11-07): the composer-2.5 arm is retired and the lane's default model is
+  `grok-4.7-medium`; its arms are grok-4.7 low to xhigh. A composer run needs `--off-catalog`.
+- **Cursor's CLI loads Claude Code's hooks** (`~/.claude/settings.json`): on 2026-11-07 the owner's PreToolUse guards
+  (cloud-only tests, release checks) blocked every shell command a cursor worker tried, so it wrote its tests without
+  running them. Name what it cannot run in the brief, and run the verifier yourself (in the cloud).
+
+### grok — `grok` (Grok Build subscription)
+
+```bash
+grok --prompt-file brief.sent.md --output-format json --cwd <dir> -m grok-4.7 --reasoning-effort medium --always-approve
+```
+
+- `lane grok` writes the prompt file in the run record. Writing runs use `--always-approve`; `--ro` uses
+  `--permission-mode plan`. `grok-4.7-build-fast` is nominal low effort and deliberately receives no effort flag.
+- `LANES_GROK_BIN` overrides the executable; its fallback is `~/.grok/bin/grok` (or `.exe` on Windows). The JSON
+  record keeps `sessionId`, tokens and `total_cost_usd`, but never the CLI's `thought` field.
 
 ### glm — `cline` (free OAuth lane)
 

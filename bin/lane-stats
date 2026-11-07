@@ -26,7 +26,7 @@ OUTCOMES = ("accepted", "fixed", "rework", "rejected")
 PROVIDERS = {
     "luna": "codex", "terra": "codex", "sol": "codex", "astra": "codex",
     "haiku": "claude", "sonnet": "claude", "opus": "claude", "fable": "claude", "gemini": "gemini",
-    "glm": "cline", "muse": "muse", "grok": "cursor",
+    "cursor": "cursor", "grok": "grok", "glm": "cline", "muse": "muse",
 }
 # Used when arms.json has no explore.time block, and filled in key by key when the block is partial.
 TIME_DEFAULTS = {
@@ -1245,6 +1245,9 @@ def provider_reading(provider, live, now):
 
 
 def provider_mode(provider, live, config, now, setting=None):
+    # Cursor and Grok expose per-run usage but no account-wide allowance or expiry.
+    if provider in ("cursor", "grok"):
+        return "utilization"
     setting = mode_setting(config) if setting is None else setting
     if setting != "auto":
         return setting
@@ -2036,7 +2039,8 @@ def mode(args):
     now = datetime.datetime.now(datetime.timezone.utc)
     setting = mode_setting(config)
     providers = {}
-    for provider in ("claude", "codex", "gemini"):
+    first = [name for name in ("claude", "codex", "gemini") if name in catalog["providers"]]
+    for provider in first + [name for name in catalog["providers"] if name not in first]:
         used, projected, _ = provider_reading(provider, live, now)
         providers[provider] = {"mode": provider_mode(provider, live, config, now, setting), "used_pct": used,
                                "projected_pct": None if projected is None else round(projected, 1)}

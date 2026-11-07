@@ -297,6 +297,25 @@ ships.
   user-scope server with a `headersHelper` that prints `gh auth token` fixes it without putting a token in a file or
   an environment variable.
 
+**2026-11-07.1.**
+- *Every subscription with spare allowance is a lane.* The owner's Cursor and Grok plans sat unused while Claude ran
+  at 86% and Codex fell to a free plan (30-day window full until 2026-12-07). `cursor` (Cursor CLI) and `grok` (Grok
+  Build CLI) lanes now run units headless; neither CLI has an account-wide meter, so both are priced from priors and
+  shown as utilization, and each run records its tokens (and Grok its own list $).
+- *Probe a plan's models before trusting a catalog.* Cursor lists GPT-5.6 Sol but refused it ("not included in your
+  weekly usage"); its arms are retired and that answer is QUOTA. A lane's model list is what the CLI offers, not what
+  the plan pays for.
+- *A Windows launcher can hide three layers.* Cursor's `.cmd` runs PowerShell, which runs node; lane's shim unwrapper
+  learned the layout, as it had npm's. The smoke run found it in seconds where the Linux tests could not.
+- *Other agent CLIs load Claude Code's hooks.* A cursor worker could not run one shell command under the owner's
+  PreToolUse guards, so it handed back tests it never ran. Run every verifier yourself.
+- *Only a failed run can be a quota stop.* The first cursor/grok verdict scanned the whole answer for "rate limit",
+  which kit work mentions constantly; quota and login checks now apply only when the run produced no answer.
+- *A test that runs usage-status in a cloud VM reads the real meter.* With no stored reading, the cloud probe asked
+  Claude for the live one (86%), and its "≥85% weekly" hint replaced the hint three tests expected. Every test that
+  runs usage-status now sets `USAGE_OPTIMIZER_CLOUD_PROBE_MIN=off`.
+- *No composer* (owner, 2026-11-07): the cursor lane runs grok-4.7 by default; composer-2.5 is retired.
+
 **2026-11-03.2.**
 - *Deleted means gone.* The owner wants a session deleted on claude.ai to leave the pane, not to linger as a hidden
   archived row. A 404 mirror now adds no row, and an open session whose reads both return 404 leaves the view the way

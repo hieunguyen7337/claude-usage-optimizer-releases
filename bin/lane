@@ -26,25 +26,25 @@ from urllib.parse import urlsplit
 IS_WINDOWS = os.name == "nt"
 # CreateProcess rejects command lines longer than 32,767 characters; keep headroom for quoting.
 WINDOWS_COMMAND_LINE_LIMIT = 32000
-LANES = ("luna", "terra", "sol", "astra", "haiku", "sonnet", "opus", "fable", "gemini", "glm",
+LANES = ("luna", "terra", "sol", "astra", "haiku", "sonnet", "opus", "fable", "gemini", "cursor", "grok", "glm",
          "codex-cloud")
 CODEX_LANES = ("luna", "terra", "sol", "astra")
 CLAUDE_LANES = ("haiku", "sonnet", "opus", "fable")
 FABLE_ROLES = ("plan", "ladder", "final-review", "tiebreak", "user")
 ADVISOR_DAYS = 7
 PROVIDERS = {"luna": "codex", "terra": "codex", "sol": "codex", "astra": "codex", "haiku": "claude",
-             "sonnet": "claude", "opus": "claude", "fable": "claude", "gemini": "gemini", "glm": "cline", "codex-cloud": "codex"}
+             "sonnet": "claude", "opus": "claude", "fable": "claude", "gemini": "gemini", "cursor": "cursor", "grok": "grok", "glm": "cline", "codex-cloud": "codex"}
 DEFAULT_MODELS = {"luna": "gpt-6-luna", "terra": "gpt-6.1-terra", "sol": "gpt-6.1-sol", "astra": "gpt-6-astra",
                   "haiku": "claude-haiku-5-5", "sonnet": "claude-sonnet-5-5", "opus": "claude-opus-5-5",
                   "fable": "claude-fable-5-1",
-                  "gemini": "gemini-3.8-flash-high", "glm": "z-ai/glm-5.3-flash", "codex-cloud": "codex-cloud"}
+                  "gemini": "gemini-3.8-flash-high", "cursor": "grok-4.7-medium", "grok": "grok-4.7", "glm": "z-ai/glm-5.3-flash", "codex-cloud": "codex-cloud"}
 # gpt-6.1-sol is absent from older catalogs, and a client without the model reports a 400 as an account refusal.
 # gpt-6.1-terra needs 0.159.0 (OpenAI's release notes, 2026-10-26).
 CODEX_MIN_VERSION = {"luna": (0, 156, 1), "terra": (0, 159, 0), "sol": (0, 159, 1), "astra": (0, 159, 1)}
 MB = 1024 * 1024
 # Built-in copy of arms.json explore.memory, used when the catalog or a key is missing.
 MEMORY_DEFAULTS = {"lane_mb": {"luna": 400, "terra": 400, "sol": 400, "astra": 400, "haiku": 700, "sonnet": 700,
-                               "opus": 700, "fable": 700, "gemini": 500, "glm": 500},
+                               "opus": 700, "fable": 700, "gemini": 500, "cursor": 600, "grok": 400, "glm": 500},
                    "default_mb": 700, "reserve_mb": 1536, "reserve_fraction": 0.1, "recent_runs": 20, "min_runs": 3,
                    "young_run_seconds": 120}
 ANSI_CSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
@@ -58,7 +58,7 @@ MASK_DEFAULTS = (
     "~/.ssh", "~/.gnupg", "~/.aws", "~/.azure", "~/.kube", "~/.docker",
     "~/.config/gcloud", "~/.config/gh", "~/.netrc", "~/.git-credentials",
     "~/.npmrc", "~/.pypirc", "~/.claude", "~/.claude.json", "~/.codex",
-    "~/.cursor", "~/.config/cursor", "~/.cline", "~/.gemini",
+    "~/.cursor", "~/.config/cursor", "~/.grok", "~/.cline", "~/.gemini",
     "~/.config/muse", "~/.config/lanes",
     "~/.amp", "~/.config/amp", "~/.local/share/amp", "~/.config/configstore",
     "~/.config/google-chrome", "~/.config/google-chrome-headless", "~/.config/chromium",
@@ -85,6 +85,8 @@ KEEP = {
     "opus": ("~/.claude", "~/.claude.json", "~/.local/share/claude"),
     "fable": ("~/.claude", "~/.claude.json", "~/.local/share/claude"),
     "gemini": ("~/.gemini",),
+    "cursor": ("~/.cursor",),
+    "grok": ("~/.grok",),
     "glm": ("~/.cline",),
 }
 GEMINI_BLOCK = (
@@ -572,12 +574,28 @@ def require_arm(lane, model, effort, arm):
 
 
 def resolve_binary(name):
+    override = os.environ.get("LANES_{}_BIN".format(name.upper().replace("-", "_")))
+    if override:
+        return os.path.expanduser(override), "environment override"
     # Lane-only executables live in <config dir>/bin and win over PATH (PATHEXT via shutil.which).
     found = shutil.which(name, path=lane_bin_dir())
     if found:
         return found, "lane bin folder"
     found = shutil.which(name)
-    return (found, "PATH") if found else (None, None)
+    if found:
+        return found, "PATH"
+    if name == "cursor-agent":
+        if IS_WINDOWS:
+            candidate = os.path.join(os.environ.get("LOCALAPPDATA", ""), "cursor-agent", "cursor-agent.cmd")
+        else:
+            candidate = os.path.expanduser("~/.local/bin/cursor-agent")
+        if os.path.isfile(candidate):
+            return candidate, "default location"
+    if name == "grok":
+        candidate = os.path.expanduser("~/.grok/bin/grok" + (".exe" if IS_WINDOWS else ""))
+        if os.path.isfile(candidate):
+            return candidate, "default location"
+    return None, None
 
 
 def format_executable(path, origin):
@@ -589,6 +607,33 @@ def format_executable(path, origin):
 
 
 WINDOWS_SHIM_VARIABLES = ("USERPROFILE", "LOCALAPPDATA", "APPDATA", "PROGRAMFILES", "PROGRAMDATA")
+
+
+CURSOR_VERSION_RE = re.compile(r"^(\d{4})\.(\d{1,2})\.(\d{1,2})(-\d{2}-\d{2}-\d{2})?-[a-f0-9]+$")
+
+
+def cursor_agent_target(shim_dir):
+    """The node.exe and index.js that Cursor's cursor-agent.ps1 would run (observed 2026-11-07, CLI 2026.10.22).
+
+    The launcher runs <dir>/node.exe <dir>/index.js when they sit beside it, else the newest dated folder under
+    <dir>/versions (YYYY.MM.DD-commit, or YYYY.MM.DD-HH-MM-SS-commit). Its staged-update step is skipped.
+    """
+    local_node, local_index = os.path.join(shim_dir, "node.exe"), os.path.join(shim_dir, "index.js")
+    if os.path.isfile(local_node) and os.path.isfile(local_index):
+        return [local_node, local_index]
+    versions = os.path.join(shim_dir, "versions")
+    try:
+        names = os.listdir(versions)
+    except OSError:
+        return None
+    dated = []
+    for name in names:
+        match = CURSOR_VERSION_RE.match(name)
+        node, index = os.path.join(versions, name, "node.exe"), os.path.join(versions, name, "index.js")
+        if match and os.path.isfile(node) and os.path.isfile(index):
+            dated.append(((int(match.group(1)), int(match.group(2)), int(match.group(3)), match.group(4) or ""),
+                          [node, index]))
+    return max(dated)[1] if dated else None
 
 
 def windows_shim_target(path):
@@ -611,6 +656,8 @@ def windows_shim_target(path):
             value = re.sub("%" + variable + "%", lambda _: os.environ.get(variable, ""), value, flags=re.IGNORECASE)
         return os.path.normpath(value)
 
+    if re.search(r'-File\s+"[^"]*cursor-agent\.ps1"', text, flags=re.IGNORECASE):
+        return cursor_agent_target(shim_dir)
     npm = re.search(r'"%_prog%"\s+"([^"]+)"\s+%\*', text)
     if npm:
         script = expand(npm.group(1))
@@ -694,6 +741,18 @@ def build_command(lane, opts, model, dir_path, brief_text, outdir, executable):
         if opts.resume:
             argv.extend(["--conversation", opts.resume])
         argv.append("--print=" + brief_text)
+        return argv
+    if lane == "cursor":
+        argv = [executable or "cursor-agent", "-p", "--output-format", "json", "--model", model,
+                "--trust", "--workspace", dir_path]
+        argv.extend(["--mode", "ask"] if opts.ro else ["--force"])
+        return argv
+    if lane == "grok":
+        argv = [executable or "grok", "--prompt-file", os.path.join(outdir, "brief.sent.md"),
+                "--output-format", "json", "--cwd", dir_path, "-m", model]
+        if model != "grok-4.7-build-fast":
+            argv.extend(["--reasoning-effort", opts.effort])
+        argv.extend(["--permission-mode", "plan"] if opts.ro else ["--always-approve"])
         return argv
     return [executable or "cline", "-P", "cline", "-m", model, "-c", dir_path,
             "--auto-approve", "true", "-t", "900", brief_text]
@@ -2026,7 +2085,7 @@ def window_change_warning():
 def read_usage(provider):
     if os.environ.get("LANE_NO_USAGE") == "1":
         return None, "disabled"
-    if provider == "cline":
+    if provider in ("cline", "cursor", "grok"):
         return None, "no meter"
     prefix = [sys.executable, sibling_script("usage-status")]
     if provider == "codex":
@@ -2252,6 +2311,15 @@ def run_tokens(lane, log_text, stdout_text):
                 counts = token_fields(source, aliases)
                 if counts is not None:
                     return counts
+    if lane == "cursor":
+        source = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+        return token_fields(source, {"input": ("inputTokens",), "cached": ("cacheReadTokens", "cacheWriteTokens"),
+                                     "output": ("outputTokens",), "total": ()})
+    if lane == "grok":
+        source = data.get("usage") if isinstance(data.get("usage"), dict) else {}
+        return token_fields(source, {"input": ("input_tokens", "cache_creation_input_tokens"),
+                                     "cached": ("cache_read_input_tokens",), "output": ("output_tokens",),
+                                     "total": ("total_tokens",)})
     return None
 
 
@@ -3104,6 +3172,26 @@ def decide_verdict(lane, code, timed_out, log_text, outdir, dir_path,
         if code != 0 or status != "SUCCESS":
             return "FAILED", 4, session
         return "OK", 0, session
+    if lane in ("cursor", "grok"):
+        stdout_text = strip_ansi(stdout_text if stdout_text is not None else log_text)
+        stderr_text = strip_ansi(stderr_text or "")
+        data = last_gemini_object(stdout_text)
+        session = data.get("session_id") if lane == "cursor" else data.get("sessionId")
+        error = data.get("is_error") if lane == "cursor" else False
+        result = data.get("result") if lane == "cursor" else data.get("text")
+        if code != 0 or not data or error or not isinstance(result, str) or not result:
+            # Only a failed run can be a quota stop: a successful answer may well talk about rate limits.
+            combined = stdout_text + "\n" + stderr_text
+            # Cursor names a model the plan does not cover: "GPT-5.6 Sol is not included in your weekly usage Buy
+            # credits or switch to a Grok model to continue." (2026-11-07): a plan stop, not a model failure.
+            if re.search(r"usage limit|rate limit|quota|out of credits|upgrade your plan|not included in your"
+                         r"|buy credits", combined, re.IGNORECASE):
+                return "QUOTA", 75, session
+            return "FAILED", 4, session
+        after_head = git_head(dir_path) if before_head is not None else None
+        if not ro and before_status is not None and git_status(dir_path) == before_status and after_head == before_head:
+            return "NOOP", 3, session
+        return "OK", 0, session
     if code == 86:
         return "DISABLED", 5, None
     if code != 0:
@@ -3122,6 +3210,12 @@ def final_text(lane, outdir, log_text, stdout_text=None):
     source = strip_ansi(stdout_text if stdout_text is not None else log_text)
     if lane == "gemini":
         return text_value(last_gemini_object(source), {"response"}) or ""
+    if lane == "cursor":
+        result = last_gemini_object(source).get("result")
+        return result if isinstance(result, str) else ""
+    if lane == "grok":
+        result = last_gemini_object(source).get("text")
+        return result if isinstance(result, str) else ""
     if lane in CLAUDE_LANES:
         final = last_gemini_object(source).get("result")
         return final if isinstance(final, str) else ""
@@ -3800,6 +3894,8 @@ def validate_options(parser, opts, catalog):
         # agy --help lists no search switch and does not say whether search is on under --sandbox, so the run is
         # refused rather than recorded as a web run that may not search.
         parser.error("gemini cannot take --web: agy --help has no search switch")
+    if opts.web and opts.lane in ("cursor", "grok"):
+        parser.error("{} cannot take --web: its CLI has no search switch".format(opts.lane))
     if catalog is None and opts.lane in ("terra", "astra") + CLAUDE_LANES and opts.model and opts.model != DEFAULT_MODELS[opts.lane]:
         raise LaneError("{} model must be {}".format(opts.lane, DEFAULT_MODELS[opts.lane]), 8)
 
@@ -3871,7 +3967,8 @@ def run_lane(opts, parser):
     if opts.subagent:
         return prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_bytes, outdir)
     provider = PROVIDERS[opts.lane]
-    executable_name = {"codex": "codex", "claude": "claude", "gemini": "agy", "cline": "cline"}[provider]
+    executable_name = {"codex": "codex", "claude": "claude", "gemini": "agy", "cursor": "cursor-agent",
+                       "grok": "grok", "cline": "cline"}[provider]
     executable, executable_origin = resolve_binary(executable_name)
     cloud_plan = cloud_preflight(opts.lane, dir_path) if cloud_mode else None
     # A live main cloud session runs the project's units itself; a separate worker VM needs a stated reason.
@@ -3994,7 +4091,7 @@ def run_lane(opts, parser):
             write_meta(meta_path, meta)
             if opts.lane in CODEX_LANES:
                 check_version_or_raise(opts.lane, executable)
-            stdin_data = sent_bytes if opts.lane in CODEX_LANES + CLAUDE_LANES else None
+            stdin_data = sent_bytes if opts.lane in CODEX_LANES + CLAUDE_LANES + ("cursor",) else None
             actual_argv = command
             child_env = None
             if use_mask:
@@ -4017,8 +4114,8 @@ def run_lane(opts, parser):
             if IS_WINDOWS and windows_command_line_length(actual_argv) > WINDOWS_COMMAND_LINE_LIMIT:
                 raise LaneError("the command line exceeds the Windows limit of 32,767 characters; {} passes the brief as an "
                                 "argument, so shorten the brief or use luna, which reads it from stdin".format(opts.lane), 8)
-            before_status = git_status(dir_path) if opts.lane in CLAUDE_LANES else None
-            before_head = git_head(dir_path) if opts.lane in CLAUDE_LANES and is_git_repo(dir_path) else None
+            before_status = git_status(dir_path) if opts.lane in CLAUDE_LANES + ("cursor", "grok") else None
+            before_head = git_head(dir_path) if opts.lane in CLAUDE_LANES + ("cursor", "grok") and is_git_repo(dir_path) else None
             if opts.lane == "gemini":
                 wait_for_memory(opts.lane, catalog, outdir)
                 wait_for_task_headroom(opts.lane)
@@ -4084,8 +4181,15 @@ def run_lane(opts, parser):
         usage.update(codex_usage(session, started_at, ended_at, catalog))
     elif not cloud_mode:
         usage["tokens"] = run_tokens(opts.lane, log_text, stdout_text)
+    if opts.lane == "grok" and not cloud_mode:
+        usage["list_usd"] = last_gemini_object(strip_ansi(stdout_text or "")).get("total_cost_usd")
     if opts.lane in CLAUDE_LANES and not opts.cloud:
         usage["list_usd"] = last_gemini_object(strip_ansi(stdout_text or "")).get("total_cost_usd")
+    # Only a run that produced no answer is a login failure; an answer may mention logins.
+    if (opts.lane in ("cursor", "grok") and not final_text(opts.lane, outdir, log_text, stdout_text)
+            and re.search(r"not authenticated|not logged in|please log ?in|run .*login", (stdout_text or "") + "\n"
+                          + stderr_text, re.IGNORECASE)):
+        print("warning: run the {} CLI's login command before retrying".format(opts.lane), file=sys.stderr)
     # Codex writes final.md itself; the other lanes get one too, so a caller (an automation, a reviewer) reads
     # one file instead of each CLI's output format.
     if opts.lane not in CODEX_LANES:
@@ -5579,7 +5683,7 @@ def main(argv=None):
         return recover_run(argv[1], len(argv) == 3)
     if argv[:2] == ["hook", "subagent-stop"]:
         return run_hook(subagent_stop_hook)
-    if argv and argv[0] in ("muse", "grok", "prep-muse"):
+    if argv and argv[0] in ("muse", "prep-muse"):
         print("lane: {} was retired on 2026-10-17 (see POLICY.md)".format(argv[0]), file=sys.stderr)
         return 2
     if argv and argv[0] == "main":

@@ -64,6 +64,7 @@ class UsageLocalTests(unittest.TestCase):
             "CLAUDE_CONFIG_DIR": self.config,
             "LANES_STATE": self.state,
             "LANES_ARMS": self.catalog_path,
+            "USAGE_OPTIMIZER_CLOUD_PROBE_MIN": "off",
             "USAGE_OPTIMIZER_CODEX_BIN": self.fake_bin,
             "USAGE_OPTIMIZER_CODEX_TIMEOUT": "2",
             "USAGE_OPTIMIZER_CODEX_TTL": "300",

@@ -1648,12 +1648,13 @@ class LaneStatsTests(unittest.TestCase):
         self.assertEqual({name: {plan: price["usd_per_month"] for plan, price in settings.get("plan_prices", {}).items()}
                           for name, settings in providers.items()},
                          {"codex": {"prolite": 100, "plus": 20}, "claude": {"max_20x": 200, "max_5x": 100},
-                          "gemini": {"google_ai_pro": 19.99}, "cline": {}})
+                          "gemini": {"google_ai_pro": 19.99}, "cline": {}, "cursor": {}, "grok": {}})
         self.assertEqual(providers["claude"]["plan_scale"], {"max_20x": 1.0, "max_5x": 4.0})
         self.assertTrue(all(price["checked"] == "2026-10-31" and price["source"]
                             for settings in providers.values() for price in settings.get("plan_prices", {}).values()))
         self.assertEqual({name: settings.get("prior_plan") for name, settings in providers.items()},
-                         {"codex": "prolite", "claude": "max_20x", "gemini": "google_ai_pro", "cline": None})
+                         {"codex": "prolite", "claude": "max_20x", "gemini": "google_ai_pro", "cline": None,
+                          "cursor": None, "grok": None})
         self.assertEqual(catalog["explore"]["weeks_per_month"], 4.345)
         self.assertEqual(catalog["catalog_version"], "2026-10-31.2")
         # The base window stays the measured 8,400: lane-bench divides credits by it, and plan_scale is base too.
@@ -1796,10 +1797,86 @@ class LaneStatsTests(unittest.TestCase):
         places = {lane: settings["places"] for lane, settings in catalog["lanes"].items()}
         self.assertEqual(places, {
             "luna": ["process"], "terra": ["process"], "sol": ["process"], "astra": ["process"],
-            "gemini": ["process"], "glm": ["process"], "haiku": ["process", "subagent", "cloud"],
+            "gemini": ["process"], "glm": ["process"], "cursor": ["process"], "grok": ["process"],
+            "haiku": ["process", "subagent", "cloud"],
             "sonnet": ["process", "subagent", "cloud"], "opus": ["process", "subagent", "cloud"],
             "fable": ["process", "subagent"], "codex-cloud": ["cloud"]})
         self.assertEqual(catalog["explore"]["places"], ["process", "subagent", "cloud"])
+
+
+class CursorGrokStatsTests(unittest.TestCase):
+    def setUp(self):
+        self.old_env = os.environ.copy()
+        self.temp = os.path.join(os.path.dirname(__file__), ".lane-stats-{}-{}".format(
+            os.getpid(), uuid.uuid4().hex))
+        os.mkdir(self.temp)
+        self.state = os.path.join(self.temp, "lanes")
+        os.makedirs(os.path.join(self.state, "runs"))
+        os.environ["LANES_STATE"] = self.state
+        os.environ["LANES_ARMS"] = os.path.join(ROOT, "arms.json")
+        os.environ["LANES_ARMS_LOCAL"] = os.path.join(self.temp, "arms.local.json")
+        os.environ["LANES_CONFIG"] = os.path.join(self.temp, "config")
+        os.environ["LANES_MACHINE"] = "this-machine"
+        os.environ["LANES_PLACES"] = "process"
+        os.environ.pop("USAGE_OPTIMIZER_MODE", None)
+
+    def tearDown(self):
+        os.environ.clear()
+        os.environ.update(self.old_env)
+        shutil.rmtree(self.temp)
+
+    def run_cli(self, *args):
+        env = os.environ.copy()
+        return subprocess.run([sys.executable, SCRIPT] + list(args), cwd=ROOT, env=env,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", check=False)
+
+    def add_run(self, name, **kwargs):
+        run_dir = os.path.join(self.state, "runs", name)
+        os.makedirs(run_dir)
+        row = {"run_dir": run_dir, "lane": kwargs.get("lane", "cursor"), "provider": kwargs.get("provider"),
+               "model": kwargs.get("model", "composer-2.5"), "effort": kwargs.get("effort", "medium"),
+               "class": kwargs.get("class_name", "substantive"), "tag": None, "ro": False, "resume": None,
+               "started_at": "2026-10-17T00:00:00Z", "ended_at": "2026-10-17T00:02:00Z", "duration_s": 120,
+               "verdict": "OK", "exit_code": 0, "session_id": "s1",
+               "usage": kwargs.get("usage", {"before": None, "after": None, "tokens": {"total": 112},
+                                            "list_usd": None})}
+        with open(os.path.join(run_dir, "meta.json"), "w", encoding="utf-8") as stream:
+            json.dump(row, stream)
+        with open(os.path.join(self.state, "ledger.jsonl"), "a", encoding="utf-8") as stream:
+            stream.write(json.dumps(row) + "\n")
+        return run_dir
+
+    def test_pick_substantive_can_return_cursor_or_grok_when_every_other_lane_is_excluded(self):
+        excluded = ("luna", "terra", "sol", "astra", "haiku", "sonnet", "opus", "fable", "gemini", "glm",
+                    "codex-cloud")
+        result = self.run_cli("pick", "--class", "substantive", "--no-usage", "--seed", "1",
+                              "--exclude", ",".join(excluded), "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        lanes = {line.split()[1] for line in payload["run_lines"]}
+        self.assertTrue(lanes <= {"cursor", "grok"}, payload)
+        self.assertTrue(lanes & {"cursor", "grok"})
+        self.assertFalse(any("composer" in arm for arm in payload["arms"]), payload)
+
+    def test_mode_lists_cursor_and_grok_as_utilization_after_the_metered_providers(self):
+        os.environ["USAGE_OPTIMIZER_MODE"] = "default"
+        result = self.run_cli("mode", "--no-usage", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data["providers"]["cursor"]["mode"], "utilization")
+        self.assertEqual(data["providers"]["grok"]["mode"], "utilization")
+        self.assertEqual(data["providers"]["cline"]["mode"], "default")
+        lines = self.run_cli("mode", "--no-usage").stdout.splitlines()
+        self.assertEqual([line.split()[0] for line in lines[:3]], ["claude", "codex", "gemini"])
+        self.assertIn(["cursor", "utilization"], [line.split()[:2] for line in lines])
+        self.assertIn(["grok", "utilization"], [line.split()[:2] for line in lines])
+
+    def test_report_does_not_crash_on_a_cursor_run_in_the_ledger(self):
+        self.add_run("cursor-substantive", lane="cursor", model="composer-2.5", effort="medium",
+                     class_name="substantive")
+        result = self.run_cli("report", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(json.loads(result.stdout))
 
 
 if __name__ == "__main__":
