@@ -1,0 +1,33 @@
+# Thread Usage
+
+## Hello.txt file creation
+
+Scope: Entire lifetime of this thread.
+
+Cost: $0.00
+Total tokens: 226,185
+Input tokens: 225,897 (148,738 cache reads)
+Output tokens: 288
+Requests: 5
+Your personal Claude Subscription was used for some inference, with an estimated token list price of $0.66.
+This cost reflects only Amp credits consumed. It does not include any model provider usage billed directly to customer-managed model provider keys.
+This estimate uses public list prices. It does not include provider discounts, commitments, router fees, or subscription usage. Amp does not bill it.
+
+## Credits
+
+| Type | Cost |
+| --- | ---: |
+| Personal granted credits (covered) | $0.00 |
+
+## Models
+
+| Model | Requests | Input | Output | Amp cost | Est. list price |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Opus 5.5 | 5 | 225,897 | 288 | $0.00 | $0.66 |
+
+## Model Routing
+
+| Model ID | Purpose | Routing | Requests | Cost |
+| --- | --- | --- | ---: | ---: |
+| anthropic/claude-opus-5-5 | Agent | Via [Claude Subscription](https://ampcode.com/settings/model-routing#00000000-0000-4000-8000-000000000000) | 3 | $0.00 |
+| anthropic/claude-opus-5-5 | Thread Title | Via [Claude Subscription](https://ampcode.com/settings/model-routing#00000000-0000-4000-8000-000000000000) | 2 | $0.00 |

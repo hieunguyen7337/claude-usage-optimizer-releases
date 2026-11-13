@@ -26,7 +26,7 @@ OUTCOMES = ("accepted", "fixed", "rework", "rejected")
 PROVIDERS = {
     "luna": "codex", "terra": "codex", "sol": "codex", "astra": "codex",
     "haiku": "claude", "sonnet": "claude", "opus": "claude", "fable": "claude", "gemini": "gemini",
-    "cursor": "cursor", "grok": "grok", "glm": "cline", "muse": "muse",
+    "cursor": "cursor", "grok": "grok", "glm": "cline", "amp": "amp", "muse": "muse",
 }
 # Used when arms.json has no explore.time block, and filled in key by key when the block is partial.
 TIME_DEFAULTS = {
@@ -44,6 +44,12 @@ USAGE_MODES = ("saving", "default", "utilization")
 WEEKS_PER_MONTH = 4.345
 # Where a lane runs: a local process, a subagent of this session, or a cloud session. Canonical order.
 PLACES = ("process", "subagent", "cloud")
+# Built-in copy of arms.json explore.platforms, used when the catalog has none (kit_platform, platform_places).
+PLATFORM_DEFAULTS = {
+    "claude-code": {"places": ["process", "subagent", "cloud"], "env_markers": ["CLAUDECODE"]},
+    "amp": {"places": ["process", "cloud"], "env_markers": ["AMP_CURRENT_THREAD_ID"]},
+    "codex": {"places": ["process", "cloud"], "env_markers": []},
+}
 PLACE_FLAGS = {"process": None, "subagent": "--subagent", "cloud": "--cloud"}
 SHARE_REPO = "hieunguyen7337/claude-usage-optimizer-releases"
 SHARE_TOP_KEYS = {"schema", "week", "kit", "host", "install", "plans", "cells"}
@@ -712,6 +718,46 @@ def valid_places(value):
             and len(set(value)) == len(value))
 
 
+def validate_platforms(value):
+    if not isinstance(value, dict) or not value:
+        raise CatalogError("invalid explore.platforms")
+    for name, entry in value.items():
+        markers = entry.get("env_markers", []) if isinstance(entry, dict) else None
+        if (not isinstance(entry, dict) or not valid_places(entry.get("places"))
+                or not isinstance(markers, list) or not all(isinstance(marker, str) and marker for marker in markers)):
+            raise CatalogError("invalid explore.platforms.{}: needs places (a list of process, subagent or cloud) "
+                               "and env_markers (a list of variable names)".format(name))
+
+
+def platform_table(catalog):
+    """explore.platforms from the catalog (its order decides which marker wins), else the built-in copy."""
+    explore = catalog.get("explore") if isinstance(catalog, dict) else None
+    table = explore.get("platforms") if isinstance(explore, dict) else None
+    return table if isinstance(table, dict) and table else PLATFORM_DEFAULTS
+
+
+def kit_platform(catalog=None):
+    """The platform this kit runs on: KIT_PLATFORM, else the first platform whose env marker is set, else claude-code."""
+    table = platform_table(catalog)
+    named = os.environ.get("KIT_PLATFORM", "").strip()
+    if named:
+        if named not in table:
+            raise ValueError("KIT_PLATFORM names no platform (platforms: {})".format(", ".join(table)))
+        return named
+    for name, entry in table.items():
+        markers = entry.get("env_markers") if isinstance(entry, dict) else None
+        if isinstance(markers, list) and any(marker in os.environ for marker in markers):
+            return name
+    return "claude-code"
+
+
+def platform_places(catalog, platform):
+    """The places a platform runs in; a platform the catalog does not describe runs in all three."""
+    entry = platform_table(catalog).get(platform)
+    places = entry.get("places") if isinstance(entry, dict) else None
+    return list(places) if isinstance(places, list) else list(PLACES)
+
+
 def lane_places(catalog, lane):
     # A lane with no places key runs in all three, as before places existed.
     return catalog["lanes"][lane].get("places", list(PLACES))
@@ -723,7 +769,7 @@ def allowed_places(catalog):
 
 
 def allowed_places_with_source(catalog):
-    """The allowed places and the setting that supplied them."""
+    """The allowed places and the setting that supplied them, narrowed to the places the kit's platform runs in."""
     raw = os.environ.get("LANES_PLACES", "")
     if raw.strip():
         names = [name.strip() for name in raw.split(",") if name.strip()]
@@ -735,7 +781,16 @@ def allowed_places_with_source(catalog):
     for name in names:
         if name not in PLACES:
             raise ValueError("unknown place {} in {} (places: {})".format(name, source, ", ".join(PLACES)))
-    return [place for place in PLACES if place in names], source
+    # A platform that lacks a place never offers it, whatever LANES_PLACES or explore.places say.
+    platform = kit_platform(catalog)
+    runs_in = platform_places(catalog, platform)
+    narrowed = [name for name in names if name in runs_in]
+    if not narrowed:
+        raise ValueError("no allowed place ({}, from {}) runs on platform {} (its places: {})".format(
+            ", ".join(names), source, platform, ", ".join(runs_in)))
+    if len(narrowed) != len(names):
+        source += ", narrowed to platform {}".format(platform)
+    return [place for place in PLACES if place in narrowed], source
 
 
 def warn_unusable_places(catalog, modes, excluded=()):
@@ -797,6 +852,8 @@ def validate_catalog(catalog):
         raise CatalogError("invalid explore.weeks_per_month: needs a number above 0")
     if "places" in config and not valid_places(config["places"]):
         raise CatalogError("invalid explore.places: needs a list of process, subagent or cloud")
+    if "platforms" in config:
+        validate_platforms(config["platforms"])
     for name, provider in catalog["providers"].items():
         if not isinstance(provider, dict) or number(provider.get("scarcity")) is None or provider["scarcity"] < 0:
             raise CatalogError("invalid provider {}".format(name))
@@ -1245,8 +1302,8 @@ def provider_reading(provider, live, now):
 
 
 def provider_mode(provider, live, config, now, setting=None):
-    # Cursor and Grok expose per-run usage but no account-wide allowance or expiry.
-    if provider in ("cursor", "grok"):
+    # Cursor, Grok and Amp expose per-run usage but no account-wide allowance or expiry.
+    if provider in ("cursor", "grok", "amp"):
         return "utilization"
     setting = mode_setting(config) if setting is None else setting
     if setting != "auto":

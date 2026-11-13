@@ -1648,15 +1648,15 @@ class LaneStatsTests(unittest.TestCase):
         self.assertEqual({name: {plan: price["usd_per_month"] for plan, price in settings.get("plan_prices", {}).items()}
                           for name, settings in providers.items()},
                          {"codex": {"prolite": 100, "plus": 20}, "claude": {"max_20x": 200, "max_5x": 100},
-                          "gemini": {"google_ai_pro": 19.99}, "cline": {}, "cursor": {}, "grok": {}})
+                          "gemini": {"google_ai_pro": 19.99}, "cline": {}, "cursor": {}, "grok": {}, "amp": {}})
         self.assertEqual(providers["claude"]["plan_scale"], {"max_20x": 1.0, "max_5x": 4.0})
         self.assertTrue(all(price["checked"] == "2026-10-31" and price["source"]
                             for settings in providers.values() for price in settings.get("plan_prices", {}).values()))
         self.assertEqual({name: settings.get("prior_plan") for name, settings in providers.items()},
                          {"codex": "prolite", "claude": "max_20x", "gemini": "google_ai_pro", "cline": None,
-                          "cursor": None, "grok": None})
+                          "cursor": None, "grok": None, "amp": None})
         self.assertEqual(catalog["explore"]["weeks_per_month"], 4.345)
-        self.assertEqual(catalog["catalog_version"], "2026-10-31.2")
+        self.assertEqual(catalog["catalog_version"], "2026-11-13.1")
         # The base window stays the measured 8,400: lane-bench divides credits by it, and plan_scale is base too.
         self.assertEqual(providers["codex"]["window"]["weekly_credits"], 8400)
         self.assertEqual(providers["codex"]["plan_scale"], {"prolite": 1.0, "plus": 5.8})
@@ -1798,10 +1798,22 @@ class LaneStatsTests(unittest.TestCase):
         self.assertEqual(places, {
             "luna": ["process"], "terra": ["process"], "sol": ["process"], "astra": ["process"],
             "gemini": ["process"], "glm": ["process"], "cursor": ["process"], "grok": ["process"],
-            "haiku": ["process", "subagent", "cloud"],
+            "amp": ["process"], "haiku": ["process", "subagent", "cloud"],
             "sonnet": ["process", "subagent", "cloud"], "opus": ["process", "subagent", "cloud"],
             "fable": ["process", "subagent"], "codex-cloud": ["cloud"]})
         self.assertEqual(catalog["explore"]["places"], ["process", "subagent", "cloud"])
+
+
+class AmpStatsTests(unittest.TestCase):
+    def test_amp_is_a_metered_provider_without_an_account_meter(self):
+        self.assertEqual(stats.PROVIDERS["amp"], "amp")
+        self.assertEqual(stats.provider_mode("amp", {}, {}, datetime.datetime(2026, 11, 13, tzinfo=datetime.timezone.utc)),
+                         "utilization")
+        with open(os.path.join(ROOT, "arms.json"), encoding="utf-8") as stream:
+            catalog = json.load(stream)
+        self.assertEqual(catalog["lanes"]["amp"]["provider"], "amp")
+        self.assertIsNone(catalog["providers"]["amp"]["billed_to"])
+        self.assertTrue(all(arm["status"] == "manual" for arm in catalog["arms"] if arm["lane"] == "amp"))
 
 
 class CursorGrokStatsTests(unittest.TestCase):
@@ -1877,6 +1889,74 @@ class CursorGrokStatsTests(unittest.TestCase):
         result = self.run_cli("report", "--json")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(json.loads(result.stdout))
+
+
+
+LANE_SCRIPT = os.path.join(ROOT, "bin", "lane")
+lane_loader = importlib.machinery.SourceFileLoader("lane_for_platform_agreement", LANE_SCRIPT)
+lane = importlib.util.module_from_spec(importlib.util.spec_from_loader(lane_loader.name, lane_loader))
+lane_loader.exec_module(lane)
+
+
+class PlatformPlacesTests(unittest.TestCase):
+    def shipped_catalog(self):
+        with open(os.path.join(ROOT, "arms.json"), encoding="utf-8") as stream:
+            return json.load(stream)
+
+    def allowed(self, env, catalog=None):
+        with mock.patch.dict(os.environ, env, clear=True):
+            return stats.allowed_places_with_source(catalog or self.shipped_catalog())
+
+    def test_amp_and_codex_never_offer_the_subagent_place(self):
+        names, source = self.allowed({"KIT_PLATFORM": "amp"})
+        self.assertEqual(names, ["process", "cloud"])
+        self.assertIn("narrowed to platform amp", source)
+        self.assertEqual(self.allowed({"KIT_PLATFORM": "codex"})[0], ["process", "cloud"])
+
+    def test_lanes_places_cannot_add_a_place_the_platform_lacks(self):
+        self.assertEqual(self.allowed({"KIT_PLATFORM": "amp", "LANES_PLACES": "process,subagent"})[0], ["process"])
+        with self.assertRaises(ValueError) as caught:
+            self.allowed({"KIT_PLATFORM": "amp", "LANES_PLACES": "subagent"})
+        self.assertIn("no allowed place", str(caught.exception))
+
+    def test_claude_code_keeps_all_three_places(self):
+        self.assertEqual(self.allowed({"CLAUDECODE": "1"})[0], ["process", "subagent", "cloud"])
+        self.assertEqual(self.allowed({"KIT_PLATFORM": "claude-code"})[0], ["process", "subagent", "cloud"])
+        self.assertEqual(self.allowed({})[0], ["process", "subagent", "cloud"])
+
+    def test_kit_platform_copies_in_lane_and_lane_stats_agree(self):
+        custom = {"explore": {"places": ["process", "subagent", "cloud"], "platforms": {
+            "amp": {"places": ["process", "cloud"], "env_markers": ["KIT_AGREE_MARKER"]},
+            "claude-code": {"places": ["process", "subagent", "cloud"], "env_markers": ["CLAUDECODE"]}}}}
+        cases = [
+            ({}, self.shipped_catalog()), ({"CLAUDECODE": "1"}, self.shipped_catalog()),
+            ({"KIT_PLATFORM": "amp"}, self.shipped_catalog()), ({"KIT_PLATFORM": "codex"}, self.shipped_catalog()),
+            ({"KIT_PLATFORM": " amp "}, self.shipped_catalog()), ({"KIT_PLATFORM": "nope"}, self.shipped_catalog()),
+            ({}, custom), ({"KIT_AGREE_MARKER": "1"}, custom), ({"KIT_AGREE_MARKER": "1", "CLAUDECODE": "1"}, custom),
+            ({"CLAUDECODE": "1"}, None),
+        ]
+        for env, catalog in cases:
+            with mock.patch.dict(os.environ, env, clear=True):
+                try:
+                    lane_answer = lane.kit_platform(catalog)
+                except ValueError:
+                    lane_answer = "ValueError"
+                try:
+                    stats_answer = stats.kit_platform(catalog)
+                except ValueError:
+                    stats_answer = "ValueError"
+                self.assertEqual(lane_answer, stats_answer, (env, catalog is None))
+                if lane_answer != "ValueError":
+                    for platform in (catalog or self.shipped_catalog())["explore"].get("platforms", {"claude-code": {}}):
+                        self.assertEqual(lane.platform_places(catalog, platform), stats.platform_places(catalog, platform))
+
+    def test_catalog_rejects_a_platform_with_a_place_it_cannot_name(self):
+        catalog = self.shipped_catalog()
+        catalog["explore"]["platforms"]["amp"]["places"] = ["process", "bogus"]
+        with self.assertRaises(stats.CatalogError):
+            stats.validate_catalog(catalog)
+        catalog = self.shipped_catalog()
+        stats.validate_catalog(catalog)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,32 @@
+# Thread Usage
+
+## <THREAD-TITLE>
+
+Scope: Entire lifetime of this thread.
+
+Cost: $0.13
+Total tokens: 1,273,462
+Input tokens: 1,262,531 (1,075,868 cache reads)
+Output tokens: 10,931
+Requests: 26
+
+## Credits
+
+| Type | Cost |
+| --- | ---: |
+| Amp paid tier (covered) | $0.13 |
+
+## Models
+
+| Model | Requests | Input | Output | Cost |
+| --- | ---: | ---: | ---: | ---: |
+| GLM-5.2 (Sub Discount) | 10 | 272,558 | 4,238 | $0.07 |
+| GPT-5.6 Luna | 16 | 989,973 | 6,693 | $0.06 |
+
+## Model Routing
+
+| Model ID | Purpose | Routing | Requests | Cost |
+| --- | --- | --- | ---: | ---: |
+| openai/gpt-5.6-luna | Thread Title | Via Amp | 2 | $0.002 |
+| openai/gpt-5.6-luna | Unspecified (legacy) | Via Amp | 14 | $0.06 |
+| accounts/fireworks/models/glm-5p2-subscription-discount | Unspecified (legacy) | Via Amp | 10 | $0.07 |

@@ -11,6 +11,32 @@ bundle, the evidence file and `SHA256SUMS`.
   checks each submission. Sharing is off until you turn it on, and an issue shows your GitHub account.
 - **Licence:** MIT (see `LICENSE`).
 
+## Install for Amp
+
+Run `bash install.sh --dry-run --platform amp` first, then `bash install.sh --platform amp`. The installer touches:
+
+- `~/.config/amp/AGENTS.md`: a heading and two import lines, which point at the kit's `PLATFORM.md` and `POLICY.md`
+  under `~/.claude/usage-optimizer/`. An existing file is backed up first;
+- `~/.config/amp/plugins/usage-optimizer.ts` and `usage-optimizer.paths.json`: the plugin, which records each turn and
+  shows one status item;
+- `~/.claude/usage-optimizer/` and `~/.config/lanes/`: the kit's files and settings, as every install does.
+
+It leaves alone `~/.config/amp/settings.json`, which Amp does not need for the kit, `~/.config/AGENTS.md`, which other
+agents read, and Claude Code's own files under `~/.claude`. Restart Amp, or run `plugins: reload`, to load the plugin.
+
+## Install for Codex
+
+Run `bash install.sh --dry-run --platform codex` first, then `bash install.sh --platform codex`. The installer touches:
+
+- `$CODEX_HOME/AGENTS.md` (`~/.codex/AGENTS.md` by default): one generated block, between
+  `<!-- usage-optimizer:start -->` and `<!-- usage-optimizer:end -->`, holding the policy under Codex's size limit;
+- `hooks.json` in the same folder: the kit's hook entries (turn start, turn end, compaction), after a backup;
+- `~/.claude/usage-optimizer/` and `~/.config/lanes/`: the kit's files and settings, as every install does.
+
+It leaves alone `config.toml`, and `AGENTS.override.md` if it exists: Codex reads that file before `AGENTS.md`, so the
+installer warns instead of changing it. Trust the hooks once in `/hooks`. Codex support is new and is not yet checked
+against a live Codex session.
+
 The kit's own README follows.
 
 ---
@@ -26,7 +52,7 @@ quota is visible. [IMPROVING.md](IMPROVING.md) explains how lessons become publi
 | `POLICY.md` | The shared usage policy. Imported into `~/.claude/CLAUDE.md` as `@~/.claude/usage-optimizer/POLICY.md` |
 | `IMPROVING.md` | How the kit records lessons, updates its research and methods, and builds and publishes releases |
 | `improve/` | Reusable audit and release briefs |
-| `bin/lane` | One dispatcher for nine lanes on four CLIs: luna, terra, sol and astra/codex, haiku, sonnet and opus/claude, gemini/agy, glm/cline. It checks each arm against the catalog, encodes each CLI's failure modes, masks credentials, prints a verdict, and records every run's usage, time, ETA and peak memory in a ledger; it waits for memory before launching. A Claude arm can also run as a subagent of the main session (`--subagent`) or in a cloud VM (`--cloud`, and `codex-cloud`) |
+| `bin/lane` | One dispatcher for ten lanes on five CLIs: luna, terra, sol and astra/codex, haiku, sonnet and opus/claude, gemini/agy, glm/cline, amp. It checks each arm against the catalog, encodes each CLI's failure modes, masks credentials, prints a verdict, and records every run's usage, time, ETA and peak memory in a ledger; it waits for memory before launching. A Claude arm can also run as a subagent of the main session (`--subagent`) or in a cloud VM (`--cloud`, and `codex-cloud`) |
 | `bin/lane-stats` | Turns the run ledger into decisions: `pick` chooses the next arm to run (with its ETA), `review` records each run's outcome, `report` shows the usable rate against usage, time and peak memory per lane, effort and class, `recommend` shows which classes have locked in, `arms` lists the catalog, `eta` estimates a run's wall-clock time, `export` and `import` pool runs across machines |
 | `bin/lane-mask` | The Linux credential mask (mount namespace) that `lane` uses. Windows has no mask |
 | `bin/lane-term` | Runs one command in a fresh pseudo-terminal (ConPTY on Windows, a pty elsewhere), types scripted answers to its prompts, stops it once a given text appears, and saves what the terminal showed. For programs that refuse to run without a terminal, such as `claude --cloud` |
@@ -53,6 +79,22 @@ quota is visible. [IMPROVING.md](IMPROVING.md) explains how lessons become publi
 - `measure/`: reproducible Claude and Codex meter probes and fits; see [the commands](measure/README.md).
 - `findings/`: [measured plan sizes, weights and evidence](findings/FINDINGS.md), also in JSON.
 - `lane-bench`: measure model × effort on your own review suite and write measured priors. Running a suite needs the user's approval. Its `run` works on Linux, macOS and Windows: since 2026-10-28 it starts `lane` and `usage-status` through their `.cmd` wrappers or Python on Windows and stops a run's whole process tree (before that every Windows run exited 127). `export` uses `jq` where it is installed and Python elsewhere. `lane-bench summary` lists every model and effort, with capability and usage side by side ([ours](findings/suite-r/by-arm.md)).
+
+## Platforms
+
+The kit runs on three agents. Claude Code is the full kit: the statusline, the mobile view, the sessions pane,
+compaction and every lane. Amp and Codex CLI get the same policy and meter through thin adapters over the same core.
+
+- **Claude Code (full):** everything in this README.
+- **Amp:** the policy is imported through `~/.config/amp/AGENTS.md`; a plugin records each turn and shows one status
+  item (ETA, cost, meters and the kit release); the `amp` worker lane runs Amp as a process. Its arms are `manual`:
+  the picker never draws them, so name one to run it.
+- **Codex CLI:** the policy is written into `$CODEX_HOME/AGENTS.md` as a block generated under Codex's size limit;
+  hooks record each turn. It is built offline and not yet checked against a live Codex session. Trust the hooks once
+  in `/hooks`.
+
+Install one with `bash install.sh --platform amp` or `--platform codex`, after `--dry-run` to see the plan. Without
+`--platform`, the installer keeps the platforms this machine already has, and Claude Code otherwise.
 
 ## Install
 

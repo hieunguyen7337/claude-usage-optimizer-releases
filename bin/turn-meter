@@ -8,6 +8,7 @@ import json
 import math
 import os
 import re
+import shutil
 import statistics
 import subprocess
 import sys
@@ -16,6 +17,13 @@ import uuid
 
 UTC = dt.timezone.utc
 PROVIDERS = ("claude", "codex", "gemini")
+# The platforms a turn can come from. Claude Code is the default and its turns carry no platform fields.
+PLATFORMS = ("claude-code", "amp", "codex")
+# The providers whose window can pay for a turn (KIT_BILLED); any other value is recorded as null.
+BILLED = ("claude", "codex")
+# Who paid for an Amp thread, from its own usage report (_amp_usage): claude (the Claude subscription), amp (Amp
+# credits) or mixed. A turn takes it only when KIT_BILLED and providers.amp.billed_to do not override it.
+AMP_THREAD_BILLED = ("claude", "amp", "mixed")
 NOTE = "upper bound: other machines and claude.ai also move the meter"
 _MISSING = object()
 # A calibration more than this many times above or below the catalog prior is rejected.
@@ -135,6 +143,81 @@ def _session_path(state, session_id):
     return os.path.join(state, "turns", "open", session_id + ".json")
 
 
+def _platform_name(value=None):
+    # The --platform value, else KIT_PLATFORM, else Claude Code. A value that names no platform is skipped, since a
+    # hook must not fail on its arguments.
+    for candidate in (value, os.environ.get("KIT_PLATFORM")):
+        name = str(candidate or "").strip().lower()
+        if name in PLATFORMS:
+            return name
+    return "claude-code"
+
+
+def _argv_option(argv, name):
+    # The value of --name (or --name=value). The hook reads its options without argparse, so an odd argument can never
+    # make it exit non-zero. None when the option is absent or has no value.
+    flag = "--" + name
+    for index, item in enumerate(argv):
+        if item == flag and index + 1 < len(argv):
+            return argv[index + 1]
+        if item.startswith(flag + "="):
+            return item.partition("=")[2]
+    return None
+
+
+def _argv_platform(argv):
+    return _argv_option(argv, "platform")
+
+
+def _amp_billed_to():
+    # providers.amp.billed_to from the installed arms.json, merged key by key with the local file (LANES_ARMS_LOCAL,
+    # else ~/.config/lanes/arms.local.json), which wins. Only a provider name in BILLED counts; a map or null gives None.
+    settings = {}
+    for path in (os.path.join(os.path.expanduser("~"), ".claude", "usage-optimizer", "arms.json"),
+                 os.environ.get("LANES_ARMS_LOCAL") or "~/.config/lanes/arms.local.json"):
+        catalog = _read_json(os.path.expanduser(path)) or {}
+        providers = catalog.get("providers")
+        amp = providers.get("amp") if isinstance(providers, dict) else None
+        settings.update(amp if isinstance(amp, dict) else {})
+    billed = settings.get("billed_to")
+    return billed if isinstance(billed, str) and billed in BILLED else None
+
+
+def _platform_fields(platform, thread_billed=None):
+    # The two turn fields a non-Claude-Code platform adds. Claude Code's turns get neither, so old rows stay valid.
+    # billed: KIT_BILLED when set, else (Amp) providers.amp.billed_to, else (Codex) codex, else (Amp) the thread's own
+    # billed from its cost file (thread_billed), else null.
+    if platform == "claude-code":
+        return {}
+    billed = os.environ.get("KIT_BILLED", "").strip().lower()
+    if not billed and platform == "amp":
+        billed = _amp_billed_to() or ""
+    if not billed and platform == "codex":
+        billed = "codex"
+    if not billed and platform == "amp" and thread_billed in AMP_THREAD_BILLED:
+        return {"platform": platform, "billed": thread_billed}
+    return {"platform": platform, "billed": billed if billed in BILLED else None}
+
+
+def _claude_billed(record):
+    # A turn with no billed field is Claude Code's own. Any other turn draws on Claude's window only if it says claude.
+    return "billed" not in record or record.get("billed") == "claude"
+
+
+def _meter_change(before, after):
+    # The change in a provider's weekly percent between two meter readings, or None when either reading is missing.
+    start = _number(before.get("weekly_pct")) if isinstance(before, dict) else None
+    end = _number(after.get("weekly_pct")) if isinstance(after, dict) else None
+    return end - start if start is not None and end is not None else None
+
+
+def _codex_turn_change(turn):
+    # The Codex weekly percent change over a closed turn, from the readings the turn kept at its start and end.
+    meters = turn.get("meters") if isinstance(turn.get("meters"), dict) else {}
+    sides = meters.get("codex") if isinstance(meters.get("codex"), dict) else {}
+    return _meter_change(sides.get("before"), sides.get("after"))
+
+
 def _session_cost_info(session_id):
     # (list $, source): the statusline's total_cost_usd, else the list $ of the session's transcripts ("transcript"),
     # else (None, None). A cloud session has no statusline. Both costs include the session's subagents.
@@ -143,9 +226,243 @@ def _session_cost_info(session_id):
     value = _read_json(os.path.join(_usage_dir(), "sessions", session_id + ".json"))
     cost = _number(value.get("total_cost_usd")) if value else None
     if cost is not None:
-        return cost, "statusline"
+        source = value.get("source")
+        label = ("amp-threads-usage" if source == AMP_COST_SOURCE else
+                 "codex-rollout" if source == CODEX_COST_SOURCE else "statusline")
+        return cost, label
     cost = _transcript_cost(session_id)
     return (cost, "transcript") if cost is not None else (None, None)
+
+
+def _session_billed(session_id):
+    # Who paid for an Amp thread, from the cost file _record_amp_cost wrote at its last Stop; None for any other file.
+    if not _session_id_ok(session_id):
+        return None
+    value = _read_json(os.path.join(_usage_dir(), "sessions", session_id + ".json"))
+    if not value or value.get("source") != AMP_COST_SOURCE:
+        return None
+    billed = value.get("billed")
+    return billed if billed in AMP_THREAD_BILLED else None
+
+
+# An Amp thread's cumulative list $ comes from `amp threads usage <id> --details` at Stop, as the session file that
+# _session_cost_info reads first. The printed lines are Amp's (probe P1, tests/fixtures/amp).
+AMP_COST_SOURCE = "amp-threads-usage"
+AMP_TIMEOUT_SECONDS = 20.0
+AMP_SCOPE_LINE = "Scope: Entire lifetime of this thread"
+AMP_COST_LINE = re.compile(r"^Cost:[ \t]*\$([0-9][0-9,]*(?:\.[0-9]+)?)[ \t]*$", re.M)
+
+
+def _amp_usage_cost(text):
+    # The thread's total list $ from `threads usage --details`: the output must state the whole-thread scope and have
+    # exactly one "Cost: $X" line (the Models and Routing tables have Cost columns, not lines). Anything else is None.
+    if not isinstance(text, str) or AMP_SCOPE_LINE not in text:
+        return None
+    found = AMP_COST_LINE.findall(text)
+    if len(found) != 1:
+        return None
+    value = _number(found[0].replace(",", ""))
+    return value if value is not None and value >= 0 else None
+
+
+def _amp_table(text, heading):
+    # The rows of the markdown table under "## <heading>", its header row first and the rule row dropped: None when the
+    # report has no such heading, [] when the table has no rows.
+    lines = text.splitlines()
+    start = next((index for index, line in enumerate(lines) if line.strip() == "## " + heading), None)
+    if start is None:
+        return None
+    rows = []
+    for line in lines[start + 1:]:
+        if line.startswith("## "):
+            break
+        stripped = line.strip()
+        if stripped.startswith("|"):
+            cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+            if not all(re.fullmatch(r":?-+:?", cell) for cell in cells):
+                rows.append(cells)
+    return rows
+
+
+def _amp_dollars(cell):
+    match = re.fullmatch(r"\$([0-9][0-9,]*(?:\.[0-9]+)?)", cell)
+    return float(match.group(1).replace(",", "")) if match else None
+
+
+def _amp_list_usd(text, amp_usd):
+    # The list $ of the thread: the Models table's "Est. list price" column summed, when every row's cell parses. Else
+    # Amp's own cost (the Amp credits the thread used).
+    table = _amp_table(text, "Models") or []
+    if len(table) < 2 or "Est. list price" not in table[0]:
+        return amp_usd
+    index = table[0].index("Est. list price")
+    values = [_amp_dollars(row[index]) if len(row) > index else None for row in table[1:]]
+    return amp_usd if any(value is None for value in values) else round(sum(values), 6)
+
+
+def _amp_routes(text):
+    # The routing names in the Model Routing table's Routing cells: "claude" for Via [Claude Subscription], "amp" for a
+    # cell with no Via [...], "other" for any other Via [...]. Empty when the table or its Routing column is absent.
+    table = _amp_table(text, "Model Routing") or []
+    if len(table) < 2 or "Routing" not in table[0]:
+        return set()
+    index = table[0].index("Routing")
+    routes = set()
+    for row in table[1:]:
+        cell = row[index] if len(row) > index else ""
+        via = re.search(r"Via \[([^\]]*)\]", cell)
+        routes.add("amp" if via is None else "claude" if via.group(1).strip() == "Claude Subscription" else "other")
+    return routes
+
+
+def _amp_billed(routes, amp_usd):
+    # claude when every route is the Claude subscription; amp when every route is Amp, or none is listed and Amp charged;
+    # mixed otherwise.
+    if routes == {"claude"}:
+        return "claude"
+    if routes == {"amp"} or (not routes and amp_usd > 0):
+        return "amp"
+    return "mixed"
+
+
+def _amp_usage(text):
+    # The whole thread's figures from `threads usage --details`, or None when _amp_usage_cost reads none: amp_usd (Amp's
+    # Cost line), list_usd (the thread's list price), routed (the route names) and billed (who paid).
+    amp_usd = _amp_usage_cost(text)
+    if amp_usd is None:
+        return None
+    routes = _amp_routes(text)
+    return {"amp_usd": amp_usd, "list_usd": _amp_list_usd(text, amp_usd), "routed": sorted(routes),
+            "billed": _amp_billed(routes, amp_usd)}
+
+
+def _amp_thread_usage(session_id):
+    # The thread's _amp_usage, or None: no binary, a failed or timed-out run, or output that does not parse. Never raises.
+    configured = os.path.expanduser(os.environ.get("LANES_AMP_BIN", "").strip())
+    binary = configured or shutil.which("amp")
+    if not binary:
+        return None
+    timeout = _number(os.environ.get("USAGE_OPTIMIZER_AMP_TIMEOUT"))
+    timeout = timeout if timeout is not None and timeout > 0 else AMP_TIMEOUT_SECONDS
+    try:
+        proc = subprocess.Popen([binary, "threads", "usage", session_id, "--details"], stdin=subprocess.DEVNULL,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                                errors="replace")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    try:
+        stdout, _ = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        # On Windows `amp` is usually an npm .cmd wrapper: killing cmd.exe alone leaves node holding the pipes, and
+        # the hook would wait on them. taskkill /T ends the whole tree, as lane does for its workers.
+        if os.name == "nt":
+            try:
+                subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, timeout=10, check=False)
+            except (OSError, subprocess.SubprocessError):
+                pass
+        try:
+            proc.kill()
+            proc.communicate(timeout=5)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
+        return None
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    return _amp_usage(stdout) if proc.returncode == 0 else None
+
+
+def _record_amp_cost(usage_dir, session_id):
+    # Writes the thread's cumulative usage for the close-turn logic to read. total_cost_usd is the list $ (what the turn
+    # costs); amp_usd is Amp's own charge and billed says who paid. False when Amp gave no usage: the close then uses the
+    # cost file that is already there (the thread's last known total), or leaves the turn uncosted if none.
+    try:
+        usage = _amp_thread_usage(session_id)
+        if usage is None:
+            return False
+        _atomic_json(os.path.join(usage_dir, "sessions", session_id + ".json"),
+                     {"session_id": session_id, "total_cost_usd": usage["list_usd"], "amp_usd": usage["amp_usd"],
+                      "billed": usage["billed"], "source": AMP_COST_SOURCE, "observed_at": _iso()})
+        return True
+    except (OSError, ValueError, TypeError):
+        return False
+
+
+# A Codex session's cumulative list $ comes from its rollout at Stop, written as the session cost file in the same
+# shape as the Amp total, so _session_cost_info reads both the same way.
+CODEX_COST_SOURCE = "codex-rollout"
+
+
+def _catalog_codex():
+    # providers.codex of arms.json (LANES_ARMS overrides), with LANES_ARMS_LOCAL (~/.config/lanes/arms.local.json)
+    # merged over it key by key, as _catalog_claude does.
+    codex = {}
+    for path in (os.environ.get("LANES_ARMS")
+                 or os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir, "arms.json"),
+                 os.environ.get("LANES_ARMS_LOCAL") or "~/.config/lanes/arms.local.json"):
+        catalog = _read_json(os.path.expanduser(path)) or {}
+        providers = catalog.get("providers")
+        settings = providers.get("codex") if isinstance(providers, dict) else None
+        codex.update(settings if isinstance(settings, dict) else {})
+    return codex
+
+
+def _codex_rollout_usd(path):
+    # The list $ of a rollout's last total_token_usage, priced as bin/lane's codex_usage prices it (its token counts,
+    # its rate card lookup by the last turn_context model, its credit formula and usd_per_credit). None when the
+    # rollout has no usable token_count, no model, or no rate for that model. Raises OSError when it cannot be read.
+    last_usage, model = None, None
+    with open(path, "r", encoding="utf-8") as stream:
+        for line in stream:
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            payload = event.get("payload") if isinstance(event, dict) else None
+            if not isinstance(payload, dict):
+                continue
+            if event.get("type") == "turn_context" or payload.get("type") == "turn_context":
+                if isinstance(payload.get("model"), str) and payload.get("model"):
+                    model = payload["model"]
+            if event.get("type") == "event_msg" and payload.get("type") == "token_count":
+                info = payload.get("info")
+                last_usage = info.get("total_token_usage") if isinstance(info, dict) else None
+    if not isinstance(last_usage, dict) or not model:
+        return None
+    codex = _catalog_codex()
+    rate_card = codex.get("rate_card") if isinstance(codex.get("rate_card"), dict) else {}
+    rate = rate_card.get(model)
+    if not isinstance(rate, dict):
+        return None
+    counts = {name: _token_count(last_usage.get(source)) for name, source in (
+        ("input", "input_tokens"), ("cached_input", "cached_input_tokens"),
+        ("output", "output_tokens"), ("reasoning_output", "reasoning_output_tokens"))}
+    if any(value is None for value in counts.values()):
+        return None
+    rates = {name: rate.get(name) for name in ("input", "cached_input", "output")}
+    if any(not isinstance(value, (int, float)) or isinstance(value, bool) for value in rates.values()):
+        return None
+    credits = ((counts["input"] - counts["cached_input"]) * rates["input"] +
+               counts["cached_input"] * rates["cached_input"] + counts["output"] * rates["output"]) / 1000000
+    usd_per_credit = codex.get("usd_per_credit")
+    if not isinstance(usd_per_credit, (int, float)) or isinstance(usd_per_credit, bool):
+        return None
+    return credits * usd_per_credit
+
+
+def _record_codex_cost(state, usage_dir, session_id, event):
+    # Writes the rollout's cumulative list $ for the close-turn logic to read, from the Stop event's transcript_path or,
+    # failing that, the one the open turn kept. False when no cost could be priced: the turn then closes uncosted, or
+    # keeps the session's last known total, as an Amp turn does.
+    opened = _open_turn(state, session_id) or {}
+    path = event.get("transcript_path") or opened.get("transcript_path")
+    cost = _codex_rollout_usd(path) if isinstance(path, str) and path else None
+    if cost is None:
+        return False
+    _atomic_json(os.path.join(usage_dir, "sessions", session_id + ".json"),
+                 {"session_id": session_id, "total_cost_usd": cost, "source": CODEX_COST_SOURCE,
+                  "observed_at": _iso()})
+    return True
 
 
 def _window_value(cache, provider, label):
@@ -399,14 +716,18 @@ def _turn_time_fields(state, opened, now):
     return fields
 
 
-def _write_open(state, session_id, event, cost_start, meters_start, cost_start_source=None):
+def _write_open(state, session_id, event, cost_start, meters_start, cost_start_source=None, platform_fields=None,
+                extra=None):
     path = _session_path(state, session_id)
     opened = {"turn_id": "t-{}-{}".format(dt.datetime.now(UTC).strftime("%Y%m%d-%H%M%S"), uuid.uuid4().hex[:4]),
               "session_id": session_id, "started_at": _iso(),
               "cwd": event.get("cwd") if isinstance(event.get("cwd"), str) else os.getcwd(),
               "prompt_preview": _preview(event.get("prompt")),
               "cost_start_usd": cost_start, "meters_start": meters_start,
-              **({"cost_start_source": "transcript"} if cost_start_source == "transcript" else {})}
+              **({"cost_start_source": "transcript"} if cost_start_source == "transcript" else {}),
+              **(platform_fields or {}),
+              # extra stays on the open turn only: _close_turn copies the fields it names, not these.
+              **(extra or {})}
     opened.update(_turn_time_fields(state, opened, dt.datetime.now(UTC)))
     _atomic_json(path, opened)
     return opened
@@ -418,7 +739,9 @@ def _normalized_meters_start(value):
     return {provider: value.get(provider) for provider in PROVIDERS}
 
 
-def _close_turn(state, usage_dir, session_id, event, interrupted=False):
+def _close_turn(state, usage_dir, session_id, event, interrupted=False, platform_fields=None, uncosted=False):
+    # uncosted: an Amp Stop whose cost read failed and with no cost file. The turn then ends with a null cost instead of
+    # taking its start cost, so it is shown as uncosted and not as $0.00.
     path = _session_path(state, session_id)
     opened = _read_json(path)
     now = _iso()
@@ -443,7 +766,7 @@ def _close_turn(state, usage_dir, session_id, event, interrupted=False):
                   **({"cost_start_source": "transcript"} if start_source == "transcript" else {})}
 
     end_cost, end_source = _session_cost_info(session_id)
-    if end_cost is None:
+    if end_cost is None and not uncosted:
         end_cost, end_source = _number(opened.get("cost_start_usd")), None
     meters_before = _normalized_meters_start(opened.get("meters_start"))
     meters_after = _meters(usage_dir)
@@ -458,7 +781,8 @@ def _close_turn(state, usage_dir, session_id, event, interrupted=False):
             "interrupted": bool(interrupted),
             # Marks a turn whose start or end cost was priced from the transcripts (no statusline cost).
             **({"cost_source": "transcript"}
-               if "transcript" in (end_source, opened.get("cost_start_source")) else {})}
+               if "transcript" in (end_source, opened.get("cost_start_source")) else {}),
+            **(platform_fields or {})}
     _append_jsonl(os.path.join(state, "turns.jsonl"), turn)
     last_path = os.path.join(state, "turns", "last", session_id + ".json")
     _atomic_json(last_path, turn)
@@ -662,8 +986,9 @@ def _kit_mode(usage_dir, now):
     return mode, "{}: Claude week {:.0f}%, projected {:.0f}% at reset".format(prefix, used, projected)
 
 
-def _start_cloud_probe(usage_dir, now=None):
-    if os.environ.get("CLAUDE_CODE_REMOTE") != "true":
+def _start_cloud_probe(usage_dir, now=None, platform="claude-code"):
+    # Claude Code logs its meter in the statusline, so only a cloud VM needs this probe. Other platforms never do.
+    if platform == "claude-code" and os.environ.get("CLAUDE_CODE_REMOTE") != "true":
         return False
     value = os.environ.get("USAGE_OPTIMIZER_CLOUD_PROBE_MIN", "15").strip().lower()
     if value in ("0", "off"):
@@ -851,11 +1176,12 @@ def _notices_text(rows):
     return "\n\n".join("{} {} ({})\n{}".format(row["created_at"], row["id"], row["kind"], row["text"]) for row in rows)
 
 
-def _announce(state, raw):
+def _announce(state, raw, platform="claude-code"):
     # A running session never reloads POLICY, but this hook runs at every prompt: tell each session the mode once,
     # and again when it changes, and each kit notice once. Both go out in one JSON object, and nothing is printed
     # when there is nothing new, since this output reaches Claude's context. A notice is marked told only after the
-    # print, so a failed print tells it again. Nothing here may fail the prompt.
+    # print, so a failed print tells it again. Nothing here may fail the prompt. Amp takes {"context": text} on one
+    # line; Claude Code and Codex take the hookSpecificOutput shape.
     try:
         data = json.loads(raw)
         if not isinstance(data, dict) or data.get("hook_event_name") != "UserPromptSubmit":
@@ -875,9 +1201,14 @@ def _announce(state, raw):
     texts = [text for part, _ in sources for text in part if text]
     if texts:
         try:
-            print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
-                                                     "additionalContext": "\n\n".join(texts)}},
-                             ensure_ascii=False, separators=(",", ":")))
+            context = "\n\n".join(texts)
+            if platform == "amp":
+                # ASCII only, so the one line stays one line whatever the notice text holds.
+                print(json.dumps({"context": context}, separators=(",", ":")))
+            else:
+                print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit",
+                                                         "additionalContext": context}},
+                                 ensure_ascii=False, separators=(",", ":")))
         except Exception as error:
             _log_hook_error(state, error)
             return  # not printed, so not told
@@ -890,11 +1221,14 @@ def _announce(state, raw):
             _log_hook_error(state, error)
 
 
-def _hook():
+def _hook(platform=None, raw=None):
+    # raw: the hook event as text (--json); None reads it from stdin, as Claude Code and Codex send it.
+    platform = _platform_name(platform)
     state = _state_dir()
     try:
-        raw = sys.stdin.read()
-        _announce(state, raw)
+        if raw is None:
+            raw = sys.stdin.read()
+        _announce(state, raw, platform)
         turns_off = os.environ.get("USAGE_OPTIMIZER_TURNS", "on").strip().lower() == "off"
         if turns_off:
             try:
@@ -916,19 +1250,41 @@ def _hook():
         if event_name not in ("UserPromptSubmit", "Stop"):
             return
         _session_path(state, session_id)
+        # An Amp thread's billed comes from its cost file, so the fields are read once the session id is known.
+        fields = _platform_fields(platform, _session_billed(session_id) if platform == "amp" else None)
         usage_dir = _usage_dir()
         try:
-            _start_cloud_probe(usage_dir)
+            _start_cloud_probe(usage_dir, platform=platform)
         except Exception as error:  # a failed probe start must not cost the turn its record
             _log_hook_error(state, error)
         if event_name == "UserPromptSubmit":
             if _open_turn(state, session_id):
-                _close_turn(state, usage_dir, session_id, data, interrupted=True)
+                _close_turn(state, usage_dir, session_id, data, interrupted=True, platform_fields=fields)
             cost, cost_source = _session_cost_info(session_id)
             _settle_last(state, session_id, cost)
-            _write_open(state, session_id, data, cost, _meters(usage_dir), cost_source)
+            # A Codex turn keeps its rollout path, so Stop can price the rollout even if its payload lacks the path.
+            transcript = data.get("transcript_path")
+            kept = platform == "codex" and isinstance(transcript, str) and transcript
+            _write_open(state, session_id, data, cost, _meters(usage_dir), cost_source, fields,
+                        extra={"transcript_path": transcript} if kept else None)
         else:
-            _close_turn(state, usage_dir, session_id, data, interrupted=False)
+            uncosted = False
+            if platform == "amp":
+                try:
+                    uncosted = not _record_amp_cost(usage_dir, session_id)
+                except Exception as error:  # a failed cost read leaves the turn uncosted; the hook still closes it
+                    _log_hook_error(state, error)
+                    uncosted = True
+                # Who paid is the one this Stop's usage report gave, or the thread's last one if the read failed.
+                fields = _platform_fields(platform, _session_billed(session_id))
+            elif platform == "codex":
+                try:
+                    uncosted = not _record_codex_cost(state, usage_dir, session_id, data)
+                except Exception as error:  # an unreadable or unpriced rollout leaves the turn uncosted, as Amp's does
+                    _log_hook_error(state, error)
+                    uncosted = True
+            _close_turn(state, usage_dir, session_id, data, interrupted=False, platform_fields=fields,
+                        uncosted=uncosted)
             _calibrate(state, usage_dir, force=False)
     except BaseException as error:
         _log_hook_error(state, error)
@@ -1005,13 +1361,41 @@ def _transcript_estimate(entries):
     return estimate, any(index > latest_prompt for index in assistant_indexes)
 
 
+# A Codex rollout's turn markers (event_msg payload types): task_started opens a turn, the other two close it.
+CODEX_TASK_MARKERS = ("task_started", "task_complete", "turn_aborted")
+
+
+def _codex_rollout_estimate(entries):
+    # (context tokens, a turn is open) from a rollout's tail. The last request's input and output are the context the
+    # next request carries [INFERRED: last_token_usage is not in bin/lane's parsed shape, so C4 checks it live]. None
+    # when the tail shows no usage, so the gate allows compaction then.
+    usage, marker = None, None
+    for entry in entries:
+        payload = entry.get("payload")
+        if entry.get("type") != "event_msg" or not isinstance(payload, dict):
+            continue
+        if payload.get("type") == "token_count":
+            info = payload.get("info")
+            last = info.get("last_token_usage") if isinstance(info, dict) else None
+            if isinstance(last, dict):
+                usage = last
+        elif payload.get("type") in CODEX_TASK_MARKERS:
+            marker = payload.get("type")
+    if usage is None:
+        return None, marker == "task_started"
+    counts = [_token_count(usage.get(name)) for name in ("input_tokens", "output_tokens")]
+    estimate = counts[0] + counts[1] if None not in counts else None
+    return estimate, marker == "task_started"
+
+
 def _token_k(value):
     result = "{:.1f}".format(value / 1000.0)
     return result[:-2] if result.endswith(".0") else result
 
 
-def _compact_gate():
+def _compact_gate(platform=None):
     state = _state_dir()
+    platform = _platform_name(platform)
     try:
         data = json.loads(sys.stdin.read())
         if not isinstance(data, dict):
@@ -1020,8 +1404,14 @@ def _compact_gate():
         session_id = data.get("session_id")
         remote = os.environ.get("CLAUDE_CODE_REMOTE") == "true"
         gate_setting = os.environ.get("USAGE_OPTIMIZER_COMPACT_GATE")
-        enabled = (trigger == "auto" and (gate_setting or "on").strip().lower() != "off" and
-                   not (remote and gate_setting is None))
+        codex = platform == "codex"
+        if codex:
+            # Codex's gate is built but off: it runs only when USAGE_OPTIMIZER_COMPACT_GATE=on, and the Codex hook
+            # payload's trigger field is not documented, so it does not depend on it.
+            enabled = gate_setting is not None and gate_setting.strip().lower() == "on"
+        else:
+            enabled = (trigger == "auto" and (gate_setting or "on").strip().lower() != "off" and
+                       not (remote and gate_setting is None))
         estimate = None
         mid_turn = None
         decision = "allow"
@@ -1033,12 +1423,18 @@ def _compact_gate():
             transcript = data.get("transcript_path")
             if not isinstance(transcript, str) or not transcript:
                 raise ValueError("missing transcript_path")
-            estimate, mid_turn = _transcript_estimate(_transcript_tail(transcript))
-            if mid_turn and estimate < ceiling:
+            if codex:
+                estimate, mid_turn = _codex_rollout_estimate(_transcript_tail(transcript))
+            else:
+                estimate, mid_turn = _transcript_estimate(_transcript_tail(transcript))
+            # No estimate (the rollout shows no token usage) allows compaction, as the other gate failures do.
+            if mid_turn and estimate is not None and estimate < ceiling:
                 decision = "block"
-        _append_jsonl(_compactions_path(state), {
-            "type": "gate", "at": _iso(), "session_id": session_id, "trigger": trigger,
-            "mid_turn": mid_turn, "estimate": estimate, "decision": decision, "cloud": remote})
+        gate = {"type": "gate", "at": _iso(), "session_id": session_id, "trigger": trigger,
+                "mid_turn": mid_turn, "estimate": estimate, "decision": decision, "cloud": remote}
+        if platform != "claude-code":
+            gate["platform"] = platform
+        _append_jsonl(_compactions_path(state), gate)
         if decision == "block":
             reason = ("kit: compaction waits for the end of this turn (context ~{}k of the {}k ceiling)".format(
                 _token_k(estimate), _token_k(ceiling)))
@@ -1423,7 +1819,10 @@ def _current(state, session_id):
     time_data = {"turn_minutes": elapsed, **session, "remaining_minutes": remaining,
                  "remaining_source": remaining_source, "estimate": estimate,
                  "calibration": time_calibration, "lanes_in_flight": flights}
-    weekly_pct = cost * calibration["pct_per_usd"] if cost is not None else None
+    # A turn billed elsewhere has no share of Claude's week: its dollars stand alone, or, on Codex, its meter change.
+    weekly_pct = cost * calibration["pct_per_usd"] if cost is not None and _claude_billed(turn) else None
+    codex_change = (_meter_change(_normalized_meters_start(turn.get("meters_start"))["codex"],
+                                  _meter("codex", _usage_dir())) if turn.get("billed") == "codex" else None)
     price = _plan_price()
     plan_usd = _plan_usd(weekly_pct, price)
     return {"turn_id": turn.get("turn_id"), "session_id": turn.get("session_id"),
@@ -1433,6 +1832,8 @@ def _current(state, session_id):
             **({"cost_source": "transcript"}
                if cost is not None and "transcript" in (cost_source, turn.get("cost_start_source")) else {}),
             "estimated_claude_weekly_pct": weekly_pct,
+            **({"platform": turn.get("platform"), "billed": turn.get("billed")} if "billed" in turn else {}),
+            **({"codex_weekly_delta_pct": codex_change} if turn.get("billed") == "codex" else {}),
             **({"estimated_plan_usd": plan_usd, "plan_price": price} if plan_usd is not None else {}),
             "pct_per_usd": calibration["pct_per_usd"], "calibration_source": calibration["source"],
             "prompt_preview": turn.get("prompt_preview", ""), "lane_runs": lane_summary,
@@ -1446,9 +1847,13 @@ def _current_text(value):
     cost = "unknown" if value["cost_so_far_usd"] is None else "${:.2f}".format(value["cost_so_far_usd"])
     if value.get("cost_source") == "transcript" and value["cost_so_far_usd"] is not None:
         cost += " (transcript)"
-    weekly = "unknown" if value["estimated_claude_weekly_pct"] is None else "≈{:.2f}%".format(value["estimated_claude_weekly_pct"])
-    parts = ["{} {} min | list {} | est Claude wk {}".format(
-        value["started_local"], round(value["elapsed_minutes"], 1), cost, weekly)]
+    head = "{} {} min | list {}".format(value["started_local"], round(value["elapsed_minutes"], 1), cost)
+    if _claude_billed(value):
+        pct = value["estimated_claude_weekly_pct"]
+        head += " | est Claude wk {}".format("unknown" if pct is None else "≈{:.2f}%".format(pct))
+    elif value.get("codex_weekly_delta_pct") is not None:
+        head += " | codex wk Δ {:+.1f}%".format(value["codex_weekly_delta_pct"])
+    parts = [head]
     if value.get("estimated_plan_usd") is not None:  # appended, so readers of the line's start still work
         parts[0] += " | " + _plan_text(value["estimated_plan_usd"], value["plan_price"])
     time_data = value["time"]
@@ -1499,6 +1904,60 @@ def _current_text(value):
     return "\n".join(parts)
 
 
+STATUS_LIMIT = 100
+_KIT_VERSION = re.compile(r"^Claude Usage Optimizer version: (\d{4}-\d{2}-\d{2}\.\d+)\.", re.M)
+
+
+def _kit_version():
+    # The installed kit's version from POLICY.md beside bin/ (USAGE_OPTIMIZER_POLICY overrides), as the statusline reads it.
+    path = os.environ.get("USAGE_OPTIMIZER_POLICY") or os.path.join(
+        os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "POLICY.md")
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            match = _KIT_VERSION.search(handle.read(4096))
+    except OSError:
+        return None
+    return match.group(1) if match else None
+
+
+def _status_eta(minutes):
+    return "~{}m".format(int(math.floor(minutes + 0.5))) if minutes < 60 else "~{:.1f}h".format(minutes / 60.0)
+
+
+def _status_segments(state, session_id):
+    # The status line's segments in priority order, from the data current reads. A segment with no data is left out.
+    # The open turn gives its ETA and its list $ (an Amp turn with no cost says so); the two weekly meters and the kit
+    # version come with or without an open turn.
+    segments = []
+    value = _current(state, session_id)
+    if value is not None:
+        remaining = _number(value["time"].get("remaining_minutes"))
+        if remaining is not None:
+            segments.append("ETA " + _status_eta(remaining))
+        cost = value.get("cost_so_far_usd")
+        if cost is not None:
+            segments.append("${:.2f}".format(cost))
+        elif value.get("platform") == "amp":
+            segments.append("cost n/a")
+    usage_dir = _usage_dir()
+    for provider in ("claude", "codex"):
+        pct = _number((_meter(provider, usage_dir) or {}).get("weekly_pct"))
+        if pct is not None:
+            segments.append("{} wk {:.0f}%".format(provider, pct))
+    version = _kit_version()
+    if version:
+        segments.append("UO " + version[5:])  # 2026-11-10.1 shows as 11-10.1, as the statusline does
+    return segments
+
+
+def _statusline_text(state, session_id):
+    # One line of at most STATUS_LIMIT characters: segments that would overflow are dropped from the end.
+    segments = _status_segments(state, session_id)
+    while segments and len(" · ".join(segments)) > STATUS_LIMIT:
+        segments.pop()
+    return " · ".join(segments)
+
+
 def _history_count(value):
     # The default source's sample count is carried alongside the time result for text output.
     return value.get("_history_n", 0)
@@ -1530,10 +1989,20 @@ def _turn_row(turn, runs, pct_per_usd, estimate_minutes=None):
             "started_at": turn.get("started_at"), "started_local": _local(turn.get("started_at")),
             "minutes": max(0.0, (end - start).total_seconds() / 60.0) if start and end else None,
             "estimate_minutes": estimate_minutes,
-            "list_usd": cost, "estimated_claude_weekly_pct": cost * pct_per_usd if cost is not None else None,
+            "list_usd": cost,
+            "estimated_claude_weekly_pct": cost * pct_per_usd if cost is not None and _claude_billed(turn) else None,
             "claude_weekly_delta_pct": claude_delta, "lane_runs": _lane_summary(related),
             **({"subagents": subagents} if subagents else {}),
+            **({"platform": turn.get("platform"), "billed": turn.get("billed")} if "billed" in turn else {}),
+            **({"codex_weekly_delta_pct": _codex_turn_change(turn)} if turn.get("billed") == "codex" else {}),
             "prompt_preview": _preview(turn.get("prompt_preview"), 40)}
+
+
+def _claude_usd(rows, turns):
+    # The list dollars of the turn rows whose turns Claude's window paid for; None when there are none.
+    claude = {turn.get("turn_id") for turn in turns if _claude_billed(turn)}
+    costs = [row["list_usd"] for row in rows if row["list_usd"] is not None and row["turn_id"] in claude]
+    return sum(costs) if costs else None
 
 
 def _session_row(session_id, rows, turns, pct_per_usd):
@@ -1546,12 +2015,13 @@ def _session_row(session_id, rows, turns, pct_per_usd):
     last = max(ends) if ends else None
     costs = [row["list_usd"] for row in rows if row["list_usd"] is not None]
     list_usd = sum(costs) if costs else None
+    claude_usd = _claude_usd(rows, turns)
     return {"session_id": session_id, "started_local": _local(_iso(first) if first else None),
             "turns": len(rows), "active_minutes": sum(row["minutes"] for row in rows
                                                      if row["minutes"] is not None),
             "span_hours": max(0.0, (last - first).total_seconds() / 3600.0) if first and last else None,
             "list_usd": list_usd,
-            "estimated_claude_weekly_pct": list_usd * pct_per_usd if list_usd is not None else None,
+            "estimated_claude_weekly_pct": claude_usd * pct_per_usd if claude_usd is not None else None,
             "estimates": sum(row["estimate_minutes"] is not None for row in rows)}
 
 
@@ -1588,10 +2058,12 @@ def _report(state, since, last, session_id, by="turn"):
             result_rows = result_rows[-last:] if last else []
         total_costs = [row["list_usd"] for row in result_rows if row["list_usd"] is not None]
         total_cost = sum(total_costs)
+        claude_costs = [claude for claude in (_claude_usd(grouped[row["session_id"]], turns) for row in result_rows)
+                        if claude is not None]
         total = {"sessions": len(result_rows), "turns": sum(row["turns"] for row in result_rows),
                  "active_minutes": sum(row["active_minutes"] for row in result_rows),
                  "list_usd": total_cost,
-                 "estimated_claude_weekly_pct": total_cost * calibration["pct_per_usd"],
+                 "estimated_claude_weekly_pct": sum(claude_costs) * calibration["pct_per_usd"],
                  "estimates": {"n": time_calibration["n"], "factor": time_calibration["factor"]}}
         _add_plan_usd(total)
         return {"sessions": result_rows, "totals": total, "calibration": calibration}
@@ -1600,8 +2072,9 @@ def _report(state, since, last, session_id, by="turn"):
     total_costs = [row["list_usd"] for row in rows if row["list_usd"] is not None]
     total_minutes = [row["minutes"] for row in rows if row["minutes"] is not None]
     total_cost = sum(total_costs)
+    claude_usd = _claude_usd(rows, turns) or 0.0
     total = {"turns": len(rows), "minutes": sum(total_minutes), "list_usd": total_cost,
-             "estimated_claude_weekly_pct": total_cost * calibration["pct_per_usd"],
+             "estimated_claude_weekly_pct": claude_usd * calibration["pct_per_usd"],
              "estimates": {"n": time_calibration["n"], "factor": time_calibration["factor"]}}
     _add_plan_usd(total)
     return {"turns": rows, "totals": total, "calibration": calibration}
@@ -1630,6 +2103,9 @@ def _report_text(value):
         for row in value["turns"]:
             cost = "—" if row["list_usd"] is None else "${:.2f}".format(row["list_usd"])
             estimated = "—" if row["estimated_claude_weekly_pct"] is None else "{:.2f}%".format(row["estimated_claude_weekly_pct"])
+            if "codex_weekly_delta_pct" in row:  # a Codex-billed turn shows its Codex meter change, not Claude's share
+                estimated = ("—" if row["codex_weekly_delta_pct"] is None
+                             else "codex {:+.2f}%".format(row["codex_weekly_delta_pct"]))
             delta = "—" if row["claude_weekly_delta_pct"] is None else "{:+.0f}%".format(row["claude_weekly_delta_pct"])
             lanes = ", ".join("{} {}".format(provider, data["count"]) for provider, data in row["lane_runs"].items()) or "—"
             if row.get("subagents"):
@@ -1663,9 +2139,10 @@ def _report_text(value):
 
 
 def _activity(state, now):
-    """Spans in which this machine recorded Claude spend: turns and Claude lane runs, an open one up to now."""
+    """Spans in which this machine recorded Claude spend: Claude's turns and Claude lane runs, an open one up to now."""
     spans = []
-    for record in _turns(state) + [run for run in _runs(state) if run.get("provider") == "claude"]:
+    turns = [turn for turn in _turns(state) if _claude_billed(turn)]
+    for record in turns + [run for run in _runs(state) if run.get("provider") == "claude"]:
         start = _time(record.get("started_at"))
         if start:
             spans.append((start, _time(record.get("ended_at")) or now))
@@ -1704,7 +2181,8 @@ def _calibration_windows(usage_dir, now, activity):
 
 
 def _calibration_spend(state, windows):
-    turns = _turns(state)
+    # Only spend on Claude's window calibrates it: a week of Amp turns on credits must not raise the %-per-dollar.
+    turns = [turn for turn in _turns(state) if _claude_billed(turn)]
     runs = _runs(state)
     for window in windows:
         spend = 0.0
@@ -2132,13 +2610,20 @@ def _use_utf8_streams():
 def _main(argv=None):
     parser = argparse.ArgumentParser(prog="turn-meter")
     commands = parser.add_subparsers(dest="command", required=True)
-    commands.add_parser("hook")
-    commands.add_parser("compact-gate")
+    # Hooks take --platform without choices: a bad value falls back to KIT_PLATFORM or Claude Code, and never exits 2.
+    # --json takes the hook event as an argument instead of stdin, for a runner that cannot pipe stdin.
+    hook = commands.add_parser("hook")
+    hook.add_argument("--platform")
+    hook.add_argument("--json")
+    commands.add_parser("compact-gate").add_argument("--platform")
+    statusline = commands.add_parser("statusline-text")
+    statusline.add_argument("--session")
     commands.add_parser("resume-context")
     compactions = commands.add_parser("compactions")
     compactions.add_argument("--since")
     compactions.add_argument("--json", action="store_true")
     current = commands.add_parser("current")
+    current.add_argument("--platform", choices=PLATFORMS)
     current.add_argument("--session")
     current.add_argument("--json", action="store_true")
     eta = commands.add_parser("eta")
@@ -2161,10 +2646,18 @@ def _main(argv=None):
     notices.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     if args.command == "hook":
-        _hook()
+        _hook(args.platform, args.json)
         return 0
     if args.command == "compact-gate":
-        _compact_gate()
+        _compact_gate(args.platform)
+        return 0
+    if args.command == "statusline-text":
+        # Never raises: any error prints an empty line, which the status item shows as nothing.
+        try:
+            print(_statusline_text(_state_dir(), args.session))
+        except BaseException as error:
+            _log_hook_error(_state_dir(), error)
+            print()
         return 0
     state = _state_dir()
     usage_dir = _usage_dir()
@@ -2245,7 +2738,7 @@ if __name__ == "__main__":
     # The hook is intentionally forgiving: malformed input or filesystem errors are logged,
     # while a Stop hook must never hold up Claude Code.
     if len(sys.argv) > 1 and sys.argv[1] == "hook":
-        _hook()
+        _hook(_argv_platform(sys.argv[2:]), _argv_option(sys.argv[2:], "json"))
         raise SystemExit(0)
     try:
         raise SystemExit(_main())

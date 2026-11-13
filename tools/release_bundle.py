@@ -35,8 +35,9 @@ EVIDENCE_NAME = "claude-usage-optimizer-evidence.sh"
 #: - dist/: build output.
 #: - .claude/: the source checkout's own Claude Code setup; install.sh never copies it (plan step 1).
 #: - mods/<name>/tests/: install.sh never copies a mod's tests.
+#: - plans/: planning notes and probe captures for kit work (e.g. plans/amp-codex); never installed.
 EXCLUDED = re.compile(
-    r"^(?:dist(?:/|$)|private(?:/|$)|public-repo(?:/|$)|\.claude/|mods/[^/]+/tests/)"
+    r"^(?:dist(?:/|$)|private(?:/|$)|public-repo(?:/|$)|plans(?:/|$)|\.claude/|mods/[^/]+/tests/)"
 )
 
 #: Suite R rescore evidence (FINDINGS.md section 8). No kit tool reads it at run time, so it ships as its

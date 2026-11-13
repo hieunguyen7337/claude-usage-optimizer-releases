@@ -143,8 +143,9 @@ hybrid roles need their own evidence.
    keeps a URL placeholder instead of the link. Check that `grep -c <artifact id> dist/index.html` is above 0.
 4. Run `python3 -I tools/check-release.py [--kit DIR] [--bundle PATH] [--page PATH] [--patterns FILE] [--max-bytes N]`.
    It checks `version`, `catalog`, `json`, `bundle` size (at most 16,000,000 bytes), `fresh` (bundle matches
-   the tree), `evidence` (the evidence file: the same size limit, every listed file, fresh), `patterns`, `eol` and
-   `untracked`, the content checks over both files; exit 0 means clean and exit 1 means at least one FAIL.
+   the tree), `evidence` (the evidence file: the same size limit, every listed file, fresh), `patterns`, `eol`,
+   `untracked` and `platforms` (the generated Codex policy file matches POLICY.md, and the Amp plugin's static tests
+   pass), the content checks over both files; exit 0 means clean and exit 1 means at least one FAIL.
    `untracked` fails on a shipped file that git does not track, because `make-bundle.sh` ships untracked,
    non-ignored files. Release 2026-10-29.3 was first built with a Codex CLI `error.log` holding an account id,
    which a warning let through; `.gitignore` now ignores `error.log`.
@@ -553,3 +554,15 @@ ships.
   prompt, which must stay under 30,000 characters with a 15,000-character brief. The 2026-11-01.4 mode paragraph
   pushed it to 30,153, and only the cloud verify caught it. After editing either section, run
   `test_lane_main -k fits` (one file, about 20 s) before the release; 2026-11-01.4 left 405 characters spare.
+
+**2026-11-13.**
+- *One core, thin adapters.* Amp and Codex CLI reuse the same turn meter, lanes and ledger. Each platform adds one small
+  file that translates its events, so the pricing and parsing stay in one code path.
+- *Import where you can, generate where you cannot.* Amp imports POLICY.md whole. Codex cannot import, and its
+  instruction file has a 32 KiB cap, so a generator writes a 16,384-byte block of verbatim sections plus an index.
+  `check-release` fails when the block drifts from POLICY.md.
+- *Amp `-x` needs a per-run settings file for approvals.* Each lane run needs its own, not a shared one.
+- *Windows `.cmd` wrappers need a tree kill on timeout.* Stopping the wrapper alone leaves its child running.
+- *Probe before units.* Free checks of each CLI's own output came first, so the units code against recorded facts.
+- *Synthetic fixtures are placeholders.* Fixtures written from documentation are marked as such, and the first live
+  capture replaces them.

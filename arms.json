@@ -1,5 +1,5 @@
 {
-  "catalog_version": "2026-10-31.2",
+  "catalog_version": "2026-11-13.1",
   "about": "Exploration arms: one arm is one lane, model and effort. lane refuses an arm that is absent or retired unless --off-catalog; lane-stats pick samples only active arms. Add or override arms (same lane, model, effort) in ~/.config/lanes/arms.local.json. prior_pct is a guess at the share of the provider's weekly window one run takes on prior_plan's base window (before window_epochs), prior_usable a guess at its usable rate (Artificial Analysis coding-agent index v1.5 / 80); both give way to measured runs. lane-stats turns every weekly % into a share of today's window on today's plan (plan_scale, then window_epochs) and prices it in plan dollars (plan_prices; see explore.points_basis). weight scales how often exploration samples the arm.",
   "lanes": {
     "luna": {
@@ -98,6 +98,13 @@
     "grok": {
       "model": "grok-4.7",
       "provider": "grok",
+      "places": [
+        "process"
+      ]
+    },
+    "amp": {
+      "model": "claude-opus-5-5",
+      "provider": "amp",
       "places": [
         "process"
       ]
@@ -291,6 +298,13 @@
       "scarcity": 0.2,
       "plan_prices": {},
       "basis": "No account-wide meter exists; cost comes from priors and per-run tokens."
+    },
+    "amp": {
+      "scarcity": 0.2,
+      "plan_prices": {},
+      "billed_to": null,
+      "allow_all": true,
+      "basis": "No account-wide Amp meter exists; each run's cost comes from `amp threads usage` (Amp's recorded cost, which a linked provider subscription can record as $0) or from its priced tokens."
     }
   },
   "explore": {
@@ -310,6 +324,20 @@
       "subagent",
       "cloud"
     ],
+    "platforms": {
+      "claude-code": {
+        "places": ["process", "subagent", "cloud"],
+        "env_markers": ["CLAUDECODE"]
+      },
+      "amp": {
+        "places": ["process", "cloud"],
+        "env_markers": ["AMP_CURRENT_THREAD_ID"]
+      },
+      "codex": {
+        "places": ["process", "cloud"],
+        "env_markers": []
+      }
+    },
     "points_basis": "Cost points are plan dollars. A run's cost is its share of the provider's weekly window, as a % of today's window on today's plan (plan_scale, then window_epochs), / 100 x the plan's usd_per_month / weeks_per_month, times the usage mode's pace factor. A provider or plan without a price (cline; Codex 'pro') pays share x scarcity x Claude's plan dollars per 1% of its week (200 / 4.345 / 100 = $0.46). review_points and fix_points_per_minute stay in Claude-% (1 = 1% of Claude's week) and convert at that rate: a review costs about $0.0046 and a fix minute about $0.0014; pace does not apply to them. Without a Claude price every term stays in Claude-%.",
     "targets": {
       "mechanical": 0.8,
@@ -381,7 +409,8 @@
         "gemini": 500,
         "glm": 500,
         "cursor": 600,
-        "grok": 400
+        "grok": 400,
+        "amp": 600
       },
       "default_mb": 700,
       "reserve_mb": 1536,
@@ -1421,6 +1450,118 @@
         "mechanical",
         "review"
       ]
+    },
+    {
+      "status": "manual",
+      "weight": 0.7,
+      "prior_pct": 0.1,
+      "prior_usable": 0.7,
+      "lane": "amp",
+      "model": "claude-opus-5-5",
+      "cli_model": "anthropic/claude-opus-5-5",
+      "effort": "medium",
+      "classes": [
+        "substantive",
+        "hard",
+        "review"
+      ],
+      "prior_basis": "Amp harness unmeasured: weight, classes, prior_pct and prior_usable copied from the opus lane's medium arm (catalog 2026-10-31.2); no Amp run has been reviewed or timed, so these stay guesses until amp runs are reviewed."
+    },
+    {
+      "status": "manual",
+      "weight": 0.7,
+      "prior_pct": 0.2,
+      "prior_usable": 0.76,
+      "lane": "amp",
+      "model": "claude-opus-5-5",
+      "cli_model": "anthropic/claude-opus-5-5",
+      "effort": "high",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "prior_basis": "Amp harness unmeasured: weight, classes, prior_pct and prior_usable copied from the opus lane's high arm (catalog 2026-10-31.2); no Amp run has been reviewed or timed, so these stay guesses until amp runs are reviewed."
+    },
+    {
+      "status": "manual",
+      "weight": 0.7,
+      "prior_pct": 0.3,
+      "prior_usable": 0.8,
+      "lane": "amp",
+      "model": "claude-opus-5-5",
+      "cli_model": "anthropic/claude-opus-5-5",
+      "effort": "xhigh",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "prior_basis": "Amp harness unmeasured: weight, classes, prior_pct and prior_usable copied from the opus lane's xhigh arm (catalog 2026-10-31.2); no Amp run has been reviewed or timed, so these stay guesses until amp runs are reviewed."
+    },
+    {
+      "status": "manual",
+      "weight": 1.0,
+      "prior_pct": 0.65,
+      "prior_usable": 0.76,
+      "lane": "amp",
+      "model": "gpt-6.1-sol",
+      "cli_model": "openai/gpt-6.1-sol",
+      "effort": "medium",
+      "classes": [
+        "substantive",
+        "hard",
+        "review",
+        "research"
+      ],
+      "prior_basis": "Amp harness unmeasured: weight, classes, prior_pct and prior_usable copied from the sol lane's medium arm (catalog 2026-10-31.2); no Amp run has been reviewed or timed, so these stay guesses until amp runs are reviewed."
+    },
+    {
+      "status": "manual",
+      "weight": 1.0,
+      "prior_pct": 0.8,
+      "prior_usable": 0.75,
+      "lane": "amp",
+      "model": "gpt-6.1-sol",
+      "cli_model": "openai/gpt-6.1-sol",
+      "effort": "high",
+      "classes": [
+        "substantive",
+        "hard",
+        "design",
+        "review"
+      ],
+      "prior_basis": "Amp harness unmeasured: weight, classes, prior_pct and prior_usable copied from the sol lane's high arm (catalog 2026-10-31.2); no Amp run has been reviewed or timed, so these stay guesses until amp runs are reviewed."
+    },
+    {
+      "status": "manual",
+      "weight": 0.5,
+      "prior_pct": 4.0,
+      "prior_usable": 0.75,
+      "lane": "amp",
+      "model": "gpt-6-astra",
+      "cli_model": "openai/gpt-6-astra",
+      "effort": "xhigh",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "prior_basis": "Amp harness unmeasured: weight, classes, prior_pct and prior_usable copied from the astra lane's xhigh arm (catalog 2026-10-31.2); no Amp run has been reviewed or timed, so these stay guesses until amp runs are reviewed."
+    },
+    {
+      "status": "manual",
+      "weight": 0,
+      "prior_pct": 0,
+      "prior_usable": 0.3,
+      "lane": "amp",
+      "model": "glm-5.3-flash",
+      "cli_model": "zhipuai/glm-5.3-flash",
+      "effort": "low",
+      "classes": [
+        "mechanical"
+      ],
+      "prior_basis": "Amp harness unmeasured: weight, prior_pct and prior_usable copied from the glm lane's model-wide arm (catalog 2026-10-31.2); classes limited to mechanical (glm-5.3-flash reasons at low, high and max only); no Amp run has been reviewed or timed."
     }
   ]
 }

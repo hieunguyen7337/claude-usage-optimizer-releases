@@ -16,6 +16,7 @@ from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 METER = os.path.join(ROOT, "bin", "turn-meter")
+FAKE_AMP = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fake_amp.py")
 STATUSLINE = os.path.join(ROOT, "bin", "claude-statusline")
 UTC = dt.timezone.utc
 _statusline_loader = importlib.machinery.SourceFileLoader("turn_meter_statusline_test", STATUSLINE)
@@ -1552,6 +1553,787 @@ class KitNoticeTests(PromptHookCase):
             self.assertLessEqual(reader.call_count, 1)  # only the newest file, at the mark, and it is told already
         self.assertEqual(texts_again, [])
         self.assertEqual(texts[-1], "Usage Optimizer: 45 more notices not shown here; run `turn-meter notices` to list them.")
+
+
+class PlatformTests(unittest.TestCase):
+    """The adapter path (--platform, KIT_PLATFORM, KIT_BILLED): Amp and Codex turns beside Claude Code's own."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="turn-meter-platform-test-")
+        self.state = os.path.join(self.root, "state")
+        self.usage = os.path.join(self.root, "usage")
+        self.config = os.path.join(self.root, "config")
+        self.cwd = os.path.join(self.root, "work")
+        for folder in (self.state, self.usage, self.config, self.cwd):
+            os.makedirs(folder)
+        self.env = dict(os.environ)
+        self.env.update({"LANES_STATE": self.state, "CLAUDE_USAGE_DIR": self.usage, "LANES_CONFIG": self.config,
+                         "LANES_ARMS": os.path.join(ROOT, "arms.json"), "HOME": self.root,
+                         "USERPROFILE": self.root, "NO_COLOR": "1", "USAGE_OPTIMIZER_CODEX": "off",
+                         "USAGE_OPTIMIZER_KIT_LABEL": "off", "USAGE_OPTIMIZER_MODE_NOTICE": "off"})
+        for name in ("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_REMOTE", "USAGE_OPTIMIZER_MODE", "LANES_ARMS_LOCAL",
+                     "KIT_PLATFORM", "KIT_BILLED", "USAGE_OPTIMIZER_CLOUD_PROBE_MIN"):
+            self.env.pop(name, None)
+        # A detached cloud probe would write into self.usage while tearDown removes it, and a real `amp` on PATH would
+        # be called at every Amp Stop: both off here; the tests that need either set it themselves.
+        self.env.update({"USAGE_OPTIMIZER_CLOUD_PROBE_MIN": "off", "LANES_AMP_BIN": os.path.join(self.root, "no-amp")})
+        self.codex_env = dict(self.env, KIT_BILLED="codex")
+
+    def tearDown(self):
+        shutil.rmtree(self.root)
+
+    def stamp(self, value):
+        return value.isoformat().replace("+00:00", "Z")
+
+    def write_json(self, path, value):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(value, handle)
+
+    def read_json(self, path):
+        with open(path, encoding="utf-8") as handle:
+            return json.load(handle)
+
+    def write_cost(self, session, cost):
+        self.write_json(os.path.join(self.usage, "sessions", session + ".json"),
+                        {"session_id": session, "total_cost_usd": cost, "observed_at": self.stamp(dt.datetime.now(UTC))})
+
+    def write_codex_weekly(self, used):
+        self.write_json(os.path.join(self.usage, "codex-latest.json"), {
+            "observed_at": self.stamp(dt.datetime.now(UTC)), "plan_type": "plus",
+            "windows": [{"label": "weekly", "used_percent": used}]})
+
+    def write_readings(self, reset, readings):
+        with open(os.path.join(self.usage, "claude-rate.jsonl"), "w", encoding="utf-8") as handle:
+            for observed, percent in readings:
+                handle.write(json.dumps({"observed_at": self.stamp(observed),
+                                         "seven_day": {"used_percentage": percent, "resets_at": self.stamp(reset)}}) + "\n")
+
+    def write_ledger(self, rows):
+        with open(os.path.join(self.state, "turns.jsonl"), "w", encoding="utf-8") as handle:
+            for row in rows:
+                handle.write(json.dumps(row) + "\n")
+
+    def ledger(self):
+        with open(os.path.join(self.state, "turns.jsonl"), encoding="utf-8") as handle:
+            return [json.loads(line) for line in handle if line.strip()]
+
+    def open_turn(self, session):
+        return self.read_json(os.path.join(self.state, "turns", "open", session + ".json"))
+
+    def run_hook(self, event, *args, env=None, session="session-1", prompt="a prompt"):
+        value = {"hook_event_name": event, "session_id": session, "cwd": self.cwd, "prompt": prompt}
+        return subprocess.run([sys.executable, METER, "hook", *args], input=json.dumps(value), text=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env or self.env,
+                              cwd=self.cwd, timeout=15, check=False)
+
+    def hook(self, event, *args, env=None, session="session-1", prompt="a prompt"):
+        result = self.run_hook(event, *args, env=env, session=session, prompt=prompt)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "")
+        return result
+
+    def command(self, *args, env=None):
+        return subprocess.run([sys.executable, METER, *args], text=True, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, env=env or self.env, cwd=self.cwd, timeout=15, check=False)
+
+    def calibrate(self):
+        result = self.command("calibrate", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_flagless_turns_carry_no_platform_fields_and_a_bad_flag_exits_zero(self):
+        # KIT_BILLED alone changes nothing: a turn gets platform fields only when a platform asks for them.
+        self.env["KIT_BILLED"] = "codex"
+        self.write_cost("session-1", 1.0)
+        self.hook("UserPromptSubmit", prompt="flagless")
+        self.assertNotIn("platform", self.open_turn("session-1"))
+        self.assertNotIn("billed", self.open_turn("session-1"))
+        self.write_cost("session-1", 2.0)
+        self.hook("Stop")
+        row = self.ledger()[0]
+        self.assertNotIn("platform", row)
+        self.assertNotIn("billed", row)
+        # A flag that names no platform is skipped, not an error: the hook still exits 0 and records a Claude Code turn.
+        self.hook("UserPromptSubmit", "--platform", "bogus", session="session-2")
+        self.assertNotIn("billed", self.open_turn("session-2"))
+        self.hook("UserPromptSubmit", "--platform", session="session-3")
+        self.assertNotIn("platform", self.open_turn("session-3"))
+        report = json.loads(self.command("report", "--json").stdout)
+        self.assertEqual(set(report["turns"][0]) & {"platform", "billed", "codex_weekly_delta_pct"}, set())
+
+    def test_platform_and_billed_come_from_the_flag_or_KIT_PLATFORM_and_KIT_BILLED(self):
+        self.env.update(KIT_PLATFORM="amp", KIT_BILLED="claude")
+        self.write_cost("session-1", 1.0)
+        self.hook("UserPromptSubmit", prompt="from the environment")
+        opened = self.open_turn("session-1")
+        self.assertEqual((opened["platform"], opened["billed"]), ("amp", "claude"))
+        self.write_cost("session-1", 3.0)
+        self.hook("Stop")
+        closed = self.ledger()[0]
+        self.assertEqual((closed["platform"], closed["billed"]), ("amp", "claude"))
+        self.assertEqual(closed["cost_end_usd"], 3.0)
+        # The flag wins over KIT_PLATFORM, and a billed value other than claude or codex is recorded as null.
+        env = dict(self.env, KIT_BILLED="gemini")
+        self.hook("UserPromptSubmit", "--platform", "codex", env=env, session="session-2")
+        opened = self.open_turn("session-2")
+        self.assertEqual((opened["platform"], opened["billed"]), ("codex", None))
+        self.hook("Stop", "--platform", "codex", env=env, session="session-2")
+        self.assertEqual((self.ledger()[1]["platform"], self.ledger()[1]["billed"]), ("codex", None))
+
+    def test_a_week_of_non_claude_turns_leaves_the_calibration_unchanged(self):
+        # Claude's own turn and the readings that rose during it set the calibration. A week of Amp turns on credits,
+        # and a Codex-billed turn, must leave it exactly where it was.
+        now = dt.datetime.now(UTC)
+        hours = lambda value: now - dt.timedelta(hours=value)
+        self.write_readings(now + dt.timedelta(days=1), ((hours(20), 10), (hours(10), 16)))
+        self.write_ledger([{"type": "turn", "turn_id": "t-claude", "session_id": "claude", "started_at": self.stamp(hours(21)),
+                            "ended_at": self.stamp(hours(15)), "cost_start_usd": 0, "cost_end_usd": 150}])
+        before = self.calibrate()
+        self.assertEqual(before["source"], "calibrated")
+        amp = [{"type": "turn", "turn_id": "t-amp-{}".format(index), "session_id": "amp", "platform": "amp",
+                "billed": None, "started_at": self.stamp(hours(start)), "ended_at": self.stamp(hours(start - 0.5)),
+                "cost_start_usd": 0, "cost_end_usd": 100}
+               for index, start in enumerate(range(12, 150, 12))]
+        codex = {"type": "turn", "turn_id": "t-codex", "session_id": "codex", "platform": "codex", "billed": "codex",
+                 "started_at": self.stamp(hours(12)), "ended_at": self.stamp(hours(11.5)),
+                 "cost_start_usd": 0, "cost_end_usd": 400}
+        with open(os.path.join(self.state, "turns.jsonl"), "a", encoding="utf-8") as handle:
+            for row in amp + [codex]:
+                handle.write(json.dumps(row) + "\n")
+        after = self.calibrate()
+        for key in ("source", "measured", "pct_per_usd", "windows", "spend_usd", "rise_pct"):
+            self.assertEqual(after[key], before[key], key)
+        self.assertEqual(after["spend_usd"], 150)
+
+    def test_current_and_report_give_a_weekly_percent_only_for_claude_billed_turns(self):
+        self.write_codex_weekly(30)
+        self.write_cost("claude-s", 1.0)
+        self.hook("UserPromptSubmit", session="claude-s")
+        self.write_cost("claude-s", 2.0)
+        self.hook("Stop", session="claude-s")
+        self.write_cost("amp-s", 2.0)
+        self.hook("UserPromptSubmit", "--platform", "amp", session="amp-s")
+        self.write_cost("amp-s", 4.0)
+        self.hook("Stop", "--platform", "amp", session="amp-s")
+        self.write_cost("codex-s", 1.0)
+        self.hook("UserPromptSubmit", "--platform", "codex", env=self.codex_env, session="codex-s")
+        self.write_codex_weekly(33)
+        self.write_cost("codex-s", 1.5)
+        self.hook("Stop", "--platform", "codex", env=self.codex_env, session="codex-s")
+        # Open turns: an Amp turn on credits shows dollars alone, a Codex one shows its meter change so far.
+        self.write_cost("amp-open", 4.0)
+        self.hook("UserPromptSubmit", "--platform", "amp", session="amp-open")
+        self.write_cost("amp-open", 4.25)
+        self.write_codex_weekly(34)
+        self.write_cost("codex-open", 1.0)
+        self.hook("UserPromptSubmit", "--platform", "codex", env=self.codex_env, session="codex-open")
+        self.write_codex_weekly(38)
+        self.write_cost("codex-open", 1.2)
+
+        amp = self.command("current", "--platform", "amp", "--session", "amp-open", "--json")
+        self.assertEqual(amp.returncode, 0, amp.stderr)
+        turn = json.loads(amp.stdout)["turn"]
+        self.assertEqual((turn["platform"], turn["billed"]), ("amp", None))
+        self.assertIsNone(turn["estimated_claude_weekly_pct"])
+        self.assertNotIn("codex_weekly_delta_pct", turn)
+        self.assertAlmostEqual(turn["cost_so_far_usd"], 0.25)
+        text = self.command("current", "--platform", "amp", "--session", "amp-open").stdout
+        self.assertIn("list $0.25", text)
+        self.assertNotIn("Claude wk", text)
+
+        codex = json.loads(self.command("current", "--session", "codex-open", "--json").stdout)["turn"]
+        self.assertEqual(codex["billed"], "codex")
+        self.assertIsNone(codex["estimated_claude_weekly_pct"])
+        self.assertAlmostEqual(codex["codex_weekly_delta_pct"], 4.0)
+        self.assertIn("codex wk Δ +4.0%", self.command("current", "--session", "codex-open").stdout)
+
+        report = json.loads(self.command("report", "--json").stdout)
+        pct = report["calibration"]["pct_per_usd"]
+        rows = {row["session_id"]: row for row in report["turns"]}
+        self.assertAlmostEqual(rows["claude-s"]["estimated_claude_weekly_pct"], 1.0 * pct)
+        self.assertIsNone(rows["amp-s"]["estimated_claude_weekly_pct"])
+        self.assertAlmostEqual(rows["amp-s"]["list_usd"], 2.0)
+        self.assertIsNone(rows["codex-s"]["estimated_claude_weekly_pct"])
+        self.assertAlmostEqual(rows["codex-s"]["codex_weekly_delta_pct"], 3.0)
+        self.assertAlmostEqual(report["totals"]["list_usd"], 3.5)
+        self.assertAlmostEqual(report["totals"]["estimated_claude_weekly_pct"], 1.0 * pct)
+        sessions = {row["session_id"]: row for row in json.loads(self.command("report", "--by", "session", "--json").stdout)["sessions"]}
+        self.assertIsNone(sessions["amp-s"]["estimated_claude_weekly_pct"])
+        self.assertAlmostEqual(sessions["claude-s"]["estimated_claude_weekly_pct"], 1.0 * pct)
+        text = self.command("report").stdout
+        self.assertIn("codex +3.00%", text)
+
+    def test_the_cloud_probe_also_runs_on_other_platforms_within_the_same_limit(self):
+        now = dt.datetime.now(UTC)
+        stale = os.path.join(self.root, "usage-stale")
+        fresh = os.path.join(self.root, "usage-fresh")
+        self.write_json(os.path.join(stale, "claude-latest.json"),
+                        {"observed_at": self.stamp(now - dt.timedelta(minutes=30))})
+        self.write_json(os.path.join(fresh, "claude-latest.json"),
+                        {"observed_at": self.stamp(now - dt.timedelta(minutes=1))})
+        self.env.pop("USAGE_OPTIMIZER_CLOUD_PROBE_MIN")  # the default age; Popen is mocked, so nothing starts
+        with mock.patch.dict(os.environ, self.env, clear=True), mock.patch.object(meter.subprocess, "Popen") as popen:
+            self.assertFalse(meter._start_cloud_probe(stale, now))  # Claude Code on a PC: the statusline logs the meter
+            self.assertEqual(popen.call_count, 0)
+            self.assertFalse(meter._start_cloud_probe(fresh, now, platform="amp"))  # read 1 minute ago: no probe
+            self.assertEqual(popen.call_count, 0)
+            self.assertTrue(meter._start_cloud_probe(stale, now, platform="amp"))  # read 30 minutes ago: probe
+            self.assertEqual(popen.call_count, 1)
+            self.assertEqual(popen.call_args[0][0][-2:], ["--probe-claude", "--quiet"])
+
+    def test_amp_gets_one_context_line_and_codex_keeps_the_claude_code_shape(self):
+        self.env["USAGE_OPTIMIZER_MODE"] = "utilization"
+        self.env.pop("USAGE_OPTIMIZER_MODE_NOTICE", None)
+        codex_env = dict(self.env, KIT_BILLED="codex")  # copied after the mode is set, so it announces it too
+        amp = self.run_hook("UserPromptSubmit", "--platform", "amp", session="amp-1")
+        self.assertEqual(amp.returncode, 0, amp.stderr)
+        lines = amp.stdout.splitlines()
+        self.assertEqual(len(lines), 1)
+        payload = json.loads(lines[0])
+        self.assertEqual(list(payload), ["context"])
+        self.assertTrue(payload["context"].startswith("Usage Optimizer mode: utilization"))
+        self.assertEqual(self.run_hook("UserPromptSubmit", "--platform", "amp", session="amp-1").stdout, "")
+
+        claude = self.run_hook("UserPromptSubmit", session="claude-1")
+        codex = self.run_hook("UserPromptSubmit", "--platform", "codex", env=codex_env, session="codex-1")
+        for result in (claude, codex):
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(len(result.stdout.splitlines()), 1)
+            output = json.loads(result.stdout)["hookSpecificOutput"]
+            self.assertEqual(output["hookEventName"], "UserPromptSubmit")
+            self.assertEqual(output["additionalContext"], payload["context"])
+
+    def test_the_compaction_gate_names_its_platform_only_off_claude_code(self):
+        payload = json.dumps({"session_id": "session-1", "trigger": "manual"})
+        for args in ((), ("--platform", "amp")):
+            result = subprocess.run([sys.executable, METER, "compact-gate", *args], input=payload, text=True,
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=self.env, cwd=self.cwd,
+                                    timeout=15, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+        with open(os.path.join(self.state, "compactions.jsonl"), encoding="utf-8") as handle:
+            rows = [json.loads(line) for line in handle if line.strip()]
+        self.assertNotIn("platform", rows[0])
+        self.assertEqual(rows[1]["platform"], "amp")
+        self.assertEqual(rows[1]["decision"], "allow")
+
+    def fake_amp(self, mode="ok", timeout="3"):
+        # LANES_AMP_BIN names a wrapper that runs tests/fake_amp.py with this interpreter, as the codex tests do.
+        if os.name == "nt":
+            wrapper = os.path.join(self.root, "amp.cmd")
+            body = '@echo off\r\n"{}" "{}" %*\r\n'.format(sys.executable, FAKE_AMP)
+        else:
+            wrapper = os.path.join(self.root, "amp")
+            body = '#!/bin/sh\nexec "{}" "{}" "$@"\n'.format(sys.executable, FAKE_AMP)
+        with open(wrapper, "w", encoding="utf-8") as handle:
+            handle.write(body)
+        os.chmod(wrapper, 0o700)
+        return dict(self.env, LANES_AMP_BIN=wrapper, FAKE_AMP_MODE=mode, FAKE_AMP_LOG=self.amp_log(),
+                    USAGE_OPTIMIZER_AMP_TIMEOUT=timeout, USAGE_OPTIMIZER_CLOUD_PROBE_MIN="off")
+
+    def amp_log(self):
+        return os.path.join(self.root, "amp-calls.log")
+
+    def amp_calls(self):
+        try:
+            with open(self.amp_log(), encoding="utf-8") as handle:
+                return [line.strip() for line in handle if line.strip()]
+        except OSError:
+            return []
+
+    def test_amp_stop_writes_the_thread_total_and_the_turn_costs_the_difference(self):
+        env = self.fake_amp("ok")
+        self.write_cost("amp-1", 0.10)  # the thread's total before this turn
+        self.hook("UserPromptSubmit", "--platform", "amp", env=env, session="amp-1")
+        self.assertEqual(self.open_turn("amp-1")["cost_start_usd"], 0.10)
+        self.hook("Stop", "--platform", "amp", env=env, session="amp-1")
+        self.assertEqual(self.amp_calls(), ["threads usage amp-1 --details"])
+        total = self.read_json(os.path.join(self.usage, "sessions", "amp-1.json"))
+        self.assertEqual((total["total_cost_usd"], total["source"]), (0.13, "amp-threads-usage"))
+        row = self.ledger()[0]
+        self.assertEqual((row["platform"], row["cost_start_usd"], row["cost_end_usd"]), ("amp", 0.10, 0.13))
+        self.assertNotIn("cost_source", row)
+        # A thread with no cost file yet has no start cost: its first Stop writes the total and costs the turn with it.
+        self.hook("UserPromptSubmit", "--platform", "amp", env=env, session="amp-2")
+        self.assertIsNone(self.open_turn("amp-2")["cost_start_usd"])
+        self.hook("Stop", "--platform", "amp", env=env, session="amp-2")
+        self.assertEqual(self.ledger()[1]["cost_end_usd"], 0.13)
+
+    def test_an_amp_stop_that_gets_no_cost_leaves_the_turn_uncosted_and_exits_zero(self):
+        cases = (("hang", "2"), ("garbage", "3"), ("window", "3"), ("fail", "3"), ("missing", "3"))
+        for index, (mode, timeout) in enumerate(cases):
+            session = "amp-bad-{}".format(index)
+            env = self.fake_amp("ok" if mode == "missing" else mode, timeout=timeout)
+            if mode == "missing":  # no binary at all: LANES_AMP_BIN names a file that is not there
+                env["LANES_AMP_BIN"] = os.path.join(self.root, "no-such-amp")
+            with self.subTest(mode=mode):
+                started = time.monotonic()
+                self.hook("UserPromptSubmit", "--platform", "amp", env=env, session=session)
+                self.hook("Stop", "--platform", "amp", env=env, session=session)
+                self.assertLess(time.monotonic() - started, 15)
+                self.assertFalse(os.path.exists(os.path.join(self.usage, "sessions", session + ".json")))
+                self.assertIsNone(self.ledger()[-1]["cost_end_usd"])
+                self.assertNotIn("cost_source", self.ledger()[-1])
+
+    def test_a_failed_amp_read_keeps_the_threads_last_known_total(self):
+        self.write_cost("amp-known", 0.50)
+        self.hook("UserPromptSubmit", "--platform", "amp", env=self.fake_amp("fail"), session="amp-known")
+        self.hook("Stop", "--platform", "amp", env=self.fake_amp("fail"), session="amp-known")
+        self.assertEqual(self.ledger()[0]["cost_end_usd"], 0.50)
+
+    def test_the_amp_cost_line_is_the_one_whole_thread_total(self):
+        with open(os.path.join(ROOT, "tests", "fixtures", "amp", "threads-usage-details.txt"), encoding="utf-8") as handle:
+            fixture = handle.read()
+        self.assertEqual(meter._amp_usage_cost(fixture), 0.13)
+        self.assertEqual(meter._amp_usage_cost(fixture.replace("Cost: $0.13", "Cost: $1,234.50")), 1234.5)
+        self.assertIsNone(meter._amp_usage_cost(fixture.replace("Scope: Entire lifetime of this thread.", "Scope: Last 7 days.")))
+        self.assertIsNone(meter._amp_usage_cost(fixture + "\nCost: $0.20\n"))
+        self.assertIsNone(meter._amp_usage_cost(fixture.replace("Cost: $0.13", "Cost: 0.13 USD")))
+        self.assertIsNone(meter._amp_usage_cost(""))
+
+    def amp_fixture(self, name):
+        with open(os.path.join(ROOT, "tests", "fixtures", "amp", name), encoding="utf-8") as handle:
+            return handle.read()
+
+    def test_the_amp_report_gives_list_usd_routing_and_who_paid(self):
+        subscription = self.amp_fixture("threads-usage-subscription.txt")
+        details = self.amp_fixture("threads-usage-details.txt")
+        # The same literal values as lane's test of its copy of this rule (AmpLaneTests).
+        self.assertEqual(meter._amp_usage(subscription),
+                         {"amp_usd": 0.0, "list_usd": 0.66, "routed": ["claude"], "billed": "claude"})
+        self.assertEqual(meter._amp_usage(details),
+                         {"amp_usd": 0.13, "list_usd": 0.13, "routed": ["amp"], "billed": "amp"})
+        # The list price is the Est. list price column only when every row's cell parses; else the thread's Amp cost.
+        self.assertEqual(meter._amp_usage(subscription.replace("| $0.00 | $0.66 |", "| $0.00 | n/a |"))["list_usd"], 0.0)
+        no_column = subscription.replace("| Amp cost | Est. list price |", "| Amp cost |").replace("| $0.00 | $0.66 |", "| $0.00 |")
+        self.assertEqual(meter._amp_usage(no_column)["list_usd"], 0.0)
+        # With no Model Routing table the route is unknown: Amp's own charge decides, and no charge is mixed.
+        self.assertEqual(meter._amp_usage(details.split("## Model Routing")[0])["billed"], "amp")
+        self.assertEqual(meter._amp_usage(subscription.split("## Model Routing")[0])["billed"], "mixed")
+        # One route through Amp beside one through the subscription is mixed, and so is any other route.
+        agent = "Via [Claude Subscription](https://ampcode.com/settings/model-routing#00000000-0000-4000-8000-000000000000) | 3"
+        mixed = meter._amp_usage(subscription.replace(agent, "Via Amp | 3", 1))
+        self.assertEqual((mixed["routed"], mixed["billed"]), (["amp", "claude"], "mixed"))
+        self.assertEqual(meter._amp_usage(subscription.replace("Via [Claude Subscription]", "Via [Other Plan]"))["billed"],
+                         "mixed")
+        self.assertIsNone(meter._amp_usage(subscription.replace("Scope: Entire lifetime of this thread.", "Scope: Last 7 days.")))
+        self.assertIsNone(meter._amp_usage(""))
+
+    def test_an_amp_thread_routed_through_the_claude_plan_is_priced_at_list_and_billed_to_claude(self):
+        env = self.fake_amp("subscription")
+        self.write_cost("amp-plan", 0.10)
+        self.hook("UserPromptSubmit", "--platform", "amp", env=env, session="amp-plan")
+        self.hook("Stop", "--platform", "amp", env=env, session="amp-plan")
+        total = self.read_json(os.path.join(self.usage, "sessions", "amp-plan.json"))
+        self.assertEqual((total["total_cost_usd"], total["amp_usd"], total["billed"], total["source"]),
+                         (0.66, 0.0, "claude", "amp-threads-usage"))
+        row = self.ledger()[0]
+        self.assertEqual((row["platform"], row["billed"], row["cost_start_usd"], row["cost_end_usd"]),
+                         ("amp", "claude", 0.10, 0.66))
+        self.assertIs(meter._claude_billed(row), True)
+        # The report counts the turn's list $ as the Claude share, as it does a Claude Code turn's.
+        report = json.loads(self.command("report", "--json").stdout)
+        pct = report["calibration"]["pct_per_usd"]
+        rows = {row["session_id"]: row for row in report["turns"]}
+        self.assertAlmostEqual(rows["amp-plan"]["list_usd"], 0.56)
+        self.assertAlmostEqual(rows["amp-plan"]["estimated_claude_weekly_pct"], 0.56 * pct)
+
+    def test_an_open_amp_turn_takes_who_paid_from_the_threads_last_stop(self):
+        env = self.fake_amp("subscription")
+        self.hook("UserPromptSubmit", "--platform", "amp", env=env, session="amp-next")
+        self.assertIsNone(self.open_turn("amp-next")["billed"])  # no usage report yet
+        self.hook("Stop", "--platform", "amp", env=env, session="amp-next")
+        self.hook("UserPromptSubmit", "--platform", "amp", env=env, session="amp-next")
+        self.assertEqual(self.open_turn("amp-next")["billed"], "claude")
+        self.write_cost("amp-next", 0.90)  # the thread moves on during the open turn
+        current = json.loads(self.command("current", "--platform", "amp", "--session", "amp-next", "--json").stdout)["turn"]
+        self.assertEqual(current["billed"], "claude")
+        self.assertAlmostEqual(current["cost_so_far_usd"], 0.24)
+        self.assertIsNotNone(current["estimated_claude_weekly_pct"])
+        self.assertIn("est Claude wk", self.command("current", "--platform", "amp", "--session", "amp-next").stdout)
+
+    def test_KIT_BILLED_and_providers_amp_billed_to_still_override_who_the_thread_says_paid(self):
+        env = self.fake_amp("subscription")
+        self.hook("UserPromptSubmit", "--platform", "amp", env=env, session="amp-over")
+        self.hook("Stop", "--platform", "amp", env=dict(env, KIT_BILLED="codex"), session="amp-over")
+        self.assertEqual(self.ledger()[-1]["billed"], "codex")
+        self.hook("UserPromptSubmit", "--platform", "amp", env=env, session="amp-over")
+        self.hook("Stop", "--platform", "amp", env=env, session="amp-over")
+        self.assertEqual(self.ledger()[-1]["billed"], "claude")
+        self.write_json(os.path.join(self.root, ".config", "lanes", "arms.local.json"),
+                        {"providers": {"amp": {"billed_to": "codex"}}})
+        self.hook("UserPromptSubmit", "--platform", "amp", env=env, session="amp-over")
+        self.hook("Stop", "--platform", "amp", env=env, session="amp-over")
+        self.assertEqual(self.ledger()[-1]["billed"], "codex")
+        # The thread's own record is unchanged by the override: its cost file still says claude.
+        self.assertEqual(self.read_json(os.path.join(self.usage, "sessions", "amp-over.json"))["billed"], "claude")
+
+    def test_an_amp_turn_billed_to_the_claude_plan_counts_as_claude_spend_in_calibration(self):
+        # The same readings and Claude turn as test_a_week_of_non_claude_turns_leaves_the_calibration_unchanged, with one
+        # Amp turn billed to the Claude plan: it is Claude spend, so the spend rises by its $50.
+        now = dt.datetime.now(UTC)
+        hours = lambda value: now - dt.timedelta(hours=value)
+        self.write_readings(now + dt.timedelta(days=1), ((hours(20), 10), (hours(10), 16)))
+        self.write_ledger([{"type": "turn", "turn_id": "t-claude", "session_id": "claude", "started_at": self.stamp(hours(21)),
+                            "ended_at": self.stamp(hours(15)), "cost_start_usd": 0, "cost_end_usd": 150},
+                           {"type": "turn", "turn_id": "t-amp-plan", "session_id": "amp", "platform": "amp",
+                            "billed": "claude", "started_at": self.stamp(hours(13)), "ended_at": self.stamp(hours(12.5)),
+                            "cost_start_usd": 0, "cost_end_usd": 50}])
+        after = self.calibrate()
+        self.assertEqual(after["source"], "calibrated")
+        self.assertEqual(after["spend_usd"], 200)
+        self.assertEqual([meter._claude_billed({"billed": value}) for value in ("claude", "amp", "mixed", None)],
+                         [True, False, False, False])
+
+    def test_json_argument_records_the_same_turn_as_stdin_and_bad_json_records_nothing(self):
+        env = self.fake_amp("ok")
+        result = self.run_hook("UserPromptSubmit", "--platform", "amp", env=env, session="stdin-1", prompt="same")
+        self.assertEqual((result.returncode, result.stdout), (0, ""), result.stderr)
+        event = {"hook_event_name": "UserPromptSubmit", "session_id": "json-1", "cwd": self.cwd, "prompt": "same"}
+        for args in (("--platform", "amp", "--json", json.dumps(event)),
+                     ("--platform=amp", "--json=" + json.dumps(dict(event, session_id="json-2")))):
+            with self.subTest(args=args[0]):
+                result = subprocess.run([sys.executable, METER, "hook", *args], stdin=subprocess.DEVNULL, text=True,
+                                        stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, cwd=self.cwd,
+                                        timeout=15, check=False)
+                self.assertEqual((result.returncode, result.stdout), (0, ""), result.stderr)
+        stdin_turn, json_turn = self.open_turn("stdin-1"), self.open_turn("json-1")
+        self.assertEqual(set(json_turn), set(stdin_turn))
+        for key in ("platform", "billed", "prompt_preview", "cwd", "cost_start_usd"):
+            self.assertEqual(json_turn.get(key), stdin_turn.get(key), key)
+        self.assertEqual(self.open_turn("json-2")["platform"], "amp")
+        self.hook("Stop", "--platform", "amp", env=env, session="stdin-1")
+        subprocess.run([sys.executable, METER, "hook", "--platform", "amp", "--json", json.dumps(
+            dict(event, hook_event_name="Stop"))], stdin=subprocess.DEVNULL, text=True, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, env=env, cwd=self.cwd, timeout=15, check=False)
+        rows = {row["session_id"]: row for row in self.ledger()}
+        self.assertEqual(rows["stdin-1"]["cost_end_usd"], rows["json-1"]["cost_end_usd"])
+        self.assertEqual((rows["json-1"]["platform"], rows["json-1"]["prompt_preview"]), ("amp", "same"))
+        open_dir = os.path.join(self.state, "turns", "open")
+        before, rows_before = sorted(os.listdir(open_dir)), len(self.ledger())
+        result = subprocess.run([sys.executable, METER, "hook", "--platform", "amp", "--json", "{not json"],
+                                stdin=subprocess.DEVNULL, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                env=env, cwd=self.cwd, timeout=15, check=False)
+        self.assertEqual((result.returncode, result.stdout), (0, ""), result.stderr)
+        self.assertEqual((sorted(os.listdir(open_dir)), len(self.ledger())), (before, rows_before))
+
+    def test_amp_billed_comes_from_arms_local_json_over_arms_json_and_KIT_BILLED_wins(self):
+        env = self.fake_amp("ok")
+        base = os.path.join(self.root, ".claude", "usage-optimizer", "arms.json")
+        local = os.path.join(self.root, ".config", "lanes", "arms.local.json")
+
+        def billed(session, **extra):
+            self.hook("UserPromptSubmit", "--platform", "amp", env=dict(env, **extra), session=session)
+            return self.open_turn(session)["billed"]
+
+        self.assertIsNone(billed("billed-none"))
+        self.write_json(base, {"providers": {"amp": {"billed_to": "claude"}}})
+        self.assertEqual(billed("billed-base"), "claude")
+        self.write_json(local, {"providers": {"amp": {"billed_to": "codex"}}})
+        self.assertEqual(billed("billed-local"), "codex")
+        self.assertEqual(billed("billed-env", KIT_BILLED="claude"), "claude")
+        self.write_json(local, {"providers": {"amp": {"billed_to": None}}})
+        self.assertIsNone(billed("billed-null"))
+        self.write_json(local, {"providers": {"amp": {"billed_to": {"gpt-5": "codex"}}}})
+        self.assertIsNone(billed("billed-map"))
+
+    def test_statusline_text_is_one_short_line_of_the_segments_current_reads(self):
+        env = self.fake_amp("ok")
+        now = dt.datetime.now(UTC)
+        self.write_json(os.path.join(self.usage, "claude-latest.json"), {
+            "observed_at": self.stamp(now),
+            "seven_day": {"used_percentage": 42, "resets_at": self.stamp(now + dt.timedelta(days=3))}})
+        self.write_codex_weekly(3)
+        self.write_cost("amp-s", 1.0)
+        self.hook("UserPromptSubmit", "--platform", "amp", env=env, session="amp-s")
+        self.write_cost("amp-s", 2.84)  # the thread has moved on by $1.84 during the open turn
+        result = self.command("statusline-text", "--session", "amp-s", env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.count("\n"), 1)
+        line = result.stdout.rstrip("\n")
+        self.assertLessEqual(len(line), 100)
+        segments = line.split(" · ")
+        version = meter._kit_version()
+        self.assertIsNotNone(version)
+        self.assertTrue(segments[0].startswith("ETA ~"), segments)
+        self.assertEqual(segments[1:], ["$1.84", "claude wk 42%", "codex wk 3%", "UO " + version[5:]])
+
+        # An open Amp turn with no cost says so, and shows no dollar figure.
+        self.hook("UserPromptSubmit", "--platform", "amp", env=env, session="amp-new")
+        segments = self.command("statusline-text", "--session", "amp-new", env=env).stdout.rstrip("\n").split(" · ")
+        self.assertIn("cost n/a", segments)
+        self.assertFalse([segment for segment in segments if segment.startswith("$")])
+
+        # With no open turn and no meters, only the kit version is left, and an empty folder shows nothing else.
+        empty = dict(self.env, LANES_STATE=os.path.join(self.root, "empty-state"),
+                     CLAUDE_USAGE_DIR=os.path.join(self.root, "empty-usage"))
+        self.assertEqual(self.command("statusline-text", env=empty).stdout, "UO {}\n".format(version[5:]))
+
+    def test_statusline_text_drops_segments_that_would_pass_100_characters(self):
+        with mock.patch.object(meter, "_status_segments", return_value=["x" * 60, "y" * 60, "z"]):
+            self.assertEqual(meter._statusline_text(self.state, None), "x" * 60)
+        with mock.patch.object(meter, "_status_segments", return_value=["a" * 40, "b" * 40]):
+            self.assertEqual(meter._statusline_text(self.state, None), "a" * 40 + " · " + "b" * 40)
+
+    def test_statusline_text_prints_an_empty_line_on_any_error(self):
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, self.env, clear=True), \
+                mock.patch.object(meter, "_status_segments", side_effect=RuntimeError("boom")), \
+                contextlib.redirect_stdout(out):
+            status = meter._main(["statusline-text"])
+        self.assertEqual((status, out.getvalue()), (0, "\n"))
+        with open(os.path.join(self.state, "turn-meter.err"), encoding="utf-8") as handle:
+            self.assertIn("RuntimeError: boom", handle.read())
+
+    def test_flagless_claude_code_turns_never_call_amp_and_keep_their_cost_file(self):
+        env = self.fake_amp("ok")
+        self.write_cost("session-1", 1.0)
+        self.hook("UserPromptSubmit", env=env, prompt="flagless")
+        self.write_cost("session-1", 2.0)
+        self.hook("Stop", env=env)
+        self.assertEqual(self.amp_calls(), [])
+        row = self.ledger()[0]
+        self.assertNotIn("platform", row)
+        self.assertNotIn("billed", row)
+        self.assertEqual(row["cost_end_usd"], 2.0)
+        cost = self.read_json(os.path.join(self.usage, "sessions", "session-1.json"))
+        self.assertNotIn("source", cost)
+
+
+CODEX_FIXTURES = os.path.join(ROOT, "tests", "fixtures", "codex")
+CODEX_ROLLOUT = os.path.join(CODEX_FIXTURES, "rollout-min.jsonl")
+CODEX_SESSION = "0198f3a2-6b7c-7d10-9a41-2c5e8f1b7d3a"  # the session id in tests/fixtures/codex's hook files
+# rollout-min.jsonl's final total at gpt-6-luna's rate card: 2.875 credits at usd_per_credit 0.04.
+CODEX_TOTAL_USD = 0.115
+
+
+def codex_token_row(input_tokens, cached, output):
+    usage = {"input_tokens": input_tokens, "cached_input_tokens": cached, "output_tokens": output,
+             "reasoning_output_tokens": 0, "total_tokens": input_tokens + output}
+    return {"timestamp": "2026-11-13T09:10:00.000Z", "type": "event_msg",
+            "payload": {"type": "token_count", "info": {"total_token_usage": usage, "last_token_usage": usage}}}
+
+
+class CodexAdapterTests(unittest.TestCase):
+    """The Codex adapter (C1): hook events and the rollout's price, from the fixtures in tests/fixtures/codex."""
+
+    def setUp(self):
+        self.root = tempfile.mkdtemp(prefix="turn-meter-codex-test-")
+        self.state = os.path.join(self.root, "state")
+        self.usage = os.path.join(self.root, "usage")
+        self.config = os.path.join(self.root, "config")
+        self.cwd = os.path.join(self.root, "work")
+        for folder in (self.state, self.usage, self.config, self.cwd):
+            os.makedirs(folder)
+        self.env = dict(os.environ)
+        self.env.update({"LANES_STATE": self.state, "CLAUDE_USAGE_DIR": self.usage, "LANES_CONFIG": self.config,
+                         "LANES_ARMS": os.path.join(ROOT, "arms.json"),
+                         "LANES_ARMS_LOCAL": os.path.join(self.root, "no-arms-local.json"),
+                         "HOME": self.root, "USERPROFILE": self.root, "NO_COLOR": "1", "USAGE_OPTIMIZER_CODEX": "off",
+                         "USAGE_OPTIMIZER_KIT_LABEL": "off", "USAGE_OPTIMIZER_MODE_NOTICE": "off",
+                         "USAGE_OPTIMIZER_CLOUD_PROBE_MIN": "off", "LANES_AMP_BIN": os.path.join(self.root, "no-amp")})
+        for name in ("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_REMOTE", "USAGE_OPTIMIZER_MODE", "KIT_PLATFORM", "KIT_BILLED",
+                     "USAGE_OPTIMIZER_COMPACT_GATE", "USAGE_OPTIMIZER_COMPACT_HARD", "USAGE_OPTIMIZER_TURNS"):
+            self.env.pop(name, None)
+
+    def tearDown(self):
+        shutil.rmtree(self.root)
+
+    def fixture(self, name, **changes):
+        with open(os.path.join(CODEX_FIXTURES, name), encoding="utf-8") as handle:
+            value = json.load(handle)
+        value.update(changes)
+        return value
+
+    def send(self, value, *args, env=None):
+        return subprocess.run([sys.executable, METER, *args], input=json.dumps(value), text=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env or self.env, cwd=self.cwd,
+                              timeout=15, check=False)
+
+    def prompt(self, path, session=CODEX_SESSION, env=None):
+        result = self.send(self.fixture("hook-userpromptsubmit.json", transcript_path=path, session_id=session,
+                                        cwd=self.cwd), "hook", "--platform", "codex", env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result
+
+    def stop(self, path=None, session=CODEX_SESSION, env=None):
+        value = self.fixture("hook-stop.json", session_id=session, cwd=self.cwd)
+        if path is None:
+            value.pop("transcript_path", None)
+        else:
+            value["transcript_path"] = path
+        result = self.send(value, "hook", "--platform", "codex", env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result
+
+    def rollout(self, name, extra=(), keep=lambda row: True, model=None):
+        # A copy of rollout-min.jsonl in the test's folder: its rows that keep() accepts (its model replaced when
+        # given), then extra rows.
+        with open(CODEX_ROLLOUT, encoding="utf-8") as handle:
+            rows = [json.loads(line) for line in handle if line.strip()]
+        for row in rows:
+            if model and row.get("type") == "turn_context":
+                row["payload"]["model"] = model
+        path = os.path.join(self.root, name)
+        with open(path, "w", encoding="utf-8") as handle:
+            for row in [row for row in rows if keep(row)] + list(extra):
+                handle.write(json.dumps(row) + "\n")
+        return path
+
+    def ledger(self):
+        path = os.path.join(self.state, "turns.jsonl")
+        if not os.path.exists(path):
+            return []
+        with open(path, encoding="utf-8") as handle:
+            return [json.loads(line) for line in handle if line.strip()]
+
+    def turns(self):
+        return [row for row in self.ledger() if row.get("type") == "turn"]
+
+    def turn_for(self, session):
+        return [row for row in self.turns() if row["session_id"] == session]
+
+    def open_path(self, session=CODEX_SESSION):
+        return os.path.join(self.state, "turns", "open", session + ".json")
+
+    def read_json(self, path):
+        with open(path, encoding="utf-8") as handle:
+            return json.load(handle)
+
+    def gate(self, value, env=None):
+        return self.send(value, "compact-gate", "--platform", "codex", env=env)
+
+    def gate_rows(self):
+        path = os.path.join(self.state, "compactions.jsonl")
+        with open(path, encoding="utf-8") as handle:
+            return [json.loads(line) for line in handle if line.strip()]
+
+    def test_a_codex_turn_is_priced_from_the_rollout_and_billed_to_codex(self):
+        self.prompt(CODEX_ROLLOUT)
+        opened = self.read_json(self.open_path())
+        self.assertEqual((opened["platform"], opened["billed"]), ("codex", "codex"))
+        self.assertEqual(opened["transcript_path"], CODEX_ROLLOUT)
+        self.stop(CODEX_ROLLOUT)
+        self.assertFalse(os.path.exists(self.open_path()))
+        cost = self.read_json(os.path.join(self.usage, "sessions", CODEX_SESSION + ".json"))
+        self.assertEqual(cost["source"], "codex-rollout")
+        self.assertAlmostEqual(cost["total_cost_usd"], CODEX_TOTAL_USD, places=9)
+        row = self.turn_for(CODEX_SESSION)[0]
+        self.assertEqual((row["platform"], row["billed"]), ("codex", "codex"))
+        self.assertAlmostEqual(row["cost_end_usd"], CODEX_TOTAL_USD, places=9)
+        self.assertNotIn("transcript_path", row)
+
+    def test_the_turn_cost_is_the_difference_of_the_rollouts_cumulative_totals(self):
+        second = self.rollout("rollout-second.jsonl", extra=[codex_token_row(3000000, 2000000, 150000)])
+        self.prompt(CODEX_ROLLOUT)
+        self.stop(CODEX_ROLLOUT)
+        self.prompt(second)
+        self.stop(second)
+        first, later = self.turns()
+        self.assertAlmostEqual(first["cost_end_usd"], 0.115, places=9)
+        self.assertAlmostEqual(later["cost_start_usd"], 0.115, places=9)
+        # 4.875 credits at 0.04: the second rollout's total is $0.195, so this turn is $0.08.
+        self.assertAlmostEqual(later["cost_end_usd"], 0.195, places=9)
+
+    def test_stop_without_a_transcript_path_prices_the_path_the_open_turn_kept(self):
+        self.prompt(CODEX_ROLLOUT)
+        self.stop(None)
+        self.assertAlmostEqual(self.turn_for(CODEX_SESSION)[0]["cost_end_usd"], CODEX_TOTAL_USD, places=9)
+
+    def test_a_codex_turn_that_cannot_be_priced_closes_uncosted_and_exits_zero(self):
+        missing = os.path.join(self.root, "no-such-rollout.jsonl")
+        self.prompt(missing, session="s-missing")
+        self.stop(missing, session="s-missing")
+        unknown = self.rollout("rollout-unknown-model.jsonl", model="gpt-unknown")
+        self.prompt(unknown, session="s-model")
+        self.stop(unknown, session="s-model")
+        no_usage = self.rollout("rollout-no-usage.jsonl", keep=lambda row: row["payload"].get("type") != "token_count")
+        self.prompt(no_usage, session="s-usage")
+        self.stop(no_usage, session="s-usage")
+        for session in ("s-missing", "s-model", "s-usage"):
+            rows = self.turn_for(session)
+            self.assertEqual(len(rows), 1, session)
+            self.assertIsNone(rows[0]["cost_end_usd"], session)
+            self.assertEqual(rows[0]["billed"], "codex")
+        # A later turn whose rollout cannot be read keeps the session's last known total, as an Amp turn does.
+        self.prompt(CODEX_ROLLOUT, session="s-kept")
+        self.stop(CODEX_ROLLOUT, session="s-kept")
+        self.prompt(missing, session="s-kept")
+        self.stop(missing, session="s-kept")
+        kept = self.turn_for("s-kept")
+        self.assertAlmostEqual(kept[0]["cost_end_usd"], CODEX_TOTAL_USD, places=9)
+        self.assertAlmostEqual(kept[1]["cost_end_usd"], CODEX_TOTAL_USD, places=9)
+
+    def test_billed_is_codex_unless_KIT_BILLED_says_otherwise(self):
+        claude_env = dict(self.env, KIT_BILLED="claude")
+        self.prompt(CODEX_ROLLOUT, session="s-default")
+        self.assertEqual(self.read_json(self.open_path("s-default"))["billed"], "codex")
+        self.prompt(CODEX_ROLLOUT, session="s-claude", env=claude_env)
+        self.assertEqual(self.read_json(self.open_path("s-claude"))["billed"], "claude")
+        self.stop(CODEX_ROLLOUT, session="s-default")
+        self.stop(CODEX_ROLLOUT, session="s-claude", env=claude_env)
+        billed = {row["session_id"]: row["billed"] for row in self.turns()}
+        self.assertEqual(billed, {"s-default": "codex", "s-claude": "claude"})
+
+    def test_session_start_and_pre_compact_open_no_turn(self):
+        for name in ("hook-sessionstart.json", "hook-precompact.json"):
+            result = self.send(self.fixture(name, transcript_path=CODEX_ROLLOUT, cwd=self.cwd),
+                               "hook", "--platform", "codex")
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(os.path.exists(self.open_path()))
+        self.assertEqual(self.ledger(), [])
+
+    def test_the_hook_fixtures_name_their_events_and_carry_the_fields_the_hook_reads(self):
+        events = {"hook-sessionstart.json": "SessionStart", "hook-userpromptsubmit.json": "UserPromptSubmit",
+                  "hook-stop.json": "Stop", "hook-precompact.json": "PreCompact"}
+        for name, event in events.items():
+            value = self.fixture(name)
+            self.assertEqual(value["hook_event_name"], event)
+            for field in ("session_id", "transcript_path", "cwd"):
+                self.assertIn(field, value, name)
+
+    def test_the_codex_compaction_gate_is_off_unless_asked_and_blocks_only_a_turn_under_the_ceiling(self):
+        pre = self.fixture("hook-precompact.json", transcript_path=CODEX_ROLLOUT, cwd=self.cwd)
+        off = self.gate(pre)
+        self.assertEqual((off.returncode, off.stdout), (0, ""), off.stderr)
+        on = dict(self.env, USAGE_OPTIMIZER_COMPACT_GATE="on")
+        blocked = self.gate(pre, env=on)
+        self.assertEqual(blocked.returncode, 0, blocked.stderr)
+        decision = json.loads(blocked.stdout)
+        self.assertEqual(decision["decision"], "block")
+        self.assertIn("compaction waits for the end of this turn", decision["reason"])
+        done = self.rollout("rollout-done.jsonl", extra=[{"type": "event_msg", "payload": {"type": "task_complete"}}])
+        self.assertEqual(self.gate(dict(pre, transcript_path=done), env=on).stdout, "")
+        low = dict(on, USAGE_OPTIMIZER_COMPACT_HARD="100000")
+        self.assertEqual(self.gate(pre, env=low).stdout, "")  # 124k tokens is not under a 100k ceiling
+        no_usage = self.rollout("rollout-no-usage.jsonl", keep=lambda row: row["payload"].get("type") != "token_count")
+        self.assertEqual(self.gate(dict(pre, transcript_path=no_usage), env=on).stdout, "")
+        rows = self.gate_rows()
+        self.assertEqual(
+            [(row["platform"], row["decision"], row["estimate"], row["mid_turn"]) for row in rows],
+            [("codex", "allow", None, None), ("codex", "block", 124000, True), ("codex", "allow", 124000, False),
+             ("codex", "allow", 124000, True), ("codex", "allow", None, True)])
+
+    def test_the_price_is_the_one_bin_lane_codex_usage_gives_for_the_same_rollout(self):
+        loader = importlib.machinery.SourceFileLoader("turn_meter_lane_parity_test", os.path.join(ROOT, "bin", "lane"))
+        spec = importlib.util.spec_from_loader(loader.name, loader)
+        lane = importlib.util.module_from_spec(spec)
+        loader.exec_module(lane)
+        codex_home = os.path.join(self.root, "codex")
+        today = dt.datetime.now().astimezone()
+        folder = os.path.join(codex_home, "sessions", today.strftime("%Y"), today.strftime("%m"), today.strftime("%d"))
+        os.makedirs(folder)
+        shutil.copy(CODEX_ROLLOUT, os.path.join(folder, "rollout-2026-parity-" + CODEX_SESSION + ".jsonl"))
+        with open(os.path.join(ROOT, "arms.json"), encoding="utf-8") as handle:
+            catalog = json.load(handle)
+        stamp = today.isoformat()
+        with mock.patch.dict(os.environ, {"CODEX_HOME": codex_home}):
+            lane_usd = lane.codex_usage(CODEX_SESSION, stamp, stamp, catalog)["list_usd"]
+        with mock.patch.dict(os.environ, {"LANES_ARMS": os.path.join(ROOT, "arms.json"),
+                                          "LANES_ARMS_LOCAL": os.path.join(self.root, "no-arms-local.json")}):
+            meter_usd = meter._codex_rollout_usd(CODEX_ROLLOUT)
+        self.assertAlmostEqual(lane_usd, CODEX_TOTAL_USD, places=9)
+        self.assertAlmostEqual(meter_usd, lane_usd, places=12)
 
 
 if __name__ == "__main__":

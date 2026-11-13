@@ -23,3 +23,9 @@ error.log
 !/.claude/agents/lane-*.md
 # cloud-notify: marks this checkout's main cloud session; never commit it
 .claude/main-session
+# Amp's own plugin API docs, dumped locally by `amp plugins show-docs` (third-party text; regenerate, do not commit)
+plans/amp-codex/amp-plugin-api-local.md
+plans/amp-codex/probe/raw/
+# P1 probe dump of the newer Amp plugin API (same rule as the local dump; regenerate, do not commit)
+plans/amp-codex/amp-plugin-api-new.md
+plans/amp-codex/probe/codex-schema/

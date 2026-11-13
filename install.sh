@@ -2,14 +2,17 @@
 set -euo pipefail
 
 usage() {
-  printf 'Usage: %s [--dry-run] [--prefix DIR] [--no-view] [--reset-view]\n' "$0" >&2
+  printf 'Usage: %s [--dry-run] [--prefix DIR] [--no-view] [--reset-view] [--platform LIST]\n' "$0" >&2
   printf '  --no-view     leave the mobile view alone (mod, output style, view settings)\n' >&2
   printf '  --reset-view  set the view settings again even where you changed them by hand\n' >&2
+  printf '  --platform    comma list of claude-code, amp, codex (default: the list the last install saved, else claude-code)\n' >&2
 }
 
 DRY_RUN=0
 VIEW=apply
 RESET_VIEW=0
+PLATFORM_GIVEN=0
+PLATFORM_FLAG=''
 PREFIX_INPUT="${HOME}/.claude/usage-optimizer"
 while (($#)); do
   case "$1" in
@@ -19,6 +22,12 @@ while (($#)); do
     --prefix)
       if (($# < 2)); then usage; exit 2; fi
       PREFIX_INPUT=$2
+      shift 2
+      ;;
+    --platform)
+      if (($# < 2)); then usage; exit 2; fi
+      PLATFORM_GIVEN=1
+      PLATFORM_FLAG=$2
       shift 2
       ;;
     -h|--help) usage; exit 0 ;;
@@ -85,6 +94,52 @@ fi
 printf 'Operating system: %s\n' "$OS_NAME"
 printf 'Python: %s (%s)\n' "$PY_VERSION" "$PYTHON_NATIVE"
 
+# The platforms to install for: --platform, else the list the last install saved, else Claude Code. The core steps
+# (the prefix copy, the tools on PATH, ~/.config/lanes) run for every list; each platform adds its own steps.
+KNOWN_PLATFORMS=(claude-code amp codex)
+normalize_platforms() {
+  local input=$1 name candidate known selected=',' ordered=''
+  local -a parts=()
+  IFS=',' read -r -a parts <<< "$input" || true
+  if ((${#parts[@]} == 0)); then
+    printf 'no platform given\n' >&2
+    return 1
+  fi
+  for name in "${parts[@]}"; do
+    name="${name//[[:space:]]/}"
+    known=0
+    for candidate in "${KNOWN_PLATFORMS[@]}"; do
+      if [[ "$name" == "$candidate" ]]; then known=1; fi
+    done
+    if ((!known)); then
+      printf 'unknown platform "%s" (use claude-code, amp, codex)\n' "$name" >&2
+      return 1
+    fi
+    selected+="$name,"
+  done
+  for candidate in "${KNOWN_PLATFORMS[@]}"; do
+    if [[ "$selected" == *",$candidate,"* ]]; then ordered+="${ordered:+,}$candidate"; fi
+  done
+  printf '%s' "$ordered"
+}
+PLATFORMS_FILE="$PREFIX/platforms.installed"
+PLATFORM_INPUT=claude-code
+PLATFORM_NOTE=default
+if ((PLATFORM_GIVEN)); then
+  PLATFORM_INPUT=$PLATFORM_FLAG
+  PLATFORM_NOTE='--platform'
+elif [[ -f "$PLATFORMS_FILE" ]]; then
+  IFS= read -r PLATFORM_INPUT < "$PLATFORMS_FILE" || true
+  PLATFORM_NOTE="saved in $PLATFORMS_FILE"
+fi
+if ! PLATFORMS_CSV="$(normalize_platforms "$PLATFORM_INPUT")"; then
+  if ((PLATFORM_GIVEN)); then usage; exit 2; fi
+  printf 'Error: %s holds an invalid platform list; fix it or pass --platform.\n' "$PLATFORMS_FILE" >&2
+  exit 1
+fi
+printf 'Platforms: %s (%s)\n' "$PLATFORMS_CSV" "$PLATFORM_NOTE"
+has_platform() { [[ ",$PLATFORMS_CSV," == *",$1,"* ]]; }
+
 version_check() {
   local executable=$1 output status
   if command -v timeout >/dev/null 2>&1; then
@@ -127,6 +182,7 @@ package_version() {
 }
 
 CLIS=(claude codex agy cline)
+if has_platform amp; then CLIS+=(amp); fi
 CLI_MISSING=()
 codex_version=''
 if [[ "${USAGE_OPTIMIZER_SKIP_CLI_CHECK:-}" == 1 ]]; then
@@ -191,6 +247,15 @@ done
 for dir in bin agents mods output-styles improve; do
   if [[ ! -d "$SOURCE_DIR/$dir" ]]; then
     printf 'Error: required directory is missing: %s\n' "$SOURCE_DIR/$dir" >&2
+    exit 1
+  fi
+done
+platform_files=()
+if has_platform amp; then platform_files+=(platforms/amp/PLATFORM.md platforms/amp/usage-optimizer.ts); fi
+if has_platform codex; then platform_files+=(platforms/codex/PLATFORM.md platforms/codex/AGENTS.kit.md platforms/codex/hooks.fragment.json); fi
+for file in ${platform_files[@]+"${platform_files[@]}"}; do
+  if [[ ! -f "$SOURCE_DIR/$file" ]]; then
+    printf 'Error: required file is missing for the platform list: %s\n' "$SOURCE_DIR/$file" >&2
     exit 1
   fi
 done
@@ -354,7 +419,19 @@ PY
   fi
 fi
 
-retire_old_skills
+# The list used, so a later run without --platform installs the same platforms. Written only when it changes.
+saved_platforms=''
+if [[ -f "$PLATFORMS_FILE" ]]; then IFS= read -r saved_platforms < "$PLATFORMS_FILE" || true; fi
+if [[ -f "$PLATFORMS_FILE" && "$saved_platforms" == "$PLATFORMS_CSV" ]]; then
+  printf 'Platform list already recorded: %s\n' "$PLATFORMS_FILE"
+elif ((DRY_RUN)); then
+  printf 'DRY-RUN: record the platform list %s in %q\n' "$PLATFORMS_CSV" "$PLATFORMS_FILE"
+else
+  printf '%s\n' "$PLATFORMS_CSV" > "$PLATFORMS_FILE"
+  printf 'Recorded the platform list in %s\n' "$PLATFORMS_FILE"
+fi
+
+if has_platform claude-code; then retire_old_skills; fi
 
 PYTHON_TOOLS=(lane lane-stats lane-bench usage-status claude-statusline claude-prompts turn-meter kit-update)
 if [[ "$OS_NAME" == Windows ]]; then
@@ -373,6 +450,8 @@ if [[ "$OS_NAME" == Windows ]]; then
   done
 fi
 
+if has_platform claude-code; then
+# The Claude Code steps (agents, skills, mods, the mobile view, CLAUDE.md, settings.json) run only for that platform.
 printf '\nInstalling agent files\n'
 shopt -s nullglob
 agent_files=("$SOURCE_DIR"/agents/*.md)
@@ -814,6 +893,247 @@ else
   fi
 fi
 
+else
+  printf '\nClaude Code is not in the platform list; its steps are skipped.\n'
+fi
+
+if has_platform amp; then
+  printf '\nInstalling the Amp adapter\n'
+  AMP_DIR="$HOME/.config/amp"
+  AMP_AGENTS="$AMP_DIR/AGENTS.md"
+  AMP_PLUGINS="$AMP_DIR/plugins"
+  copy_managed_file "$SOURCE_DIR/platforms/amp/PLATFORM.md" "$PREFIX/platforms/amp/PLATFORM.md" \
+    "platforms/amp/PLATFORM.md"
+  copy_managed_file "$SOURCE_DIR/platforms/amp/usage-optimizer.ts" "$AMP_PLUGINS/usage-optimizer.ts" \
+    "amp/plugins/usage-optimizer.ts"
+  # The plugin finds the interpreter and the kit folder in this file beside it. json.dump writes it, so any path is escaped.
+  PATHS_DIR="$(mktemp -d)"
+  "$PYTHON" - "$PATHS_DIR/usage-optimizer.paths.json" "$PYTHON_NATIVE" "$PREFIX_NATIVE" <<'PY'
+import json
+import sys
+
+path, python, prefix = sys.argv[1:]
+with open(path, "w", encoding="utf-8", newline="\n") as stream:
+    json.dump({"python": python, "prefix": prefix}, stream, indent=2)
+    stream.write("\n")
+PY
+  copy_managed_file "$PATHS_DIR/usage-optimizer.paths.json" "$AMP_PLUGINS/usage-optimizer.paths.json" \
+    "amp/plugins/usage-optimizer.paths.json"
+  rm -rf "$PATHS_DIR"
+
+  printf '\nUpdating the Amp AGENTS.md\n'
+  if [[ -e "$AMP_AGENTS" || -L "$AMP_AGENTS" ]] && [[ ! -f "$AMP_AGENTS" ]]; then
+    printf 'Error: %s is not a regular file.\n' "$AMP_AGENTS" >&2
+    exit 1
+  fi
+  AMP_HEADING='# Claude Usage Optimizer on Amp (shared across machines; edit its source, not this line)'
+  AMP_IMPORTS=('@~/.claude/usage-optimizer/platforms/amp/PLATFORM.md' '@~/.claude/usage-optimizer/POLICY.md')
+  amp_missing=()
+  for line in "${AMP_IMPORTS[@]}"; do
+    if [[ ! -f "$AMP_AGENTS" ]] || ! grep -Fqx "$line" "$AMP_AGENTS"; then amp_missing+=("$line"); fi
+  done
+  if ((${#amp_missing[@]} == 0)); then
+    printf 'Amp policy imports already present; skipping.\n'
+  else
+    if [[ -f "$AMP_AGENTS" ]]; then backup_file "$AMP_AGENTS" 'amp/AGENTS.md'; fi
+    if ((DRY_RUN)); then
+      printf 'DRY-RUN: append the Amp heading and %s to %q\n' "${amp_missing[*]}" "$AMP_AGENTS"
+    else
+      if [[ ! -d "$AMP_DIR" ]]; then mkdir -p "$AMP_DIR"; fi
+      {
+        if [[ -s "$AMP_AGENTS" ]]; then printf '\n'; fi
+        printf '%s\n' "$AMP_HEADING"
+        printf '%s\n' "${amp_missing[@]}"
+      } >> "$AMP_AGENTS"
+      printf 'Added the Amp policy imports to %s\n' "$AMP_AGENTS"
+    fi
+  fi
+fi
+
+if has_platform codex; then
+  printf '\nInstalling the Codex adapter\n'
+  # POLICY.md points Codex sessions at these notes; the AGENTS.md block below carries the same text.
+  copy_managed_file "$SOURCE_DIR/platforms/codex/PLATFORM.md" "$PREFIX/platforms/codex/PLATFORM.md" \
+    "platforms/codex/PLATFORM.md"
+  CODEX_DIR="${CODEX_HOME:-$HOME/.codex}"
+  if [[ "$OS_NAME" == Windows ]]; then CODEX_DIR="$(cygpath -u "$CODEX_DIR")"; fi
+  CODEX_AGENTS="$CODEX_DIR/AGENTS.md"
+  CODEX_HOOKS="$CODEX_DIR/hooks.json"
+  if ((DRY_RUN)); then CODEX_MODE=preview; else CODEX_MODE=write; fi
+  # Both files are merged into a scratch folder first, so a bad input changes nothing under CODEX_HOME.
+  CODEX_MERGED="$(mktemp -d)"
+  if ! "$PYTHON" - "$SOURCE_DIR/platforms/codex/AGENTS.kit.md" "$CODEX_AGENTS" "$CODEX_MERGED/AGENTS.md" "$CODEX_MODE" <<'PY'
+import os
+import sys
+
+kit_path, path, out_path, mode = sys.argv[1:]
+prefix = "DRY-RUN: " if mode == "preview" else ""
+start = "<!-- usage-optimizer:start -->"
+end = "<!-- usage-optimizer:end -->"
+with open(kit_path, encoding="utf-8", newline="") as stream:
+    kit = stream.read().replace("\r\n", "\n").rstrip("\n")
+block = start + "\n" + kit + "\n" + end + "\n"
+text = ""
+if os.path.exists(path):
+    with open(path, encoding="utf-8", newline="") as stream:
+        text = stream.read()
+lines = text.splitlines(keepends=True)
+starts = [i for i, line in enumerate(lines) if line.rstrip("\r\n") == start]
+ends = [i for i, line in enumerate(lines) if line.rstrip("\r\n") == end]
+if len(starts) != len(ends) or len(starts) > 1 or (starts and ends[0] < starts[0]):
+    sys.stderr.write("Error: %s has a usage-optimizer marker that is unmatched or repeated; fix it and rerun.\n" % path)
+    sys.exit(1)
+if starts:
+    new_text = "".join(lines[:starts[0]]) + block + "".join(lines[ends[0] + 1:])
+else:
+    separator = "" if not text or text.endswith("\n\n") else ("\n" if text.endswith("\n") else "\n\n")
+    new_text = text + separator + block
+if new_text == text:
+    print("Codex AGENTS.md already has the current usage-optimizer block; skipping.")
+    sys.exit(0)
+size = len(new_text.encode("utf-8"))
+with open(out_path, "w", encoding="utf-8", newline="\n") as stream:
+    stream.write(new_text)
+print(prefix + "Codex AGENTS.md: %s the usage-optimizer block (the file is then %d bytes)"
+      % ("replace" if starts else "add", size))
+if size > 32768:
+    sys.stderr.write("Warning: %s would be %d bytes; Codex reads at most 32 KiB of AGENTS.md instructions in total.\n"
+                     % (path, size))
+PY
+  then
+    rm -rf "$CODEX_MERGED"
+    exit 1
+  fi
+  if ! "$PYTHON" - "$SOURCE_DIR/platforms/codex/hooks.fragment.json" "$CODEX_HOOKS" "$CODEX_MERGED/hooks.json" \
+       "$CODEX_MODE" "$OS_NAME" "$PYTHON_NATIVE" "$PREFIX_NATIVE" <<'PY'
+import copy
+import json
+import os
+import re
+import sys
+
+fragment_path, path, out_path, mode, os_name, python_native, prefix = sys.argv[1:]
+label = "DRY-RUN: Codex hooks.json would gain " if mode == "preview" else "Codex hooks.json gains "
+
+def fill(value):
+    if isinstance(value, str):
+        return value.replace("__PYTHON__", python_native).replace("__PREFIX__", prefix)
+    if isinstance(value, list):
+        return [fill(item) for item in value]
+    if isinstance(value, dict):
+        return {key: fill(item) for key, item in value.items()}
+    return value
+
+if os_name == "Windows" and (" " in python_native or " " in prefix):
+    sys.stderr.write("Error: on Windows the Python and install paths must not contain spaces: %s %s\n"
+                     % (python_native, prefix))
+    sys.exit(1)
+with open(fragment_path, encoding="utf-8") as stream:
+    wanted = fill(json.load(stream)["hooks"])
+# Each handler's Windows command is under "windowsCommand" in the fragment. It is never written: on Windows it becomes
+# "command" (the script run with the Python that installed the kit), elsewhere "command" stays the bin/ wrapper.
+for groups in wanted.values():
+    for group in groups:
+        for handler in group["hooks"]:
+            windows_command = handler.pop("windowsCommand")
+            if os_name == "Windows":
+                handler["command"] = windows_command
+
+data = {}
+if os.path.exists(path):
+    try:
+        with open(path, encoding="utf-8") as stream:
+            data = json.load(stream)
+    except ValueError as error:
+        sys.stderr.write("Error: %s is not valid JSON (%s); fix it or move it aside, then rerun.\n" % (path, error))
+        sys.exit(1)
+if not isinstance(data, dict) or not isinstance(data.get("hooks", {}), dict):
+    sys.stderr.write("Error: %s must hold a JSON object, and its hooks must be an object.\n" % path)
+    sys.exit(1)
+hooks = data.setdefault("hooks", {})
+
+def turn_args(command):
+    # The arguments after turn-meter (or turn-meter.py): "hook --platform codex" or "compact-gate --platform codex".
+    match = re.search(r"turn-meter(?:\.py)?\s+(.*)$", command)
+    return match.group(1).strip() if match else None
+
+def has_turn_hook(value, args):
+    if isinstance(value, dict):
+        text = value.get("command")
+        if isinstance(text, str) and turn_args(text) == args:
+            return True
+        return any(has_turn_hook(item, args) for item in value.values())
+    if isinstance(value, list):
+        return any(has_turn_hook(item, args) for item in value)
+    return False
+
+messages = []
+for event, groups in wanted.items():
+    existing = hooks.get(event)
+    if existing is not None and not isinstance(existing, list):
+        sys.stderr.write("Error: %s: hooks.%s must be a JSON array.\n" % (path, event))
+        sys.exit(1)
+    for group in groups:
+        args = turn_args(group["hooks"][0]["command"])
+        if has_turn_hook(existing or [], args):
+            continue
+        if existing is None:
+            existing = hooks[event] = []
+        existing.append(copy.deepcopy(group))
+        messages.append("%s %s" % (event, json.dumps(group)))
+if not messages:
+    print("Codex hooks.json already has the turn-meter hooks; skipping.")
+    sys.exit(0)
+with open(out_path, "w", encoding="utf-8", newline="\n") as stream:
+    json.dump(data, stream, indent=2, ensure_ascii=False)
+    stream.write("\n")
+for message in messages:
+    print(label + message)
+PY
+  then
+    rm -rf "$CODEX_MERGED"
+    exit 1
+  fi
+  # Both merges have succeeded, so nothing under CODEX_HOME changes unless every input was valid.
+  if [[ -f "$CODEX_MERGED/AGENTS.md" ]]; then
+    if [[ ! -d "$CODEX_DIR" ]]; then action mkdir -p "$CODEX_DIR"; fi
+    if [[ -f "$CODEX_AGENTS" ]]; then backup_file "$CODEX_AGENTS" 'codex/AGENTS.md'; fi
+    action cp "$CODEX_MERGED/AGENTS.md" "$CODEX_AGENTS"
+  fi
+  if [[ -e "$CODEX_DIR/AGENTS.override.md" ]]; then
+    printf 'Warning: %s exists; Codex reads it instead of AGENTS.md, so the usage-optimizer block is not used until you remove it or copy the block into it.\n' \
+      "$CODEX_DIR/AGENTS.override.md" >&2
+  fi
+  if [[ -f "$CODEX_MERGED/hooks.json" ]]; then
+    hooks_existed=0
+    if [[ -f "$CODEX_HOOKS" ]]; then
+      hooks_existed=1
+      backup_file "$CODEX_HOOKS" 'codex/hooks.json'
+    fi
+    if ((DRY_RUN)); then
+      printf 'DRY-RUN: write %q and read it back to validate it\n' "$CODEX_HOOKS"
+    else
+      if [[ ! -d "$CODEX_DIR" ]]; then mkdir -p "$CODEX_DIR"; fi
+      hooks_tmp="$CODEX_HOOKS.usage-optimizer-tmp.$$"
+      cp "$CODEX_MERGED/hooks.json" "$hooks_tmp"
+      if mv -f "$hooks_tmp" "$CODEX_HOOKS" && "$PYTHON" -c 'import json,sys; value=json.load(open(sys.argv[1], encoding="utf-8")); sys.exit(0 if isinstance(value, dict) else 1)' "$CODEX_HOOKS"; then
+        printf 'Codex hooks.json merged and validated.\n'
+      else
+        rm -f "$hooks_tmp"
+        if ((hooks_existed)); then
+          cp -pP "$BACKUP_DIR/codex/hooks.json" "$CODEX_HOOKS"
+        else
+          rm -f "$CODEX_HOOKS"
+        fi
+        rm -rf "$CODEX_MERGED"
+        printf 'Error: Codex hooks.json merge or validation failed; restored the previous file.\n' >&2
+        exit 1
+      fi
+    fi
+  fi
+  rm -rf "$CODEX_MERGED"
+fi
+
 printf '\nInstalling tools on PATH\n'
 LOCAL_BIN="$HOME/.local/bin"
 action mkdir -p "$LOCAL_BIN"
@@ -906,15 +1226,19 @@ fi
 printf 'Account switches: ChatGPT data controls off; Antigravity training off; Claude model-training setting off; Claude extra usage: check it (the policy assumes it is off, so there is no reserve).\n'
 printf 'Verify: ~/.claude/usage-optimizer/bin/usage-status --no-agy\n'
 printf 'Verify: ~/.claude/usage-optimizer/bin/lane luna -C <dir> -b <brief> -e medium --dry-run\n'
-printf 'Verify: ~/.claude/usage-optimizer/bin/claude-prompts --latest --text (your questions in the newest session)\n'
+if has_platform claude-code; then
+  printf 'Verify: ~/.claude/usage-optimizer/bin/claude-prompts --latest --text (your questions in the newest session)\n'
+fi
 if [[ -n "$SOURCE_CHECKOUT" ]]; then
   printf 'Updates: the statusline checks the origin of %s every 6 hours and names a newer release;\n' "$SOURCE_CHECKOUT"
   printf '  check now with ~/.claude/usage-optimizer/bin/kit-update check (USAGE_OPTIMIZER_UPDATE_CHECK=off turns it off).\n'
 else
   printf 'Updates: not checked; a bundle install has no checkout to fetch (install from a git clone for that).\n'
 fi
-printf 'Verify: claude plugin list shows sessions@skills-dir (the Sessions pane: /sessions, or . in an empty prompt)\n'
-if [[ "$VIEW" == apply ]]; then
+if has_platform claude-code; then
+  printf 'Verify: claude plugin list shows sessions@skills-dir (the Sessions pane: /sessions, or . in an empty prompt)\n'
+fi
+if has_platform claude-code && [[ "$VIEW" == apply ]]; then
   printf 'Verify: claude plugin validate %s; claude plugin list shows mobile-view@skills-dir\n' "$MOD_DIR"
   printf 'Mobile view: restart Claude Code. Tool calls show one line each (click one to expand it), long code\n'
   printf '  blocks fold, > in an empty prompt lists your questions (Esc goes back), /mobile-view off shows the stock view.\n'
@@ -922,7 +1246,20 @@ fi
 if [[ "$OS_NAME" == Windows ]]; then
   printf 'On Windows the tools run through the wrappers in ~/.local/bin (lane, or lane.cmd outside Git Bash).\n'
 fi
-printf 'Restart Claude Code sessions to load the new settings.\n'
+if has_platform claude-code; then
+  printf 'Restart Claude Code sessions to load the new settings.\n'
+fi
+if has_platform amp; then
+  printf 'Amp: restart Amp or run `plugins: reload` to load the usage-optimizer plugin.\n'
+  printf 'Amp: the policy is imported from %s; ~/.config/amp/settings.json and ~/.config/AGENTS.md are not changed.\n' \
+    "$AMP_AGENTS"
+fi
+if has_platform codex; then
+  printf 'Codex: open /hooks once in Codex and trust the usage-optimizer hooks.\n'
+  printf 'Codex status line (suggested, not written): tui.status_line = ["model-with-reasoning", "context-used", "five-hour-limit", "weekly-limit"] in %s\n' \
+    "$CODEX_DIR/config.toml"
+  printf 'Codex: the hooks and the policy block are unverified against a live Codex session.\n'
+fi
 if ((DRY_RUN)); then
   printf 'Dry run complete; installer actions were not applied.\n'
 fi

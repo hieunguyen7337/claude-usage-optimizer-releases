@@ -315,5 +315,16 @@ class LaneSubagentTests(unittest.TestCase):
         self.assertEqual(meta["subagent"]["efforts_seen"], ["low"])
 
 
+    def test_subagent_refused_where_the_platform_has_no_subagent_place(self):
+        env = dict(self.env, KIT_PLATFORM="amp")
+        argv = [sys.executable, SCRIPT, "haiku", "-C", self.workspace, "-b", self.brief, "-e", "high",
+                "--class", "mechanical", "--subagent"]
+        result = subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30, check=False,
+                                env=env, encoding="utf-8", errors="replace")
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertIn("--subagent is not available on amp", result.stderr)
+        self.assertIn("process form", result.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

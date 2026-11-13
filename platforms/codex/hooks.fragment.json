@@ -1,0 +1,40 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__PREFIX__/bin/turn-meter hook --platform codex",
+            "windowsCommand": "__PYTHON__ __PREFIX__/bin/turn-meter.py hook --platform codex",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__PREFIX__/bin/turn-meter hook --platform codex",
+            "windowsCommand": "__PYTHON__ __PREFIX__/bin/turn-meter.py hook --platform codex",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "__PREFIX__/bin/turn-meter compact-gate --platform codex",
+            "windowsCommand": "__PYTHON__ __PREFIX__/bin/turn-meter.py compact-gate --platform codex",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

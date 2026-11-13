@@ -26,25 +26,27 @@ from urllib.parse import urlsplit
 IS_WINDOWS = os.name == "nt"
 # CreateProcess rejects command lines longer than 32,767 characters; keep headroom for quoting.
 WINDOWS_COMMAND_LINE_LIMIT = 32000
-LANES = ("luna", "terra", "sol", "astra", "haiku", "sonnet", "opus", "fable", "gemini", "cursor", "grok", "glm",
+LANES = ("luna", "terra", "sol", "astra", "haiku", "sonnet", "opus", "fable", "gemini", "cursor", "grok", "glm", "amp",
          "codex-cloud")
 CODEX_LANES = ("luna", "terra", "sol", "astra")
 CLAUDE_LANES = ("haiku", "sonnet", "opus", "fable")
 FABLE_ROLES = ("plan", "ladder", "final-review", "tiebreak", "work", "user")
 ADVISOR_DAYS = 7
 PROVIDERS = {"luna": "codex", "terra": "codex", "sol": "codex", "astra": "codex", "haiku": "claude",
-             "sonnet": "claude", "opus": "claude", "fable": "claude", "gemini": "gemini", "cursor": "cursor", "grok": "grok", "glm": "cline", "codex-cloud": "codex"}
+             "sonnet": "claude", "opus": "claude", "fable": "claude", "gemini": "gemini", "cursor": "cursor", "grok": "grok", "glm": "cline", "amp": "amp", "codex-cloud": "codex"}
 DEFAULT_MODELS = {"luna": "gpt-6-luna", "terra": "gpt-6.1-terra", "sol": "gpt-6.1-sol", "astra": "gpt-6-astra",
                   "haiku": "claude-haiku-5-5", "sonnet": "claude-sonnet-5-5", "opus": "claude-opus-5-5",
                   "fable": "claude-fable-5-2",
-                  "gemini": "gemini-3.8-flash-high", "cursor": "grok-4.7-medium", "grok": "grok-4.7", "glm": "z-ai/glm-5.3-flash", "codex-cloud": "codex-cloud"}
+                  "gemini": "gemini-3.8-flash-high", "cursor": "grok-4.7-medium", "grok": "grok-4.7", "glm": "z-ai/glm-5.3-flash", "amp": "claude-opus-5-5",
+                  "codex-cloud": "codex-cloud"}
 # gpt-6.1-sol is absent from older catalogs, and a client without the model reports a 400 as an account refusal.
 # gpt-6.1-terra needs 0.159.0 (OpenAI's release notes, 2026-10-26).
 CODEX_MIN_VERSION = {"luna": (0, 156, 1), "terra": (0, 159, 0), "sol": (0, 159, 1), "astra": (0, 159, 1)}
 MB = 1024 * 1024
 # Built-in copy of arms.json explore.memory, used when the catalog or a key is missing.
 MEMORY_DEFAULTS = {"lane_mb": {"luna": 400, "terra": 400, "sol": 400, "astra": 400, "haiku": 700, "sonnet": 700,
-                               "opus": 700, "fable": 700, "gemini": 500, "cursor": 600, "grok": 400, "glm": 500},
+                               "opus": 700, "fable": 700, "gemini": 500, "cursor": 600, "grok": 400, "glm": 500,
+                               "amp": 600},
                    "default_mb": 700, "reserve_mb": 1536, "reserve_fraction": 0.1, "recent_runs": 20, "min_runs": 3,
                    "young_run_seconds": 120}
 ANSI_CSI_RE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
@@ -53,6 +55,17 @@ QUOTA_RE = re.compile(
     re.IGNORECASE,
 )
 CLAUDE_QUOTA_RE = re.compile(r"usage limit|limit reached|hit your limit|rate limit|\b429\b", re.IGNORECASE)
+# Amp's stop wording beyond QUOTA_RE (plans/amp-codex/PLAN.md section 3.4).
+AMP_QUOTA_RE = re.compile(QUOTA_RE.pattern + r"|\binsufficient credits\b|\bout of credits\b|\busage limit\b",
+                          re.IGNORECASE)
+AMP_THREAD_RE = re.compile(r"T-[0-9A-Za-z][0-9A-Za-z-]*")
+# Built-in copy of arms.json explore.platforms, used when the catalog has none (kit_platform, platform_places).
+PLATFORM_DEFAULTS = {
+    "claude-code": {"places": ["process", "subagent", "cloud"], "env_markers": ["CLAUDECODE"]},
+    "amp": {"places": ["process", "cloud"], "env_markers": ["AMP_CURRENT_THREAD_ID"]},
+    "codex": {"places": ["process", "cloud"], "env_markers": []},
+}
+AMP_SETTINGS_NAME = "amp-settings.json"
 PICK_RE = re.compile(r"[A-Za-z0-9._-]{1,64}")
 MASK_DEFAULTS = (
     "~/.ssh", "~/.gnupg", "~/.aws", "~/.azure", "~/.kube", "~/.docker",
@@ -88,6 +101,7 @@ KEEP = {
     "cursor": ("~/.cursor",),
     "grok": ("~/.grok",),
     "glm": ("~/.cline",),
+    "amp": ("~/.amp", "~/.config/amp", "~/.local/share/amp"),
 }
 GEMINI_BLOCK = (
     "EXECUTION DISCIPLINE (mandatory): run every command synchronously in the foreground and wait for it\n"
@@ -697,7 +711,7 @@ def with_launcher(command, executable):
     return launch_prefix(executable) + command[1:]
 
 
-def build_command(lane, opts, model, dir_path, brief_text, outdir, executable):
+def build_command(lane, opts, model, dir_path, brief_text, outdir, executable, amp_settings=None):
     if lane == "codex-cloud":
         return [executable or "codex", "cloud", "exec"]
     if lane in CODEX_LANES:
@@ -755,6 +769,16 @@ def build_command(lane, opts, model, dir_path, brief_text, outdir, executable):
         if model != "grok-4.7-build-fast":
             argv.extend(["--reasoning-effort", opts.effort])
         argv.extend(["--permission-mode", "plan"] if opts.ro else ["--always-approve"])
+        return argv
+    if lane == "amp":
+        # `threads continue` keeps the thread's own model and effort, so --model and --effort are for new threads only.
+        # --settings-file is a root flag: it goes before the subcommand, and the run's approvals ride on it.
+        head = [executable or "amp"] + (["--settings-file", amp_settings] if amp_settings else [])
+        if opts.resume:
+            return head + ["threads", "continue", opts.resume, "-x", "--stream-json"]
+        argv = head + ["-x", "--stream-json", "--model", model]
+        if opts.effort:
+            argv.extend(["--effort", opts.effort])
         return argv
     return [executable or "cline", "-P", "cline", "-m", model, "-c", dir_path,
             "--auto-approve", "true", "-t", "900", brief_text]
@@ -2289,7 +2313,7 @@ def window_change_warning():
 def read_usage(provider):
     if os.environ.get("LANE_NO_USAGE") == "1":
         return None, "disabled"
-    if provider in ("cline", "cursor", "grok"):
+    if provider in ("cline", "cursor", "grok", "amp"):
         return None, "no meter"
     prefix = [sys.executable, sibling_script("usage-status")]
     if provider == "codex":
@@ -2491,6 +2515,22 @@ def token_fields(source, aliases):
     return counts
 
 
+def claude_style_counts(source):
+    """Token counts of a Claude-shaped usage object: input is input_tokens plus cache writes; cached is cache reads."""
+    if not isinstance(source, dict):
+        return None
+    counts = token_fields(source, {"input": ("input_tokens",), "cached": ("cache_read_input_tokens",),
+                                   "output": ("output_tokens",), "total": ()})
+    creation = token_count(source.get("cache_creation_input_tokens"))
+    if creation is not None:
+        if counts is None:
+            counts = {"input": None, "cached": None, "output": None, "total": None}
+        counts["input"] = (counts["input"] or 0) + creation
+    if counts is not None and all(counts[key] is not None for key in ("input", "cached", "output")):
+        counts["total"] = counts["input"] + counts["cached"] + counts["output"]
+    return counts
+
+
 def run_tokens(lane, log_text, stdout_text):
     if lane in CODEX_LANES:
         matches = re.findall(r"tokens used\s*\n\s*([0-9][0-9,]*)", strip_ansi(log_text), re.IGNORECASE)
@@ -2498,19 +2538,10 @@ def run_tokens(lane, log_text, stdout_text):
                 "total": int(matches[-1].replace(",", ""))} if matches else None
     data = last_gemini_object(strip_ansi(stdout_text or ""))
     if lane in CLAUDE_LANES:
-        source = data.get("usage")
-        if not isinstance(source, dict):
-            return None
-        counts = token_fields(source, {"input": ("input_tokens",), "cached": ("cache_read_input_tokens",),
-                                       "output": ("output_tokens",), "total": ()})
-        creation = token_count(source.get("cache_creation_input_tokens"))
-        if creation is not None:
-            if counts is None:
-                counts = {"input": None, "cached": None, "output": None, "total": None}
-            counts["input"] = (counts["input"] or 0) + creation
-        if counts is not None and all(counts[key] is not None for key in ("input", "cached", "output")):
-            counts["total"] = counts["input"] + counts["cached"] + counts["output"]
-        return counts
+        return claude_style_counts(data.get("usage"))
+    if lane == "amp":
+        events = amp_events(strip_ansi(stdout_text or ""))
+        return claude_style_counts(amp_usage_source(events, amp_result(events)))
     if lane == "gemini":
         aliases = {"input": ("input_tokens", "prompt_tokens", "promptTokenCount", "input"),
                    "cached": ("cached_tokens", "cache_read_input_tokens", "cachedContentTokenCount", "cached"),
@@ -2945,7 +2976,7 @@ def codex_usage(session_id, started_at, ended_at, catalog):
 def append_ledger(run_dir, meta):
     fields = ("lane", "provider", "model", "effort", "class", "tag", "pick_id", "arm", "off_catalog", "ro", "resume",
               "place", "started_at", "ended_at", "duration_s", "verdict", "exit_code", "session_id", "usage",
-              "eta_s", "eta_p80_s", "eta_tier", "brief_bytes", "peak_mem_mb", "mode")
+              "eta_s", "eta_p80_s", "eta_tier", "brief_bytes", "peak_mem_mb", "mode", "platform")
     # .get: a run recovered from an older lane has no pick_id, arm, off_catalog or peak_mem_mb.
     record = {key: meta.get(key) for key in fields}
     if meta.get("verify"):
@@ -3330,6 +3361,321 @@ def compose_brief(lane, brief_bytes, ro):
     return brief_bytes + separator + rules.encode("utf-8") + b"\n"
 
 
+def platform_table(catalog):
+    """explore.platforms from the catalog (its order decides which marker wins), else the built-in copy."""
+    explore = catalog.get("explore") if isinstance(catalog, dict) else None
+    table = explore.get("platforms") if isinstance(explore, dict) else None
+    return table if isinstance(table, dict) and table else PLATFORM_DEFAULTS
+
+
+def kit_platform(catalog=None):
+    """The platform this kit runs on: KIT_PLATFORM, else the first platform whose env marker is set, else claude-code."""
+    table = platform_table(catalog)
+    named = os.environ.get("KIT_PLATFORM", "").strip()
+    if named:
+        if named not in table:
+            raise ValueError("KIT_PLATFORM names no platform (platforms: {})".format(", ".join(table)))
+        return named
+    for name, entry in table.items():
+        markers = entry.get("env_markers") if isinstance(entry, dict) else None
+        if isinstance(markers, list) and any(marker in os.environ for marker in markers):
+            return name
+    return "claude-code"
+
+
+def platform_places(catalog, platform):
+    """The places a platform runs in; a platform the catalog does not describe runs in all three."""
+    entry = platform_table(catalog).get(platform)
+    places = entry.get("places") if isinstance(entry, dict) else None
+    return list(places) if isinstance(places, list) else ["process", "subagent", "cloud"]
+
+
+def amp_events(text):
+    """Every JSON object line of an amp stream-json output, in order; other lines are skipped."""
+    events = []
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(event, dict) and isinstance(event.get("type"), str):
+            events.append(event)
+    return events
+
+
+def amp_result(events):
+    """The last result event (Claude Code's shape, which amp --stream-json copies), or None."""
+    results = [event for event in events if event.get("type") == "result"]
+    return results[-1] if results else None
+
+
+def amp_session(events, result):
+    """The thread id: the result's session_id, else the first system event's (a cut stream has no result)."""
+    if result is not None and isinstance(result.get("session_id"), str):
+        return result["session_id"]
+    for event in events:
+        if event.get("type") == "system" and isinstance(event.get("session_id"), str):
+            return event["session_id"]
+    return None
+
+
+AMP_USAGE_KEYS = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
+
+
+def amp_usage_source(events, result):
+    """The run's usage object: the result's, else the sum of the assistant messages' usage, each message once."""
+    if result is not None and isinstance(result.get("usage"), dict):
+        return result["usage"]
+    totals, seen = {}, set()
+    for event in events:
+        if event.get("type") != "assistant":
+            continue
+        message = event.get("message") if isinstance(event.get("message"), dict) else {}
+        usage = message.get("usage") if isinstance(message.get("usage"), dict) else event.get("usage")
+        if not isinstance(usage, dict):
+            continue
+        # A message that streams in several events repeats its usage on each: count its id once.
+        identity = message.get("id")
+        if identity is not None:
+            if identity in seen:
+                continue
+            seen.add(identity)
+        for name in AMP_USAGE_KEYS:
+            value = token_count(usage.get(name))
+            if value is not None:
+                totals[name] = totals.get(name, 0) + value
+    return totals or None
+
+
+def amp_run_env(outdir):
+    """The two variables every amp process a lane starts carries (LANES.md, amp: worker silence)."""
+    return {"KIT_LANE_RUN": os.path.basename(os.path.normpath(outdir)), "USAGE_OPTIMIZER_TURNS": "off"}
+
+
+def amp_child_env(outdir, base=None):
+    return dict(os.environ if base is None else base, **amp_run_env(outdir))
+
+
+def amp_allow_all(catalog):
+    """False only when providers.amp.allow_all is false (arms.json or arms.local.json): then no settings file is passed."""
+    providers = catalog.get("providers") if isinstance(catalog, dict) else None
+    amp = providers.get("amp") if isinstance(providers, dict) else None
+    return not (isinstance(amp, dict) and amp.get("allow_all") is False)
+
+
+def amp_settings_document():
+    """The user's Amp settings with amp.dangerouslyAllowAll set: `amp -x` has no approval flag, only this key."""
+    try:
+        with open(os.path.join(os.path.expanduser("~"), ".config", "amp", "settings.json"), encoding="utf-8") as stream:
+            document = json.load(stream)
+    except (OSError, ValueError):
+        document = {}
+    if not isinstance(document, dict):
+        document = {}
+    document["amp.dangerouslyAllowAll"] = True
+    return document
+
+
+def write_amp_settings(path):
+    """Writes the run's settings file for `amp --settings-file`; the user's own settings file is never written."""
+    try:
+        with open(path, "w", encoding="utf-8") as stream:
+            json.dump(amp_settings_document(), stream)
+    except OSError as exc:
+        raise LaneError("cannot write {}: {}".format(path, exc), 8)
+
+
+def remove_amp_settings(path):
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def amp_cli_model(catalog, model, effort):
+    """The provider/name that `amp --model` takes: the arm's cli_model, else the model as given (an off-catalog id)."""
+    arm = arm_for(catalog, "amp", model, effort) if catalog is not None else None
+    return (arm.get("cli_model") if arm else None) or model
+
+
+def kill_amp_cost_tree(proc):
+    # On Windows the .cmd wrapper alone would leave its child holding the pipes, so the whole tree goes (as taskkill /T
+    # does for a worker); the call then returns without reading the pipes again.
+    if os.name == "nt":
+        try:
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+        except OSError:
+            pass
+    try:
+        proc.kill()
+    except OSError:
+        pass
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        pass
+    for stream in (proc.stdout, proc.stderr):
+        if stream is not None:
+            stream.close()
+
+
+AMP_REPORT_SCOPE = "Scope: Entire lifetime of this thread"
+AMP_REPORT_COST_RE = re.compile(r"^Cost:[ \t]*\$([0-9][0-9,]*(?:\.[0-9]+)?)[ \t]*$", re.M)
+
+
+def amp_report_table(text, heading):
+    """The rows of the markdown table under "## <heading>", its header row first and the rule row dropped: None when the
+    report has no such heading, [] when the table has no rows. (The same rule as turn-meter's _amp_table.)"""
+    lines = text.splitlines()
+    start = next((index for index, line in enumerate(lines) if line.strip() == "## " + heading), None)
+    if start is None:
+        return None
+    rows = []
+    for line in lines[start + 1:]:
+        if line.startswith("## "):
+            break
+        stripped = line.strip()
+        if stripped.startswith("|"):
+            cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+            if not all(re.fullmatch(r":?-+:?", cell) for cell in cells):
+                rows.append(cells)
+    return rows
+
+
+def amp_report_dollars(cell):
+    match = re.fullmatch(r"\$([0-9][0-9,]*(?:\.[0-9]+)?)", cell)
+    return float(match.group(1).replace(",", "")) if match else None
+
+
+def amp_report_list_usd(text, amp_usd):
+    """The Models table's "Est. list price" column summed when every row's cell parses; else Amp's own cost."""
+    table = amp_report_table(text, "Models") or []
+    if len(table) < 2 or "Est. list price" not in table[0]:
+        return amp_usd
+    index = table[0].index("Est. list price")
+    values = [amp_report_dollars(row[index]) if len(row) > index else None for row in table[1:]]
+    return amp_usd if any(value is None for value in values) else round(sum(values), 6)
+
+
+def amp_report_routes(text):
+    """The Model Routing table's Routing names: "claude" for Via [Claude Subscription], "amp" for a cell with no Via [...],
+    "other" for any other Via [...]. Empty when the table or its Routing column is absent."""
+    table = amp_report_table(text, "Model Routing") or []
+    if len(table) < 2 or "Routing" not in table[0]:
+        return set()
+    index = table[0].index("Routing")
+    routes = set()
+    for row in table[1:]:
+        cell = row[index] if len(row) > index else ""
+        via = re.search(r"Via \[([^\]]*)\]", cell)
+        routes.add("amp" if via is None else "claude" if via.group(1).strip() == "Claude Subscription" else "other")
+    return routes
+
+
+def amp_report_billed(routes, amp_usd):
+    """claude when every route is the Claude subscription; amp when every route is Amp, or none is listed and Amp charged;
+    mixed otherwise."""
+    if routes == {"claude"}:
+        return "claude"
+    if routes == {"amp"} or (not routes and amp_usd > 0):
+        return "amp"
+    return "mixed"
+
+
+def amp_report_usage(text):
+    """A thread's figures from `amp threads usage --details`: amp_usd, list_usd, routed and billed. None unless the
+    report's Scope line says the entire lifetime of the thread and it has exactly one Cost line. (The same rule as
+    turn-meter's _amp_usage: a test asserts both give the same result on both fixtures.)"""
+    if not isinstance(text, str) or AMP_REPORT_SCOPE not in text:
+        return None
+    found = AMP_REPORT_COST_RE.findall(text)
+    if len(found) != 1:
+        return None
+    amp_usd = float(found[0].replace(",", ""))
+    routes = amp_report_routes(text)
+    return {"amp_usd": amp_usd, "list_usd": amp_report_list_usd(text, amp_usd), "routed": sorted(routes),
+            "billed": amp_report_billed(routes, amp_usd)}
+
+
+def amp_billed_to(catalog):
+    """providers.amp.billed_to of the arms catalog (arms.local.json merged over arms.json): claude or codex, else None."""
+    providers = catalog.get("providers") if isinstance(catalog, dict) else None
+    amp = providers.get("amp") if isinstance(providers, dict) else None
+    billed = amp.get("billed_to") if isinstance(amp, dict) else None
+    return billed if billed in ("claude", "codex") else None
+
+
+def amp_threads_usage(executable, thread, env, timeout=20):
+    """The thread's usage (amp_report_usage) from `amp threads usage --details` (20 s), or None when it cannot be read."""
+    argv = with_launcher([executable or "amp", "threads", "usage", thread, "--details"], executable)
+    try:
+        proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+    except OSError:
+        return None
+    try:
+        stdout, _ = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        kill_amp_cost_tree(proc)
+        return None
+    if proc.returncode:
+        return None
+    return amp_report_usage(strip_ansi(stdout.decode("utf-8", errors="replace")))
+
+
+def amp_token_list_usd(model, source, catalog):
+    """(list dollars, None), or (None, why): the run's tokens priced from the kit's own tables."""
+    if not isinstance(source, dict):
+        return None, "token usage unavailable"
+    providers = catalog.get("providers") if isinstance(catalog, dict) else None
+    if not isinstance(providers, dict):
+        return None, "price tables unavailable"
+    raw = {key: token_count(source.get(key)) or 0 for key in AMP_USAGE_KEYS}
+    if model.startswith("claude-"):
+        claude = providers.get("claude") if isinstance(providers.get("claude"), dict) else {}
+        tokens = {"input": raw["input_tokens"], "cache_read": raw["cache_read_input_tokens"],
+                  "cache_write_5m": raw["cache_creation_input_tokens"], "cache_write_1h": 0,
+                  "output": raw["output_tokens"]}
+        prices = claude.get("prices") if isinstance(claude.get("prices"), dict) else {}
+        usd, _ = transcript_list_usd([(model, tokens)], prices)
+        return (usd, None) if usd is not None else (None, "no list price for model {}".format(model))
+    if model.startswith("gpt-"):
+        codex = providers.get("codex") if isinstance(providers.get("codex"), dict) else {}
+        rate = (codex.get("rate_card") or {}).get(model) if isinstance(codex.get("rate_card"), dict) else None
+        usd_per_credit = codex.get("usd_per_credit")
+        if not isinstance(rate, dict) or any(not isinstance(rate.get(name), (int, float)) for name in
+                                             ("input", "cached_input", "output")):
+            return None, "no list price for model {}".format(model)
+        if not isinstance(usd_per_credit, (int, float)) or isinstance(usd_per_credit, bool):
+            return None, "credit conversion unavailable"
+        # Amp's stream reports cache reads apart from input, so input here is uncached input plus cache writes.
+        credits = ((raw["input_tokens"] + raw["cache_creation_input_tokens"]) * rate["input"]
+                   + raw["cache_read_input_tokens"] * rate["cached_input"] + raw["output_tokens"] * rate["output"]) / 1e6
+        return credits * usd_per_credit, None
+    return None, "no list price for model {}".format(model)
+
+
+def amp_costs(executable, outdir, stdout_text, model, catalog):
+    """An amp run's usage: `amp threads usage --details` first (list_usd is the thread's list price, amp_usd Amp's own
+    charge, billed who paid, unless providers.amp.billed_to names the payer), else its tokens priced. Never fails the run."""
+    events = amp_events(strip_ansi(stdout_text or ""))
+    result = amp_result(events)
+    thread = amp_session(events, result)
+    if thread:
+        report = amp_threads_usage(executable, thread, amp_child_env(outdir))
+        if report is not None:
+            return {"list_usd": report["list_usd"], "amp_usd": report["amp_usd"],
+                    "billed": amp_billed_to(catalog) or report["billed"], "cost_source": "amp-threads-usage"}
+    dollars, reason = amp_token_list_usd(model, amp_usage_source(events, result), catalog)
+    costs = {"list_usd": dollars, "cost_source": "tokens" if dollars is not None else None}
+    if dollars is None:
+        costs["tokens_error"] = reason
+    return costs
+
+
 def decide_verdict(lane, code, timed_out, log_text, outdir, dir_path,
                    stdout_text=None, stderr_text=None, before_status=None, ro=False, before_head=None,
                    started_at=None, ended_at=None):
@@ -3382,6 +3728,32 @@ def decide_verdict(lane, code, timed_out, log_text, outdir, dir_path,
         if code != 0 or status != "SUCCESS":
             return "FAILED", 4, session
         return "OK", 0, session
+    if lane == "amp":
+        stdout_text = strip_ansi(stdout_text if stdout_text is not None else log_text)
+        stderr_text = strip_ansi(stderr_text or "")
+        events = amp_events(stdout_text)
+        result = amp_result(events)
+        session = amp_session(events, result)
+        if code != 0 or result is None or result.get("is_error"):
+            # Quota text is read from the result's answer and stderr; the stream's own messages (a failed run may
+            # discuss limits) count only when there is no result and the process failed.
+            text = stderr_text
+            if result is not None:
+                text = str(result.get("result") or "") + "\n" + text
+            elif code != 0:
+                text = stdout_text + "\n" + text
+            if AMP_QUOTA_RE.search(text):
+                return "QUOTA", 75, session
+            if code == 0 and result is None and any(event.get("type") == "assistant" for event in events):
+                return "PARTIAL", 6, session
+            return "FAILED", 4, session
+        if result.get("permission_denials"):
+            # Every amp run writes (--ro is refused), so a denied tool call is a sandbox stop.
+            return "SANDBOX", 7, session
+        after_head = git_head(dir_path) if before_head is not None else None
+        if before_status is not None and git_status(dir_path) == before_status and after_head == before_head:
+            return "NOOP", 3, session
+        return "OK", 0, session
     if lane in ("cursor", "grok"):
         stdout_text = strip_ansi(stdout_text if stdout_text is not None else log_text)
         stderr_text = strip_ansi(stderr_text or "")
@@ -3420,6 +3792,10 @@ def final_text(lane, outdir, log_text, stdout_text=None):
     source = strip_ansi(stdout_text if stdout_text is not None else log_text)
     if lane == "gemini":
         return text_value(last_gemini_object(source), {"response"}) or ""
+    if lane == "amp":
+        final = amp_result(amp_events(source))
+        final = final.get("result") if final else None
+        return final if isinstance(final, str) else ""
     if lane == "cursor":
         result = last_gemini_object(source).get("result")
         return result if isinstance(result, str) else ""
@@ -3552,7 +3928,7 @@ def subagent_launch(lane, effort, unit_class, run_id, prompt_path):
                 run_id, prompt_path)}
 
 
-def prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_bytes, outdir):
+def prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_bytes, outdir, platform="claude-code"):
     run_id = os.path.basename(os.path.normpath(outdir))
     prompt_path = os.path.join(outdir, "prompt.md")
     prompt_text = subagent_prompt(run_id, dir_path, opts.ro, sent_bytes.decode("utf-8"))
@@ -3585,7 +3961,7 @@ def prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_byte
     p80_minutes = eta.get("p80_minutes") if eta is not None else None
     meta = {"lane": opts.lane, "provider": "claude", "model": model, "effort": opts.effort, "dir": dir_path,
             "class": opts.unit_class, "tag": opts.tag, "pick_id": opts.pick_id, "arm": arm_name,
-            "off_catalog": bool(opts.off_catalog), "usage": usage, "place": "subagent",
+            "off_catalog": bool(opts.off_catalog), "usage": usage, "place": "subagent", "platform": platform,
             "eta_s": eta_s, "eta_p80_s": round(p80_minutes * 60, 1) if is_eta_minutes(p80_minutes) else None,
             "eta_tier": eta.get("tier") if eta is not None else None, "brief_bytes": len(brief_bytes),
             "ro": bool(opts.ro), "web": False, "masked": False, "mask_paths": [], "resume": None,
@@ -4074,6 +4450,13 @@ def validate_options(parser, opts, catalog):
             parser.error("--side needs --cloud")
         if not opts.side.strip() or len(opts.side.strip()) > 200:
             parser.error("--side needs a reason of 1 to 200 characters")
+    try:
+        platform = kit_platform(catalog)
+    except ValueError as exc:
+        parser.error(str(exc))
+    if opts.subagent and "subagent" not in platform_places(catalog, platform):
+        parser.error("--subagent is not available on {} (its places: {}); run this lane in its process form, "
+                     "without --subagent".format(platform, ", ".join(platform_places(catalog, platform))))
     if opts.subagent and opts.lane not in CLAUDE_LANES:
         parser.error("--subagent is only available for haiku, sonnet, or opus")
     if opts.subagent and (opts.cloud or opts.resume is not None or opts.web or opts.mask is True):
@@ -4118,15 +4501,29 @@ def validate_options(parser, opts, catalog):
         parser.error("gemini cannot take --web: agy --help has no search switch")
     if opts.web and opts.lane in ("cursor", "grok"):
         parser.error("{} cannot take --web: its CLI has no search switch".format(opts.lane))
+    if opts.lane == "amp":
+        if opts.ro:
+            parser.error("amp cannot take --ro: amp -x has no read-only switch (approvals are a settings key)")
+        if opts.web:
+            parser.error("amp cannot take --web: amp -x has no documented search switch")
+        if opts.resume and not AMP_THREAD_RE.fullmatch(opts.resume):
+            parser.error("amp --resume needs an amp thread id, such as T-0123abcd")
     if catalog is None and opts.lane in ("terra", "astra") + CLAUDE_LANES and opts.model and opts.model != DEFAULT_MODELS[opts.lane]:
         raise LaneError("{} model must be {}".format(opts.lane, DEFAULT_MODELS[opts.lane]), 8)
 
 
 def dry_run(opts, dir_path, outdir, sent_bytes, sent_text, executable, executable_origin, command, masks, warnings,
-            headroom, reserve, mask_error=None, memory=None):
+            headroom, reserve, mask_error=None, memory=None, amp_settings=None):
     display = [WORKER_BLOCK[:40] + "..." if arg == WORKER_BLOCK else arg for arg in command]
     print("argv: {}".format(json.dumps(display, ensure_ascii=False)))
     print("executable: {}".format(format_executable(executable, executable_origin)))
+    if opts.lane == "amp":
+        print("env: {}".format(json.dumps(amp_run_env(outdir), sort_keys=True)))
+        if amp_settings:
+            print("amp settings: would write {} with amp.dangerouslyAllowAll true, deleted when the run ends".format(
+                amp_settings))
+        else:
+            print("amp settings: none (providers.amp.allow_all is false)")
     print("mask_paths: {}".format(json.dumps(masks, ensure_ascii=False)))
     print("precondition: DIR exists and is absolute: PASS")
     print("precondition: BRIEF readable: PASS")
@@ -4186,18 +4583,21 @@ def run_lane(opts, parser):
         refuse_cloud_in_cloud()
     if not opts.dry_run and not opts.outdir and not cloud_mode:
         outdir = reserve_run_dir(outdir)
+    platform = kit_platform(catalog)
     if opts.subagent:
-        return prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_bytes, outdir)
+        return prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_bytes, outdir, platform)
     provider = PROVIDERS[opts.lane]
     executable_name = {"codex": "codex", "claude": "claude", "gemini": "agy", "cursor": "cursor-agent",
-                       "grok": "grok", "cline": "cline"}[provider]
+                       "grok": "grok", "cline": "cline", "amp": "amp"}[provider]
     executable, executable_origin = resolve_binary(executable_name)
     cloud_plan = cloud_preflight(opts.lane, dir_path) if cloud_mode else None
     # A live main cloud session runs the project's units itself; a separate worker VM needs a stated reason.
     side_reason = main_side_check(opts, cloud_plan) if opts.cloud else None
     if not opts.dry_run and not opts.outdir and cloud_mode:
         outdir = reserve_run_dir(outdir)
-    command = build_command(opts.lane, opts, model, dir_path, sent_text, outdir, executable)
+    flag_model = amp_cli_model(catalog, model, effort) if opts.lane == "amp" else model
+    amp_settings = os.path.join(outdir, AMP_SETTINGS_NAME) if opts.lane == "amp" and amp_allow_all(catalog) else None
+    command = build_command(opts.lane, opts, flag_model, dir_path, sent_text, outdir, executable, amp_settings)
     use_mask = mask_enabled(opts.lane, opts.mask)
     masks, warnings = [], []
     explore = catalog.get("explore") if isinstance(catalog, dict) else None
@@ -4224,7 +4624,7 @@ def run_lane(opts, parser):
             except LaneError as exc:
                 mask_error = str(exc)
         return dry_run(opts, dir_path, outdir, sent_bytes, sent_text, executable, executable_origin,
-                       display_command, masks, warnings, headroom, reserve, mask_error, memory)
+                       display_command, masks, warnings, headroom, reserve, mask_error, memory, amp_settings)
     os.makedirs(outdir, exist_ok=True)
     with open(os.path.join(outdir, "brief.md"), "wb") as stream:
         stream.write(brief_bytes)
@@ -4273,7 +4673,7 @@ def run_lane(opts, parser):
             "effort": effort if opts.lane == "codex-cloud" else opts.effort, "dir": dir_path,
             "class": opts.unit_class, "tag": opts.tag, "pick_id": opts.pick_id, "arm": arm_name,
             "off_catalog": bool(opts.off_catalog), "usage": usage,
-            "place": "cloud" if cloud_mode else "local",
+            "place": "cloud" if cloud_mode else "local", "platform": platform,
             "eta_s": eta_s, "eta_p80_s": eta_p80_s, "eta_tier": eta.get("tier") if eta is not None else None,
             "brief_bytes": len(brief_bytes), "mode": mode,
             "ro": bool(opts.ro), "web": bool(opts.web), "masked": bool(use_mask), "mask_paths": masks,
@@ -4295,6 +4695,8 @@ def run_lane(opts, parser):
     marker_path = None
     peak_mem_mb = None
     try:
+        if amp_settings:
+            write_amp_settings(amp_settings)
         if cloud_mode:
             if opts.cloud:
                 verdict, exit_code, session, stdout_text, log_text = run_claude_cloud(
@@ -4313,7 +4715,7 @@ def run_lane(opts, parser):
             write_meta(meta_path, meta)
             if opts.lane in CODEX_LANES:
                 check_version_or_raise(opts.lane, executable)
-            stdin_data = sent_bytes if opts.lane in CODEX_LANES + CLAUDE_LANES + ("cursor",) else None
+            stdin_data = sent_bytes if opts.lane in CODEX_LANES + CLAUDE_LANES + ("cursor", "amp") else None
             actual_argv = command
             child_env = None
             if use_mask:
@@ -4330,14 +4732,17 @@ def run_lane(opts, parser):
                 # A worker's auto-memory lands in the repository's project folder (linked worktrees share it) and would
                 # load into the user's own later sessions there, so workers keep no memory.
                 child_env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "1"
+            if opts.lane == "amp":
+                child_env = amp_child_env(outdir, child_env)
             if warnings:
                 for path in warnings:
                     print("warning: mask path overlaps protected path and was removed: {}".format(path), file=sys.stderr)
             if IS_WINDOWS and windows_command_line_length(actual_argv) > WINDOWS_COMMAND_LINE_LIMIT:
                 raise LaneError("the command line exceeds the Windows limit of 32,767 characters; {} passes the brief as an "
                                 "argument, so shorten the brief or use luna, which reads it from stdin".format(opts.lane), 8)
-            before_status = git_status(dir_path) if opts.lane in CLAUDE_LANES + ("cursor", "grok") else None
-            before_head = git_head(dir_path) if opts.lane in CLAUDE_LANES + ("cursor", "grok") and is_git_repo(dir_path) else None
+            before_status = git_status(dir_path) if opts.lane in CLAUDE_LANES + ("cursor", "grok", "amp") else None
+            before_head = (git_head(dir_path) if opts.lane in CLAUDE_LANES + ("cursor", "grok", "amp")
+                           and is_git_repo(dir_path) else None)
             if opts.lane == "gemini":
                 wait_for_memory(opts.lane, catalog, outdir)
                 wait_for_task_headroom(opts.lane)
@@ -4393,6 +4798,9 @@ def run_lane(opts, parser):
                 os.unlink(marker_path)
             except OSError:
                 pass
+        if amp_settings:
+            # The run's settings file holds the user's Amp settings; it lives only as long as the run.
+            remove_amp_settings(amp_settings)
     duration = time.monotonic() - started_clock
     usage["after"], after_error = read_usage(provider)
     errors = list(dict.fromkeys(error for error in (before_error, after_error) if error))
@@ -4403,6 +4811,8 @@ def run_lane(opts, parser):
         usage.update(codex_usage(session, started_at, ended_at, catalog))
     elif not cloud_mode:
         usage["tokens"] = run_tokens(opts.lane, log_text, stdout_text)
+    if opts.lane == "amp" and not cloud_mode:
+        usage.update(amp_costs(executable, outdir, stdout_text, model, catalog))
     if opts.lane == "grok" and not cloud_mode:
         usage["list_usd"] = last_gemini_object(strip_ansi(stdout_text or "")).get("total_cost_usd")
     if opts.lane in CLAUDE_LANES and not opts.cloud:

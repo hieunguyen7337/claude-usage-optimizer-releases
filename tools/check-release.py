@@ -8,6 +8,7 @@ import json
 import os
 import pathlib
 import re
+import subprocess
 import sys
 
 sys.dont_write_bytecode = True
@@ -293,6 +294,29 @@ def main():
                else "no untracked shipped files")
     except BundleError as error:
         report("untracked", "FAIL", str(error))
+
+    # The platform files (PLAN.md 3.7): the Codex policy file must be the one make-platform-policy writes from
+    # POLICY.md, and the Amp plugin's static tests must pass. Each runs under python3 -I, as the checks above
+    # read the kit; a kit without a platforms/ folder has nothing to check.
+    if not (kit / "platforms").is_dir():
+        report("platforms", "OK", "no platform files in this kit")
+    else:
+        platform_problems = []
+        steps = (("make-platform-policy --check", kit / "tools" / "make-platform-policy.py", ["--check"]),
+                 ("Amp plugin static tests", kit / "tests" / "test_amp_plugin_static.py", []))
+        for label, script, extra in steps:
+            run = subprocess.run([sys.executable, "-I", "-B", str(script), *extra], cwd=str(kit),
+                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                 text=True, encoding="utf-8", errors="replace")
+            lines = [line.strip() for line in run.stdout.splitlines() if line.strip()]
+            # unittest prints each failing test's name; the generator prints its one difference.
+            shown = [line for line in lines if line.startswith(("FAIL:", "ERROR:"))] or lines[-1:]
+            if run.returncode:
+                platform_problems.append("{} exits {}: {}".format(
+                    label, run.returncode, "; ".join(shown) or "no output"))
+        report("platforms", "FAIL" if platform_problems else "OK",
+               "; ".join(platform_problems) if platform_problems else
+               "make-platform-policy --check and the Amp plugin static tests pass")
     failures = statuses.count("FAIL")
     print("Summary: {} FAIL, {} WARN".format(failures, statuses.count("WARN")))
     return 1 if failures else 0

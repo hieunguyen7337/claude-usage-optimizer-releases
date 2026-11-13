@@ -556,7 +556,7 @@ class LaneTests(unittest.TestCase):
         self.assertEqual(set(record), {"run_dir", "lane", "provider", "model", "effort", "class", "tag", "pick_id",
                                        "arm", "off_catalog", "ro", "resume", "started_at", "ended_at", "duration_s",
                                        "verdict", "exit_code", "session_id", "usage", "eta_s", "eta_p80_s", "eta_tier",
-                                       "place", "brief_bytes", "peak_mem_mb", "mode"})
+                                       "place", "brief_bytes", "peak_mem_mb", "mode", "platform"})
         for key in record:
             if key != "run_dir":
                 self.assertEqual(record[key], meta[key])
@@ -1446,10 +1446,392 @@ class CursorGrokLaneTests(LaneTests):
                 self.assertIn("verdict=NOOP", result.stdout)
 
 
+class PlatformIdentityTests(unittest.TestCase):
+    CATALOG = {"explore": {"platforms": {
+        "claude-code": {"places": ["process", "subagent", "cloud"], "env_markers": ["CLAUDECODE"]},
+        "amp": {"places": ["process", "cloud"], "env_markers": ["AMP_TEST_MARKER"]}}}}
+
+    def test_kit_platform_order_and_override(self):
+        with mock.patch.dict(os.environ, {"CLAUDECODE": "1", "AMP_TEST_MARKER": "1"}, clear=True):
+            self.assertEqual(lane.kit_platform(self.CATALOG), "claude-code")
+        with mock.patch.dict(os.environ, {"AMP_TEST_MARKER": "1"}, clear=True):
+            self.assertEqual(lane.kit_platform(self.CATALOG), "amp")
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(lane.kit_platform(self.CATALOG), "claude-code")
+            self.assertEqual(lane.kit_platform(None), "claude-code")
+        with mock.patch.dict(os.environ, {"KIT_PLATFORM": "amp", "CLAUDECODE": "1"}, clear=True):
+            self.assertEqual(lane.kit_platform(self.CATALOG), "amp")
+        with mock.patch.dict(os.environ, {"KIT_PLATFORM": "nope"}, clear=True):
+            with self.assertRaises(ValueError):
+                lane.kit_platform(self.CATALOG)
+
+    def test_platform_places_default_when_the_catalog_has_none(self):
+        self.assertEqual(lane.platform_places(None, "amp"), ["process", "cloud"])
+        self.assertEqual(lane.platform_places({}, "claude-code"), ["process", "subagent", "cloud"])
+        self.assertEqual(lane.platform_places(self.CATALOG, "amp"), ["process", "cloud"])
+
+
 # CursorGrokLaneTests borrows LaneTests' fixtures; without this, unittest would run every LaneTests test twice.
 for _name in dir(LaneTests):
     if _name.startswith("test_") and _name not in CursorGrokLaneTests.__dict__:
         setattr(CursorGrokLaneTests, _name, None)
+
+
+# AmpLaneTests borrows LaneTests' fixtures; without this, unittest would run every LaneTests test twice.
+class AmpLaneTests(LaneTests):
+    AMP_FIXTURES = os.path.join(ROOT, "tests", "fixtures", "amp")
+    THREAD = "T-7c1e2a40-5b1d-4e8f-9a3c-2f6d8e1b0a57"
+
+    def setUp(self):
+        super().setUp()
+        self.install_fake_amp()
+        self.amp_bin = os.path.join(self.bin, "amp.cmd" if os.name == "nt" else "amp")
+        self.usage_capture = os.path.join(self.root, "usage-capture.json")
+        # The amp settings file is read from ~/.config/amp: a home of its own keeps the user's real settings out of tests.
+        self.home = os.path.join(self.root, "home")
+        os.makedirs(self.home)
+        self.amp_env = {"LANES_AMP_BIN": self.amp_bin, "FAKE_AMP_FIXTURES": self.AMP_FIXTURES,
+                        "FAKE_USAGE_CAPTURE": self.usage_capture, "FAKE_USAGE": "ok",
+                        "HOME": self.home, "USERPROFILE": self.home}
+
+    def install_fake_amp(self):
+        self.install_cli("amp", '''
+            import json
+            import os
+            import sys
+
+            fixtures = os.environ["FAKE_AMP_FIXTURES"]
+            lane_env = {key: os.environ.get(key) for key in ("KIT_LANE_RUN", "USAGE_OPTIMIZER_TURNS")}
+            if sys.argv[1:3] == ["threads", "usage"]:
+                with open(os.environ["FAKE_USAGE_CAPTURE"], "w", encoding="utf-8") as stream:
+                    json.dump({"argv": sys.argv[1:], "env": lane_env}, stream)
+                if os.environ.get("FAKE_USAGE") == "fail":
+                    print("cannot read thread usage", file=sys.stderr)
+                    sys.exit(1)
+                name = "threads-usage-subscription.txt" if os.environ.get("FAKE_USAGE") == "subscription" else "threads-usage.txt"
+                with open(os.path.join(fixtures, name), encoding="utf-8") as stream:
+                    sys.stdout.write(stream.read())
+                sys.exit(0)
+            brief = sys.stdin.read()
+            settings = None
+            if "--settings-file" in sys.argv:
+                with open(sys.argv[sys.argv.index("--settings-file") + 1], encoding="utf-8") as stream:
+                    settings = json.load(stream)
+            with open(os.environ["FAKE_CAPTURE"], "w", encoding="utf-8") as stream:
+                json.dump({"argv": sys.argv[1:], "brief": brief, "env": lane_env, "settings": settings}, stream)
+            mode = os.environ.get("FAKE_MODE", "ok")
+            name = {"cut": "stream-cut.jsonl", "error": "stream-error.jsonl"}.get(mode, "stream-ok.jsonl")
+            with open(os.path.join(fixtures, name), encoding="utf-8") as stream:
+                events = [json.loads(line) for line in stream if line.strip()]
+            if mode == "error":
+                events[-1]["result"] = os.environ.get("FAKE_ERROR_TEXT", events[-1]["result"])
+            if mode == "sandbox":
+                events[-1]["permission_denials"] = [{"tool_name": "shell_command", "tool_use_id": "toolu_02",
+                                                     "tool_input": {"cmd": "git status"}}]
+            if mode in ("ok", "sandbox"):
+                with open("worker.txt", "w", encoding="utf-8") as stream:
+                    stream.write("edited by fake amp\\n")
+            for event in events:
+                print(json.dumps(event))
+            if mode == "error":
+                sys.exit(1)
+        ''')
+
+    def fresh_workspace(self, name):
+        # A workspace of its own per case: an edit left by one case would make the next one a NOOP.
+        self.workspace = os.path.join(self.root, "ws-" + name)
+        os.makedirs(self.workspace)
+        self.init_git()
+
+    def read_capture(self):
+        self.assertTrue(os.path.isfile(self.capture))
+        return self.read_json(self.capture)
+
+    def read_text(self, path):
+        with open(path, "r", encoding="utf-8") as stream:
+            return stream.read()
+
+    def dry_lines(self, extra):
+        result = self.run_lane("amp", list(extra) + ["--dry-run"], effort=None, env=self.amp_env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout.splitlines()
+
+    def expected_claude_usd(self, model):
+        # Amp's input_tokens is uncached input: the 2600 input, 1900 cache reads, 300 cache writes and 57 output.
+        price = lane.price_for(lane.load_catalog()["providers"]["claude"]["prices"], model)
+        return lane.message_list_usd(price, {"input": 2600, "cache_read": 1900, "cache_write_5m": 300,
+                                             "cache_write_1h": 0, "output": 57})
+
+    def test_amp_dry_run_argv_and_run_environment(self):
+        lines = self.dry_lines(["-e", "medium", "--outdir", os.path.join(self.root, "dry-run")])
+        argv = json.loads(lines[0].split("argv: ", 1)[1])
+        self.assertEqual(argv[-6:], ["-x", "--stream-json", "--model", "anthropic/claude-opus-5-5", "--effort",
+                                     "medium"])
+        self.assertIn('env: {"KIT_LANE_RUN": "dry-run", "USAGE_OPTIMIZER_TURNS": "off"}', lines)
+        lines = self.dry_lines(["-m", "gpt-6.1-sol", "-e", "high", "--outdir", os.path.join(self.root, "dry-sol")])
+        argv = json.loads(lines[0].split("argv: ", 1)[1])
+        self.assertEqual(argv[-6:], ["-x", "--stream-json", "--model", "openai/gpt-6.1-sol", "--effort", "high"])
+        resumed = self.dry_lines(["--resume", self.THREAD, "-e", "medium"])
+        argv = json.loads(resumed[0].split("argv: ", 1)[1])
+        self.assertEqual(argv[-5:], ["threads", "continue", self.THREAD, "-x", "--stream-json"])
+        self.assertNotIn("--model", argv)
+
+    def test_catalog_accepts_every_amp_arm(self):
+        catalog = lane.load_catalog()
+        amp_arms = [arm for arm in catalog["arms"] if arm["lane"] == "amp"]
+        self.assertEqual(len(amp_arms), 7)
+        for arm in amp_arms:
+            with self.subTest(arm=lane.arm_key(arm)):
+                self.assertEqual(arm["status"], "manual")
+                result = self.run_lane("amp", ["-m", arm["model"], "-e", arm["effort"], "--dry-run"],
+                                       effort=None, env=self.amp_env)
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                argv = json.loads(result.stdout.splitlines()[0].split("argv: ", 1)[1])
+                self.assertEqual(argv[argv.index("--model") + 1], arm["cli_model"])
+
+    def test_amp_refuses_ro_web_and_a_resume_id_that_is_not_a_thread(self):
+        for extra, message in ((["--ro"], "amp cannot take --ro"), (["--web"], "amp cannot take --web"),
+                               (["--resume", "abc"], "amp --resume needs an amp thread id")):
+            with self.subTest(extra=extra):
+                result = self.run_lane("amp", ["-e", "medium", "--dry-run"] + extra, effort=None, env=self.amp_env)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn(message, result.stderr)
+
+    def test_amp_success_records_thread_tokens_and_threads_usage_cost(self):
+        self.fresh_workspace("success")
+        outdir = os.path.join(self.root, "success-run")
+        result = self.run_lane("amp", ["-e", "medium", "--class", "substantive", "--outdir", outdir], effort=None,
+                               env=dict(self.amp_env, FAKE_MODE="ok", FAKE_CAPTURE=self.capture))
+        self.assertEqual(result.returncode, 0, result.stdout + without_mode_line(result.stderr))
+        self.assertIn("verdict=OK", result.stdout)
+        captured = self.read_capture()
+        self.assertEqual(captured["argv"][:2], ["--settings-file", os.path.join(outdir, "amp-settings.json")])
+        self.assertEqual(captured["argv"][2:], ["-x", "--stream-json", "--model", "anthropic/claude-opus-5-5",
+                                                "--effort", "medium"])
+        self.assertIn("Edit worker.txt", captured["brief"])
+        self.assertNotIn(self.brief, captured["argv"])
+        self.assertEqual(captured["env"], {"KIT_LANE_RUN": "success-run", "USAGE_OPTIMIZER_TURNS": "off"})
+        usage_call = self.read_json(self.usage_capture)
+        self.assertEqual(usage_call["argv"], ["threads", "usage", self.THREAD, "--details"])
+        self.assertEqual(usage_call["env"], {"KIT_LANE_RUN": "success-run", "USAGE_OPTIMIZER_TURNS": "off"})
+        meta = self.read_json(os.path.join(outdir, "meta.json"))
+        self.assertEqual(meta["session_id"], self.THREAD)
+        self.assertEqual(meta["model"], "claude-opus-5-5")
+        self.assertEqual(meta["usage"]["list_usd"], 0.13)
+        self.assertEqual(meta["usage"]["cost_source"], "amp-threads-usage")
+        self.assertEqual(meta["usage"]["tokens"], {"input": 2900, "cached": 1900, "output": 57, "total": 4857})
+        self.assertEqual(self.read_text(os.path.join(outdir, "final.md")).strip(), "Created worker.txt.")
+
+    def test_amp_subscription_thread_is_priced_at_list_and_billed_to_the_claude_plan(self):
+        self.fresh_workspace("subscription")
+        outdir = os.path.join(self.root, "subscription-run")
+        result = self.run_lane("amp", ["-e", "medium", "--outdir", outdir], effort=None,
+                               env=dict(self.amp_env, FAKE_MODE="ok", FAKE_USAGE="subscription", FAKE_CAPTURE=self.capture))
+        self.assertEqual(result.returncode, 0, result.stdout + without_mode_line(result.stderr))
+        self.assertIn("verdict=OK", result.stdout)
+        usage = self.read_json(os.path.join(outdir, "meta.json"))["usage"]
+        # Amp's Cost is $0.00 (credits only); the $0.66 list price is what the Claude subscription served, so the plan paid.
+        self.assertEqual((usage["list_usd"], usage["amp_usd"], usage["billed"]), (0.66, 0.0, "claude"))
+        self.assertEqual(usage["cost_source"], "amp-threads-usage")
+
+    def test_amp_billed_to_in_the_arms_catalog_names_the_payer(self):
+        self.fresh_workspace("billed-to")
+        outdir = os.path.join(self.root, "billed-to-run")
+        local = os.path.join(self.root, "arms.local.json")
+        self.write(local, json.dumps({"providers": {"amp": {"billed_to": "codex"}}}))
+        result = self.run_lane("amp", ["-e", "medium", "--outdir", outdir], effort=None,
+                               env=dict(self.amp_env, FAKE_MODE="ok", FAKE_USAGE="subscription", LANES_ARMS_LOCAL=local,
+                                        FAKE_CAPTURE=self.capture))
+        self.assertEqual(result.returncode, 0, result.stdout + without_mode_line(result.stderr))
+        usage = self.read_json(os.path.join(outdir, "meta.json"))["usage"]
+        self.assertEqual((usage["list_usd"], usage["billed"]), (0.66, "codex"))
+
+    def test_amp_report_rule_reads_both_fixtures_and_refuses_a_windowed_or_doubled_report(self):
+        def fixture(name):
+            with open(os.path.join(self.AMP_FIXTURES, name), encoding="utf-8") as stream:
+                return stream.read()
+
+        subscription = fixture("threads-usage-subscription.txt")
+        details = fixture("threads-usage-details.txt")
+        # The same literal values as turn-meter's test of its copy of this rule (PlatformTests).
+        self.assertEqual(lane.amp_report_usage(subscription),
+                         {"amp_usd": 0.0, "list_usd": 0.66, "routed": ["claude"], "billed": "claude"})
+        self.assertEqual(lane.amp_report_usage(details),
+                         {"amp_usd": 0.13, "list_usd": 0.13, "routed": ["amp"], "billed": "amp"})
+        # An unparseable Est. list price cell falls back to Amp's cost; so does a windowed scope or a second Cost line.
+        self.assertEqual(lane.amp_report_usage(subscription.replace("| $0.00 | $0.66 |", "| $0.00 | n/a |"))["list_usd"], 0.0)
+        self.assertIsNone(lane.amp_report_usage(subscription.replace("Scope: Entire lifetime of this thread.", "Scope: Last 7 days.")))
+        self.assertIsNone(lane.amp_report_usage(details + "\nCost: $0.20\n"))
+        self.assertIsNone(lane.amp_report_usage(""))
+
+    def test_amp_cost_falls_back_to_priced_tokens_or_null(self):
+        cases = (
+            ("claude", [], "claude-opus-5-5"),
+            ("gpt", ["-m", "gpt-6.1-sol"], "gpt-6.1-sol"),
+            ("glm", ["-m", "glm-5.3-flash", "-e", "low"], "glm-5.3-flash"),
+        )
+        for name, extra, model in cases:
+            with self.subTest(model=model):
+                self.fresh_workspace(name)
+                outdir = os.path.join(self.root, name + "-run")
+                effort = ["-e", "medium"] if name != "glm" else []
+                result = self.run_lane("amp", extra + effort + ["--outdir", outdir], effort=None,
+                                       env=dict(self.amp_env, FAKE_MODE="ok", FAKE_USAGE="fail"))
+                self.assertEqual(result.returncode, 0, result.stdout + without_mode_line(result.stderr))
+                usage = self.read_json(os.path.join(outdir, "meta.json"))["usage"]
+                self.assertEqual(usage["tokens"]["total"], 4857)
+                if name == "claude":
+                    self.assertEqual(usage["cost_source"], "tokens")
+                    self.assertAlmostEqual(usage["list_usd"], self.expected_claude_usd("claude-opus-5-5"), places=9)
+                elif name == "gpt":
+                    # Codex rate card: 2900 input at 50, 1900 cached at 2.5 and 57 output at 250, per million credits.
+                    self.assertEqual(usage["cost_source"], "tokens")
+                    credits = (2900 * 50 + 1900 * 2.5 + 57 * 250) / 1e6
+                    self.assertAlmostEqual(usage["list_usd"], credits * 0.04, places=9)
+                else:
+                    self.assertIsNone(usage["list_usd"])
+                    self.assertIsNone(usage.get("cost_source"))
+                    self.assertEqual(usage["tokens_error"], "no list price for model glm-5.3-flash")
+
+    def test_amp_verdict_rows(self):
+        cases = (
+            # mode, error text, exit code, verdict, exit code
+            ("ok", None, 0, "OK", 0),
+            ("noop", None, 0, "NOOP", 3),
+            ("sandbox", None, 0, "SANDBOX", 7),
+            ("error", "Error: request failed (HTTP 500)", 1, "FAILED", 4),
+            ("error", "402 insufficient credits: add credits at ampcode.com", 1, "QUOTA", 75),
+            ("error", "You are out of credits.", 1, "QUOTA", 75),
+            ("error", "You have hit your usage limit for this thread.", 1, "QUOTA", 75),
+            ("error", "HTTP 429 too many requests", 1, "QUOTA", 75),
+            ("cut", None, 0, "PARTIAL", 6),
+        )
+        for index, (mode, error_text, code, verdict, exit_code) in enumerate(cases):
+            with self.subTest(mode=mode, text=error_text):
+                self.fresh_workspace("case-{}".format(index))
+                outdir = os.path.join(self.root, "verdict-{}".format(index))
+                env = dict(self.amp_env, FAKE_MODE=mode, FAKE_CAPTURE=self.capture)
+                if error_text:
+                    env["FAKE_ERROR_TEXT"] = error_text
+                result = self.run_lane("amp", ["-e", "medium", "--outdir", outdir], effort=None, env=env)
+                self.assertEqual(result.returncode, exit_code, result.stdout + result.stderr)
+                self.assertIn("verdict={}".format(verdict), result.stdout)
+                self.assertEqual(self.read_json(os.path.join(outdir, "meta.json"))["session_id"], self.THREAD)
+
+    def settings_path(self, outdir):
+        return os.path.join(outdir, "amp-settings.json")
+
+    def user_settings_path(self):
+        return os.path.join(self.home, ".config", "amp", "settings.json")
+
+    def write_user_settings(self, text):
+        os.makedirs(os.path.dirname(self.user_settings_path()), exist_ok=True)
+        self.write(self.user_settings_path(), text)
+
+    def test_amp_dry_run_names_the_settings_file_for_new_and_resumed_threads(self):
+        outdir = os.path.join(self.root, "dry-settings")
+        lines = self.dry_lines(["-e", "medium", "--outdir", outdir])
+        argv = json.loads(lines[0].split("argv: ", 1)[1])
+        flag = argv.index("--settings-file")  # 1, or later on Windows, where a launcher runs the fake amp
+        self.assertEqual(argv[flag + 1], self.settings_path(outdir))
+        self.assertEqual(argv[flag + 2:], ["-x", "--stream-json", "--model", "anthropic/claude-opus-5-5", "--effort",
+                                           "medium"])
+        self.assertIn("amp settings: would write {} with amp.dangerouslyAllowAll true, deleted when the run ends".format(
+            self.settings_path(outdir)), lines)
+        self.assertFalse(os.path.exists(self.settings_path(outdir)))
+        resumed = self.dry_lines(["--resume", self.THREAD, "-e", "medium"])
+        argv = json.loads(resumed[0].split("argv: ", 1)[1])
+        self.assertIn("--settings-file", argv)
+        self.assertEqual(argv[-5:], ["threads", "continue", self.THREAD, "-x", "--stream-json"])
+
+    def test_amp_run_passes_the_settings_file_and_deletes_it_after_the_run(self):
+        self.write_user_settings(json.dumps({"amp.experimental.modes": ["x"], "amp.dangerouslyAllowAll": False}))
+        before = self.read_text(self.user_settings_path())
+        self.fresh_workspace("settings")
+        outdir = os.path.join(self.root, "settings-run")
+        result = self.run_lane("amp", ["-e", "medium", "--outdir", outdir], effort=None,
+                               env=dict(self.amp_env, FAKE_MODE="ok", FAKE_CAPTURE=self.capture))
+        self.assertEqual(result.returncode, 0, result.stdout + without_mode_line(result.stderr))
+        captured = self.read_capture()
+        self.assertEqual(captured["argv"][:2], ["--settings-file", self.settings_path(outdir)])
+        self.assertEqual(captured["settings"], {"amp.experimental.modes": ["x"], "amp.dangerouslyAllowAll": True})
+        self.assertFalse(os.path.exists(self.settings_path(outdir)))
+        self.assertEqual(self.read_text(self.user_settings_path()), before)
+
+    def test_amp_settings_from_unparseable_user_settings_hold_only_the_key(self):
+        self.write_user_settings("{not json")
+        self.fresh_workspace("bad-settings")
+        outdir = os.path.join(self.root, "bad-settings-run")
+        result = self.run_lane("amp", ["-e", "medium", "--outdir", outdir], effort=None,
+                               env=dict(self.amp_env, FAKE_MODE="ok", FAKE_CAPTURE=self.capture))
+        self.assertEqual(result.returncode, 0, result.stdout + without_mode_line(result.stderr))
+        self.assertEqual(self.read_capture()["settings"], {"amp.dangerouslyAllowAll": True})
+        self.assertFalse(os.path.exists(self.settings_path(outdir)))
+
+    def test_amp_allow_all_false_in_arms_local_passes_no_settings_file(self):
+        local = os.path.join(self.root, "arms-amp-optout.json")
+        self.write(local, json.dumps({"providers": {"amp": {"allow_all": False}}}))
+        env = dict(self.amp_env, LANES_ARMS_LOCAL=local)
+        outdir = os.path.join(self.root, "optout-dry")
+        result = self.run_lane("amp", ["-e", "medium", "--outdir", outdir, "--dry-run"], effort=None, env=env)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("amp settings: none (providers.amp.allow_all is false)", result.stdout.splitlines())
+        argv = json.loads(result.stdout.splitlines()[0].split("argv: ", 1)[1])
+        self.assertNotIn("--settings-file", argv)
+        self.fresh_workspace("optout")
+        outdir = os.path.join(self.root, "optout-run")
+        result = self.run_lane("amp", ["-e", "medium", "--outdir", outdir], effort=None,
+                               env=dict(env, FAKE_MODE="ok", FAKE_CAPTURE=self.capture))
+        self.assertEqual(result.returncode, 0, result.stdout + without_mode_line(result.stderr))
+        captured = self.read_capture()
+        self.assertNotIn("--settings-file", captured["argv"])
+        self.assertIsNone(captured["settings"])
+
+    @unittest.skipIf(os.name == "nt", "the hanging amp here is a POSIX shell script; Windows is covered by taskkill /T")
+    def test_amp_threads_cost_returns_within_its_limit_when_amp_hangs(self):
+        hang = os.path.join(self.root, "hang-amp")
+        self.write(hang, "#!/bin/sh\nexec sleep 30\n")
+        os.chmod(hang, 0o755)
+        started = time.monotonic()
+        usage = lane.amp_threads_usage(hang, self.THREAD, dict(os.environ), timeout=1)
+        elapsed = time.monotonic() - started
+        self.assertIsNone(usage)
+        self.assertLess(elapsed, 10)
+
+    def test_amp_run_meta_and_ledger_carry_the_platform(self):
+        self.fresh_workspace("platform-amp")
+        outdir = os.path.join(self.root, "platform-amp-run")
+        result = self.run_lane("amp", ["-e", "medium", "--outdir", outdir], effort=None,
+                               env=dict(self.amp_env, FAKE_MODE="ok", FAKE_CAPTURE=self.capture, KIT_PLATFORM="amp"))
+        self.assertEqual(result.returncode, 0, result.stdout + without_mode_line(result.stderr))
+        self.assertEqual(self.read_json(os.path.join(outdir, "meta.json"))["platform"], "amp")
+        self.assertEqual(self.ledger()[-1]["platform"], "amp")
+        self.fresh_workspace("platform-default")
+        outdir = os.path.join(self.root, "platform-default-run")
+        result = self.run_lane("amp", ["-e", "medium", "--outdir", outdir], effort=None,
+                               env=dict(self.amp_env, FAKE_MODE="ok", FAKE_CAPTURE=self.capture))
+        self.assertEqual(result.returncode, 0, result.stdout + without_mode_line(result.stderr))
+        self.assertEqual(self.read_json(os.path.join(outdir, "meta.json"))["platform"], "claude-code")
+        self.assertEqual(self.ledger()[-1]["platform"], "claude-code")
+
+    def test_amp_usage_fallback_counts_each_message_once(self):
+        events = [
+            {"type": "system", "session_id": self.THREAD},
+            {"type": "assistant", "message": {"id": "m1", "usage": {"input_tokens": 10, "output_tokens": 2}}},
+            {"type": "assistant", "message": {"id": "m1", "usage": {"input_tokens": 10, "output_tokens": 2}}},
+            {"type": "assistant", "message": {"id": "m2", "usage": {"input_tokens": 5, "cache_read_input_tokens": 7,
+                                                                  "output_tokens": 1}}},
+        ]
+        self.assertEqual(lane.amp_usage_source(events, None),
+                         {"input_tokens": 15, "output_tokens": 3, "cache_read_input_tokens": 7})
+        self.assertEqual(lane.claude_style_counts(lane.amp_usage_source(events, None)),
+                         {"input": 15, "cached": 7, "output": 3, "total": 25})
+        self.assertEqual(lane.amp_session(events, None), self.THREAD)
+
+
+for _name in dir(LaneTests):
+    if _name.startswith("test_") and _name not in AmpLaneTests.__dict__:
+        setattr(AmpLaneTests, _name, None)
 
 
 class CursorLauncherTests(unittest.TestCase):

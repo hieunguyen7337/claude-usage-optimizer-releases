@@ -72,7 +72,43 @@ Give me the exact commands, but don't install CLIs, log in, or change account se
   over: it re-points the CLAUDE.md import and the statusline, and moves `~/.claude/kit` into its backup
   folder. Tell me the old `~/claude-kit` folder can then be deleted; don't delete it yourself.
 
-Without Claude Code, clone `https://github.com/hieunguyen7337/claude-usage-optimizer-releases` and run
-`bash install.sh`, or download a bundle from its Releases page and verify it against `SHA256SUMS`.
+**Without Claude Code.** The prompt above needs Claude Code's Artifact tool. For Amp or Codex CLI, paste one of
+these into that agent instead. Both use the public releases repository, not the artifact.
+
+Amp session:
+
+```
+Set up this machine's Amp with my Claude Usage Optimizer: a shared usage policy, a plugin that meters each turn,
+and a worker lane for Amp. Use https://github.com/hieunguyen7337/claude-usage-optimizer-releases.
+
+1. Clone that repository. Check the release against its SHA256SUMS (from its latest GitHub Release) and say
+   which files you checked. If they do not match, stop and tell me.
+2. Run `bash install.sh --dry-run --platform amp` in the clone and summarise what it would change. Then wait
+   for my "go".
+3. On my "go", run `bash install.sh --platform amp`.
+4. Verify: restart Amp or run `plugins: reload`, and check that the status item shows. Then run
+   `amp -x "State the Claude Usage Optimizer version in your instructions"`.
+
+Don't log in to Amp, don't change its settings file, and don't run a worker lane for real. Report what does not
+behave as written.
+```
+
+Codex CLI session:
+
+```
+Set up this machine's Codex CLI with my Claude Usage Optimizer: a shared usage policy, hooks that meter each turn,
+and a worker lane. Use https://github.com/hieunguyen7337/claude-usage-optimizer-releases.
+
+1. Clone that repository. Check the release against its SHA256SUMS (from its latest GitHub Release) and say
+   which files you checked. If they do not match, stop and tell me.
+2. Run `bash install.sh --dry-run --platform codex` in the clone and summarise what it would change. Then wait
+   for my "go".
+3. On my "go", run `bash install.sh --platform codex`.
+4. Verify: open `/hooks` in Codex and trust the kit's hooks once. Then send one prompt and check that the turn
+   is recorded with `~/.claude/usage-optimizer/bin/turn-meter report`.
+
+Don't log in to Codex, don't change `config.toml`, and don't run a worker lane for real. Codex support is not yet
+checked against a live Codex session, so report anything that does not behave as written.
+```
 
 Later updates use this same prompt. Re-running the bundle is safe.

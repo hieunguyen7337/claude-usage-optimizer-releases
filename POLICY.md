@@ -1,8 +1,10 @@
 # Claude Usage Optimizer: usage policy
 
-Claude Usage Optimizer version: 2026-11-10.1. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Claude Usage Optimizer version: 2026-11-13.1. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
 Machine-specific rules (project dispatchers, locked lanes, local paths) belong in
 `~/.claude/CLAUDE.md` above the import line, and they win when the two conflict.
+On Amp or Codex CLI, read that platform's notes first (`~/.claude/usage-optimizer/platforms/<amp|codex>/PLATFORM.md`):
+they map the Claude Code mechanisms this policy names.
 
 ## Principle
 
@@ -170,6 +172,7 @@ per-lane gotchas are in `~/.claude/usage-optimizer/LANES.md`.
 | fable | claude-fable-5-2 (`claude -p` or a subagent) | The Claude plan, inside its own sub-cap of half the week; 2.21x Sonnet per list dollar on the week (3.3x Opus; FINDINGS §20) | Advisor by `--role`, and picked for hard and design units as role `work` (Advisor, from 2026-11-10.1) |
 | haiku, sonnet, opus `--cloud` | The same model and effort in a Claude Code cloud session (`claude --cloud`) | The Claude plan; whether a cloud-session credit pays first is unconfirmed (Known) | 4 vCPU/16 GB Linux VM, no local memory; needs GitHub and the Claude GitHub App (Routing step 2) |
 | codex-cloud | Codex Cloud's own model (not published) | The ChatGPT window, at a higher rate OpenAI does not publish | Manual arm, never picked; needs a Codex environment |
+| amp | Amp CLI (`amp -x --stream-json`): Opus 5.5 medium–xhigh, gpt-6.1-sol medium/high, gpt-6-astra xhigh, glm-5.3-flash (mechanical) | Amp's own credits, or the plan a model routes to (a model routed through the Claude subscription draws on Claude's week); no account-wide meter of its own; each run records its list $ and who paid, from `amp threads usage` | Manual arms, never picked (from 2026-11-13.1); `platforms/amp/PLATFORM.md` covers Amp as the main agent |
 | glm | z-ai/glm-5.3-flash (cline `-P cline`) | free OAuth | Throwaway work only; never picked |
 | subagents | Sonnet 5.5 by default (`CLAUDE_CODE_SUBAGENT_MODEL`); the kit's `lane-<lane>-<effort>` agents fix one arm each | The Claude plan | Short scoped reads where a lane round-trip isn't worth it; Claude arms run through `lane --subagent` (Routing step 2) |
 

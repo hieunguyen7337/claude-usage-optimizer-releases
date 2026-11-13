@@ -8,7 +8,7 @@ until kit 2026-10-16.1. muse was retired on 2026-10-17.)
 ## `lane`
 
 ```bash
-~/.claude/usage-optimizer/bin/lane <luna|terra|sol|astra|gemini|cursor|grok|haiku|sonnet|opus|glm> -C <abs dir> -b <brief file> -e <effort> \
+~/.claude/usage-optimizer/bin/lane <luna|terra|sol|astra|gemini|cursor|grok|amp|haiku|sonnet|opus|glm> -C <abs dir> -b <brief file> -e <effort> \
     --class <mechanical|substantive|hard|design|review|research> [--tag <name>] [--pick <id>] [--off-catalog] \
     [--ro] [--resume <id>] [--timeout <sec>] [--dry-run]
 ~/.claude/usage-optimizer/bin/lane <haiku|sonnet|opus> --subagent -C <abs dir> -b <brief file> -e <effort> --class <class> [--pick <id>] [--ro]
@@ -951,6 +951,47 @@ grok --prompt-file brief.sent.md --output-format json --cwd <dir> -m grok-4.7 --
   `--permission-mode plan`. `grok-4.7-build-fast` is nominal low effort and deliberately receives no effort flag.
 - `LANES_GROK_BIN` overrides the executable; its fallback is `~/.grok/bin/grok` (or `.exe` on Windows). The JSON
   record keeps `sessionId`, tokens and `total_cost_usd`, but never the CLI's `thought` field.
+
+### amp — `amp -x` (Amp account; no account-wide meter)
+
+```bash
+amp -x --stream-json --model anthropic/claude-opus-5-5 --effort medium < brief.sent.md
+amp threads continue <T-id> -x --stream-json < brief.sent.md      # lane --resume <T-id>
+```
+
+- The brief goes on stdin (`amp --help`: `-x` takes its prompt "either as argument, or via stdin"). A catalog arm keeps
+  the bare id (`claude-opus-5-5`) and its `cli_model` (`anthropic/claude-opus-5-5`) is what `--model` receives; the
+  lane's default model is `claude-opus-5-5`.
+- Arms, all `manual` (lane-stats pick never draws them): Opus 5.5 at medium, high and xhigh; GPT-6.1 Sol at medium and
+  high; GPT-6 Astra at xhigh; GLM-5.3-Flash at low for mechanical work. Classes and priors are copied from each model's
+  own lane. The Amp harness is unmeasured, so `prior_basis` in `arms.json` says they stay guesses until reviewed Amp
+  runs replace them.
+- Verdicts come from the stream's last `result`. A non-zero exit, an `is_error` result or no result is QUOTA when the
+  text matches the usual quota wording or `insufficient credits`, `out of credits` or `usage limit`; PARTIAL when the
+  process exits 0 with assistant messages and no result; otherwise FAILED. A finished run with `permission_denials` is
+  SANDBOX (exit 7, the lane's own code). Otherwise NOOP when `git status` and HEAD are unchanged, else OK.
+- Tokens: the result's `usage`, else each assistant message's usage counted once by message id. List dollars: the
+  `Cost:` line of `amp threads usage <thread> --details` (20 s, `cost_source: "amp-threads-usage"`). If that fails, the
+  tokens are priced from `providers.claude.prices` (`claude-*`) or the Codex rate card (`gpt-*`), with
+  `cost_source: "tokens"`. A model in neither table gives `list_usd: null` and a `tokens_error`.
+- Amp's `Cost:` line counts only Amp credits: a model routed through a linked Claude subscription shows $0.00 there
+  (seen 2026-11-13). So `list_usd` is the sum of the report's `Est. list price` column, `amp_usd` keeps the Amp
+  credits, and `billed` comes from its Model Routing table (`claude`, `amp` or `mixed`; `providers.amp.billed_to`
+  overrides it). A Claude-billed run draws on Claude's week like any Claude lane. A resumed thread reports its whole
+  lifetime, not one run.
+- `providers.amp` has `billed_to: null` and no meter, so `usage-status` is not called. `--ro` and `--web` are refused:
+  `amp -x` has no documented switch for either (approvals are the `amp.dangerouslyAllowAll` settings key).
+- Approvals: `amp -x` has no approval flag, so each run passes `--settings-file <run dir>/amp-settings.json`, a copy of
+  `~/.config/amp/settings.json` (or `{}` when that is missing or does not parse) with `"amp.dangerouslyAllowAll": true`.
+  The file is deleted when the run ends, and the user's own settings file is never written. That gives an amp run the
+  same reach as the Claude lanes, which run with edits and Bash auto-approved. `providers.amp.allow_all: false` in
+  `arms.json` or `arms.local.json` opts out, and `--dry-run` says which case applies.
+- Every amp process a lane starts gets `KIT_LANE_RUN=<run id>` and `USAGE_OPTIMIZER_TURNS=off`, so the Amp plugin
+  registers nothing inside a lane run. `LANES_AMP_BIN` overrides the executable; otherwise `amp` is found on `PATH`.
+- Checked live against amp 0.0.1794528069 on 2026-11-13: one `-x` turn (L1) and two lane runs, OK then NOOP (L3).
+  `tests/fixtures/amp/stream-live-l1.jsonl` and `threads-usage-subscription.txt` are sanitised real captures; the
+  other stream fixtures are synthetic. The real stream's `result` event has no usage, and assistant messages carry
+  usage without a message id; Amp's tool shells set `AMP_CURRENT_THREAD_ID`.
 
 ### glm — `cline` (free OAuth lane)
 

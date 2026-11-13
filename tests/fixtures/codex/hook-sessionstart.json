@@ -1,0 +1,8 @@
+{
+  "session_id": "0198f3a2-6b7c-7d10-9a41-2c5e8f1b7d3a",
+  "transcript_path": "/example/.codex/sessions/2026/11/13/rollout-2026-11-13T09-00-00-0198f3a2-6b7c-7d10-9a41-2c5e8f1b7d3a.jsonl",
+  "cwd": "/example/work/repo",
+  "hook_event_name": "SessionStart",
+  "model": "gpt-6-luna",
+  "turn_id": "turn-0001"
+}

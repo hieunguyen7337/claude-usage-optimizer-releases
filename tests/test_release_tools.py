@@ -26,7 +26,7 @@ class ReleaseToolsTest(unittest.TestCase):
         self.kit.mkdir()
         (self.kit / "tools").mkdir()
         for name in ("make-bundle.sh", "knowledge_scan.py", "knowledge-scan.allow",
-                     "release_bundle.py", "diff-bundle.py", "check-release.py"):
+                     "release_bundle.py", "diff-bundle.py", "check-release.py", "make-platform-policy.py"):
             shutil.copy2(ROOT / "tools" / name, self.kit / "tools" / name)
         (self.kit / "skills").mkdir()
         (self.kit / "POLICY.md").write_text("Claude Usage Optimizer version: 9.8.7\n",
@@ -268,6 +268,53 @@ class ReleaseToolsTest(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("FAIL evidence: differing files: " + release_bundle.EVIDENCE_FILES[1], result.stdout)
         self.assertIn("OK fresh:", result.stdout)
+
+    def test_platforms_check_runs_the_generator_and_the_plugin_tests(self):
+        # PLAN.md 3.7: the platforms check runs make-platform-policy --check and the Amp plugin's static tests.
+        line = "Claude Usage Optimizer version: 2026-11-13.1"
+        (self.kit / "POLICY.md").write_text(
+            "# Policy\n\n{}\n\n## Routing, in order\n\nRoute work.\n".format(line), encoding="utf-8")
+        self.page.write_text("<p>{}</p>\n".format(line), encoding="utf-8")
+        codex = self.kit / "platforms" / "codex"
+        codex.mkdir(parents=True)
+        (codex / "PLATFORM.md").write_text("# Codex\n\nMapping.\n", encoding="utf-8")
+        (codex / "policy.sections").write_text("## Routing, in order\n", encoding="utf-8")
+        (self.kit / "tests").mkdir()
+        static_tests = self.kit / "tests" / "test_amp_plugin_static.py"
+        static_tests.write_text("import sys\nsys.exit(0)\n", encoding="utf-8")
+        generated = self.command("make-platform-policy.py")
+        self.assertEqual(generated.returncode, 0, generated.stdout + generated.stderr)
+        generated_file = codex / "AGENTS.kit.md"
+
+        self.git("add", ".")
+        self.git("commit", "-qm", "platform files")
+        self.build()
+        result = self.check()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("OK platforms: make-platform-policy --check and the Amp plugin static tests pass",
+                      result.stdout)
+
+        # A hand-edited Codex policy file fails the release, and the line names the file.
+        generated_file.write_text(generated_file.read_text(encoding="utf-8") + "edited\n", encoding="utf-8")
+        self.git("commit", "-qam", "edit the generated file")
+        self.build()
+        result = self.check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("FAIL platforms: make-platform-policy --check exits 1:", result.stdout)
+        self.assertIn("AGENTS.kit.md differs from POLICY.md", result.stdout)
+        self.assertIn("OK fresh:", result.stdout)
+
+        # Regenerated, but a failing plugin test also fails the release, and the line names the test.
+        self.assertEqual(self.command("make-platform-policy.py").returncode, 0)
+        static_tests.write_text(
+            "import unittest\n\n\nclass Broken(unittest.TestCase):\n    def test_broken(self):\n"
+            "        self.fail('boom')\n\n\nif __name__ == '__main__':\n    unittest.main()\n", encoding="utf-8")
+        self.git("commit", "-qam", "break the plugin test")
+        self.build()
+        result = self.check()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("FAIL platforms: Amp plugin static tests exits 1: FAIL: test_broken", result.stdout)
+        self.assertNotIn("FAIL platforms: make-platform-policy", result.stdout)
 
     def test_installer_accepts_source_without_skill_folders(self):
         source = self.base / "source-without-skills"
