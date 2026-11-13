@@ -1656,7 +1656,7 @@ class LaneStatsTests(unittest.TestCase):
                          {"codex": "prolite", "claude": "max_20x", "gemini": "google_ai_pro", "cline": None,
                           "cursor": None, "grok": None, "amp": None})
         self.assertEqual(catalog["explore"]["weeks_per_month"], 4.345)
-        self.assertEqual(catalog["catalog_version"], "2026-11-13.1")
+        self.assertEqual(catalog["catalog_version"], "2026-11-13.2")
         # The base window stays the measured 8,400: lane-bench divides credits by it, and plan_scale is base too.
         self.assertEqual(providers["codex"]["window"]["weekly_credits"], 8400)
         self.assertEqual(providers["codex"]["plan_scale"], {"prolite": 1.0, "plus": 5.8})
@@ -1907,17 +1907,44 @@ class PlatformPlacesTests(unittest.TestCase):
         with mock.patch.dict(os.environ, env, clear=True):
             return stats.allowed_places_with_source(catalog or self.shipped_catalog())
 
-    def test_amp_and_codex_never_offer_the_subagent_place(self):
-        names, source = self.allowed({"KIT_PLATFORM": "amp"})
+    def test_codex_never_offers_the_subagent_place_and_amp_does(self):
+        names, source = self.allowed({"KIT_PLATFORM": "codex"})
         self.assertEqual(names, ["process", "cloud"])
-        self.assertIn("narrowed to platform amp", source)
-        self.assertEqual(self.allowed({"KIT_PLATFORM": "codex"})[0], ["process", "cloud"])
+        self.assertIn("narrowed to platform codex", source)
+        self.assertEqual(self.allowed({"KIT_PLATFORM": "amp"})[0], ["process", "subagent", "cloud"])
 
     def test_lanes_places_cannot_add_a_place_the_platform_lacks(self):
-        self.assertEqual(self.allowed({"KIT_PLATFORM": "amp", "LANES_PLACES": "process,subagent"})[0], ["process"])
+        self.assertEqual(self.allowed({"KIT_PLATFORM": "codex", "LANES_PLACES": "process,subagent"})[0], ["process"])
         with self.assertRaises(ValueError) as caught:
-            self.allowed({"KIT_PLATFORM": "amp", "LANES_PLACES": "subagent"})
+            self.allowed({"KIT_PLATFORM": "codex", "LANES_PLACES": "subagent"})
         self.assertIn("no allowed place", str(caught.exception))
+
+    def test_amp_runs_only_its_agent_lanes_as_subagents(self):
+        catalog = self.shipped_catalog()
+        with mock.patch.dict(os.environ, {"KIT_PLATFORM": "amp"}, clear=True):
+            self.assertEqual(stats.lane_places(catalog, "sonnet"), ["process", "subagent", "cloud"])
+            self.assertEqual(stats.lane_places(catalog, "fable"), ["process", "subagent"])
+            for name in ("luna", "sol", "gemini", "cursor", "grok", "glm"):
+                self.assertNotIn("subagent", stats.lane_places(catalog, name))
+        catalog["lanes"]["luna"]["places"] = ["process", "subagent"]
+        with mock.patch.dict(os.environ, {"KIT_PLATFORM": "amp"}, clear=True):
+            self.assertEqual(stats.lane_places(catalog, "luna"), ["process"])
+        with mock.patch.dict(os.environ, {"KIT_PLATFORM": "claude-code"}, clear=True):
+            self.assertEqual(stats.lane_places(catalog, "luna"), ["process", "subagent"])
+
+    def test_pick_on_amp_prints_subagent_only_for_agent_lanes(self):
+        catalog = self.shipped_catalog()
+        with mock.patch.dict(os.environ, {"KIT_PLATFORM": "amp", "LANES_PLACES": "subagent,cloud"}, clear=True):
+            allowed = stats.allowed_places(catalog)
+            self.assertEqual(stats.run_place("haiku", catalog, allowed, None), "subagent")
+            self.assertEqual(stats.run_place("opus", catalog, allowed, None), "subagent")
+        with mock.patch.dict(os.environ, {"KIT_PLATFORM": "amp"}, clear=True):
+            self.assertEqual(stats.run_place("sonnet", catalog, stats.allowed_places(catalog), None), "process")
+
+    def test_subagent_lanes_and_agent_providers_agree_with_lanes_copy(self):
+        for key in ("subagent_lanes", "agent_providers"):
+            self.assertEqual(self.shipped_catalog()["explore"]["platforms"]["amp"][key], stats.PLATFORM_DEFAULTS["amp"][key])
+            self.assertEqual(stats.PLATFORM_DEFAULTS["amp"][key], lane.PLATFORM_DEFAULTS["amp"][key])
 
     def test_claude_code_keeps_all_three_places(self):
         self.assertEqual(self.allowed({"CLAUDECODE": "1"})[0], ["process", "subagent", "cloud"])

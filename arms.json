@@ -1,5 +1,5 @@
 {
-  "catalog_version": "2026-11-13.1",
+  "catalog_version": "2026-11-13.2",
   "about": "Exploration arms: one arm is one lane, model and effort. lane refuses an arm that is absent or retired unless --off-catalog; lane-stats pick samples only active arms. Add or override arms (same lane, model, effort) in ~/.config/lanes/arms.local.json. prior_pct is a guess at the share of the provider's weekly window one run takes on prior_plan's base window (before window_epochs), prior_usable a guess at its usable rate (Artificial Analysis coding-agent index v1.5 / 80); both give way to measured runs. lane-stats turns every weekly % into a share of today's window on today's plan (plan_scale, then window_epochs) and prices it in plan dollars (plan_prices; see explore.points_basis). weight scales how often exploration samples the arm.",
   "lanes": {
     "luna": {
@@ -330,8 +330,11 @@
         "env_markers": ["CLAUDECODE"]
       },
       "amp": {
-        "places": ["process", "cloud"],
-        "env_markers": ["AMP_CURRENT_THREAD_ID"]
+        "places": ["process", "subagent", "cloud"],
+        "env_markers": ["AMP_CURRENT_THREAD_ID"],
+        "subagent_lanes": ["haiku", "sonnet", "opus", "fable", "amp"],
+        "agent_providers": ["anthropic", "openai"],
+        "subagent_basis": "On Amp a subagent run is an agent thread the kit plugin's kit_lane_run tool starts (amp.createAgent, Agent.run). Only these lanes, and only models of these providers (Amp's model list, plans/amp-codex/probe/P1.md), run there; Codex, gemini, cursor, grok and glm stay processes"
       },
       "codex": {
         "places": ["process", "cloud"],
@@ -750,6 +753,67 @@
       "weight": 1.0,
       "prior_pct": 1.0,
       "prior_usable": 0.52
+    },
+    {
+      "lane": "gemini",
+      "model": "gemini-4-hydrogen-low",
+      "effort": "low",
+      "status": "manual",
+      "classes": [
+        "mechanical",
+        "research"
+      ],
+      "weight": 1.0,
+      "prior_pct": 0.4,
+      "prior_usable": 0.42,
+      "reason": "Gemini 4 Hydrogen (Google, 2026-11-12; Antigravity lists it for every plan at low, medium, high and xhigh, e.g. gemini-4-hydrogen-xhigh). Manual until `agy models` lists it on this account (it did not on 2026-11-13), then set active so forced exploration gives it real units. Classes and priors are Gemini 3.8 Flash's at the same effort (POLICY, Explore 6); vendor Terminal-Bench 4.1 57% against Flash's 18.2%"
+    },
+    {
+      "lane": "gemini",
+      "model": "gemini-4-hydrogen-medium",
+      "effort": "medium",
+      "status": "manual",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "research"
+      ],
+      "weight": 1.0,
+      "prior_pct": 0.6,
+      "prior_usable": 0.48,
+      "reason": "Gemini 4 Hydrogen medium; see gemini-4-hydrogen-low"
+    },
+    {
+      "lane": "gemini",
+      "model": "gemini-4-hydrogen-high",
+      "effort": "high",
+      "status": "manual",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "research",
+        "review"
+      ],
+      "weight": 1.0,
+      "prior_pct": 1.0,
+      "prior_usable": 0.52,
+      "reason": "Gemini 4 Hydrogen high (Antigravity's default level); see gemini-4-hydrogen-low"
+    },
+    {
+      "lane": "gemini",
+      "model": "gemini-4-hydrogen-xhigh",
+      "effort": "xhigh",
+      "status": "manual",
+      "classes": [
+        "mechanical",
+        "substantive",
+        "research",
+        "review"
+      ],
+      "weight": 1.0,
+      "prior_pct": 1.5,
+      "prior_usable": 0.52,
+      "reason": "Gemini 4 Hydrogen xhigh (Antigravity's \"Extra\" level); classes and usable prior copied from Flash high, cost prior 1.5x it for the larger reasoning budget (a guess until measured); see gemini-4-hydrogen-low"
     },
     {
       "lane": "haiku",

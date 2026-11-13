@@ -47,7 +47,8 @@ PLACES = ("process", "subagent", "cloud")
 # Built-in copy of arms.json explore.platforms, used when the catalog has none (kit_platform, platform_places).
 PLATFORM_DEFAULTS = {
     "claude-code": {"places": ["process", "subagent", "cloud"], "env_markers": ["CLAUDECODE"]},
-    "amp": {"places": ["process", "cloud"], "env_markers": ["AMP_CURRENT_THREAD_ID"]},
+    "amp": {"places": ["process", "subagent", "cloud"], "env_markers": ["AMP_CURRENT_THREAD_ID"],
+            "subagent_lanes": ["haiku", "sonnet", "opus", "fable", "amp"], "agent_providers": ["anthropic", "openai"]},
     "codex": {"places": ["process", "cloud"], "env_markers": []},
 }
 PLACE_FLAGS = {"process": None, "subagent": "--subagent", "cloud": "--cloud"}
@@ -758,9 +759,25 @@ def platform_places(catalog, platform):
     return list(places) if isinstance(places, list) else list(PLACES)
 
 
+def platform_subagent_lanes(catalog, platform):
+    """explore.platforms.<platform>.subagent_lanes (else the built-in copy's), or None when the platform names none."""
+    entry = platform_table(catalog).get(platform)
+    lanes = entry.get("subagent_lanes") if isinstance(entry, dict) else None
+    if not isinstance(lanes, list):
+        lanes = (PLATFORM_DEFAULTS.get(platform) or {}).get("subagent_lanes")
+    return list(lanes) if isinstance(lanes, list) else None
+
+
 def lane_places(catalog, lane):
     # A lane with no places key runs in all three, as before places existed.
-    return catalog["lanes"][lane].get("places", list(PLACES))
+    places = catalog["lanes"][lane].get("places", list(PLACES))
+    # On a platform that names its subagent lanes (amp: the lanes its plugin runs as agent threads), any other lane
+    # (Codex, gemini, cursor, grok, glm) keeps to its process and cloud places.
+    try:
+        agents = platform_subagent_lanes(catalog, kit_platform(catalog))
+    except ValueError:
+        agents = None
+    return [place for place in places if place != "subagent" or agents is None or lane in agents]
 
 
 def allowed_places(catalog):

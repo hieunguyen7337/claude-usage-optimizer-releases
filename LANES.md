@@ -988,6 +988,29 @@ amp threads continue <T-id> -x --stream-json < brief.sent.md      # lane --resum
   `arms.json` or `arms.local.json` opts out, and `--dry-run` says which case applies.
 - Every amp process a lane starts gets `KIT_LANE_RUN=<run id>` and `USAGE_OPTIMIZER_TURNS=off`, so the Amp plugin
   registers nothing inside a lane run. `LANES_AMP_BIN` overrides the executable; otherwise `amp` is found on `PATH`.
+- **Runs inside the Amp thread** (`--subagent` on platform amp). `explore.platforms.amp` adds the subagent place for
+  `subagent_lanes` (haiku, sonnet, opus, fable, amp) whose model's provider is in `agent_providers` (anthropic,
+  openai): a Claude lane's model under `anthropic/`, an amp arm's `cli_model`. `lane-stats pick` keeps every other lane
+  in its process or cloud place. `lane` writes `prompt.md` and `meta.json` (`place: "subagent"`, `platform: "amp"`,
+  `provider: "amp"`) and prints `{"tool": "kit_lane_run", "run_id": "<id>"}`. The plugin tool asks
+  `lane hook amp-run-spec` for the model, effort, instructions (`prompt.md`), timeout and excluded tools (delegation,
+  `kit_lane_run`, and the edit tools on `--ro`), runs `amp.createAgent(...).run(message, {parentThreadID, timeoutMs})`,
+  then sends `{run_id, thread_id, text, status}` to `lane hook amp-run-end` on stdin (`--json -`; `--json '<JSON>'`
+  works too). That hook writes `final.md`, the verdict (TIMEOUT, QUOTA or FAILED when `run()` rejected; else PARTIAL,
+  NOOP or OK from the git state, as for a Claude Code subagent), and tokens and dollars from one
+  `amp threads usage <child> --details` (null with a `tokens_error` when there is no child thread or no report).
+  `lane --recover <id>` finishes a run whose tool call died once the lane timeout has passed (`--force` before): PARTIAL
+  when the workspace changed, FAILED when it did not, never OK, since no answer exists. A worker that answers after
+  that leaves its text in `final.md`; its cost stays unread. Agent threads have no working-directory option: the worker is told the directory in its prompt.
+- **The `kit` agent mode.** `lane hook amp-mode` prints the mode the plugin registers: `explore.main_session`'s model
+  (`opus[1m]` -> `anthropic/claude-opus-5-5`) and effort, and `compactionThresholdTokens` 250000 (`autoCompactWindow`
+  in `settings.fragment.json`). It also names the Sonnet subagent model, but the plugin API dropped
+  `AgentSubagentPin` (`plans/amp-codex/probe/P1.md`), so Task workers in the mode run on its main model.
+- **`usage-status` Amp line.** When the `amp` CLI is installed, `usage-status` adds `Amp: credits $X remaining; last 7
+  days $Y recorded (<source> $Z for N tokens, …)`, parsed from `amp usage --details` (fixture
+  `tests/fixtures/amp/usage-details.txt`) and cached 15 minutes in the usage directory (`amp-latest.json`), because
+  Amp allows 60 account and thread usage lookups an hour. A failed read shows the stale cache with its age.
+  `USAGE_OPTIMIZER_AMP=off` hides it; `--json` gains an `amp` object.
 - Checked live against amp 0.0.1794528069 on 2026-11-13: one `-x` turn (L1) and two lane runs, OK then NOOP (L3).
   `tests/fixtures/amp/stream-live-l1.jsonl` and `threads-usage-subscription.txt` are sanitised real captures; the
   other stream fixtures are synthetic. The real stream's `result` event has no usage, and assistant messages carry

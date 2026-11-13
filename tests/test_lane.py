@@ -1466,7 +1466,8 @@ class PlatformIdentityTests(unittest.TestCase):
                 lane.kit_platform(self.CATALOG)
 
     def test_platform_places_default_when_the_catalog_has_none(self):
-        self.assertEqual(lane.platform_places(None, "amp"), ["process", "cloud"])
+        self.assertEqual(lane.platform_places(None, "amp"), ["process", "subagent", "cloud"])
+        self.assertEqual(lane.platform_places(None, "codex"), ["process", "cloud"])
         self.assertEqual(lane.platform_places({}, "claude-code"), ["process", "subagent", "cloud"])
         self.assertEqual(lane.platform_places(self.CATALOG, "amp"), ["process", "cloud"])
 

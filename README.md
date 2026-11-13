@@ -1,15 +1,58 @@
-# Claude Usage Optimizer: public releases
+# Claude Usage Optimizer: a usage optimizer for AI coding agents
+
+Claude Usage Optimizer is for anyone who runs several AI coding agents and pays for several subscriptions. It started
+on Claude Code, which is where the name and the `~/.claude/usage-optimizer` install path come from.
+
+- **Routes work across the plans you already pay for.** Your main agent plans, reviews and decides. One dispatcher,
+  `lane`, sends each written unit to a worker on Claude, ChatGPT (Codex CLI), Google AI Pro (Gemini), Cursor, Grok or
+  Amp, through that provider's own CLI and your own login.
+- **Meters each plan.** `usage-status` shows what is left in the Claude and ChatGPT windows, the Gemini quota and
+  Amp's credits. Cursor and Grok have no account-wide meter, so their cost is recorded or estimated run by run.
+- **Records every run.** Usage, list-price cost, time and peak memory go into a ledger, and so does your review of
+  whether the result was usable.
+- **Learns the cheapest arm.** `lane-stats` compares each model and effort by usable results against usage and time,
+  and picks the next one to run.
+
+## Which agents it runs in
+
+The main session can be Claude Code, Amp or Codex CLI. Claude Code has the fullest support. Codex CLI support is built
+and tested offline, and is not yet checked against a live Codex session.
+
+| | Claude Code | Amp | Codex CLI |
+|---|---|---|---|
+| Policy | Imported into `~/.claude/CLAUDE.md` | Imported through `~/.config/amp/AGENTS.md` | A generated block in `$CODEX_HOME/AGENTS.md`, under Codex's size limit |
+| Turn meter (each turn's cost and time) | Hooks | Plugin | Hooks, trusted once in `/hooks` |
+| Statusline | Two lines: session, running turn, quota windows | One status item: ETA, cost, meters, kit release | None from the kit; Codex's own limit items |
+| Worker lanes | As a process, a subagent or a cloud run | As a process; Claude arms and some `amp` arms run inside the Amp thread | As a process |
+| Cloud runs | Yes (`lane --cloud`) | Claude Code cloud sessions, started from this machine | Claude arms with `--cloud` |
+| Mods (mobile view, sessions pane, compact-at-rest) | Yes | No | No |
+
+## This repository
 
 This repository holds the kit's published releases only. A release tool rewrites it at each release, so pull
 requests cannot be merged here. Each release is one commit, a `v<version>` tag and a GitHub Release carrying the
 bundle, the evidence file and `SHA256SUMS`.
 
 - **Install:** clone this repository and run `bash install.sh` (add `--dry-run` first to see what it changes), or
-  download the bundle from the latest release, check it against `SHA256SUMS`, and run it with `bash`.
+  download the bundle from the latest release, check it against `SHA256SUMS`, and run it with `bash`. On Windows, run
+  it from Git Bash.
 - **Share statistics (optional):** `lane-stats share` previews one week of anonymous totals; `lane-stats share
   --enable` and then `--send` post them here as a public issue through the "Weekly statistics" form. A workflow
   checks each submission. Sharing is off until you turn it on, and an issue shows your GitHub account.
 - **Licence:** MIT (see `LICENSE`).
+
+## Install for Claude Code
+
+Run `bash install.sh --dry-run` first, then `bash install.sh`. Without `--platform`, the installer keeps the platforms
+this machine already has, and Claude Code otherwise. The main things the installer touches:
+
+- `~/.claude/CLAUDE.md`: one import line for the policy;
+- `~/.claude/settings.json`: the kit's hooks and settings, merged in;
+- `~/.claude/agents/` and `~/.claude/skills/`: the kit's subagents and mods;
+- `~/.claude/usage-optimizer/` and `~/.config/lanes/`: the kit's files and settings, as every install does.
+
+It backs up what it replaces. Restart any open Claude Code sessions so they load the new settings. The kit's own
+README, below, lists the hooks.
 
 ## Install for Amp
 
@@ -41,22 +84,28 @@ The kit's own README follows.
 
 ---
 
-# Claude Usage Optimizer
+# Claude Usage Optimizer: a usage optimizer for AI coding agents
 
-Claude Usage Optimizer makes every Claude Code session on a machine spend its Claude plan on planning, review and
-judgement. Execution and read-only legwork go to cheaper worker lanes, and every lane's remaining
-quota is visible. [IMPROVING.md](IMPROVING.md) explains how lessons become published kit improvements.
+Claude Usage Optimizer routes coding work across the AI subscriptions you already pay for: Claude, ChatGPT (Codex),
+Google AI Pro (Gemini), Cursor, Grok and Amp. The main session runs in Claude Code, Amp or Codex CLI and spends its
+plan on planning, review and judgement. Execution and read-only legwork go to cheaper worker lanes, and the remaining
+quota of every metered plan is visible.
+
+Every run's usage, cost, time and reviewed outcome is recorded, so the kit learns which model and effort gives a
+usable result for the least usage. Claude Code has the fullest support, and the name and the
+`~/.claude/usage-optimizer` path come from there; [Platforms](#platforms) says what Amp and Codex CLI get.
+[IMPROVING.md](IMPROVING.md) explains how lessons become published kit improvements.
 
 | Path | What it is |
 |---|---|
-| `POLICY.md` | The shared usage policy. Imported into `~/.claude/CLAUDE.md` as `@~/.claude/usage-optimizer/POLICY.md` |
+| `POLICY.md` | The shared usage policy. Imported into `~/.claude/CLAUDE.md` as `@~/.claude/usage-optimizer/POLICY.md`; Amp and Codex CLI read it through their `AGENTS.md` (see [Platforms](#platforms)) |
 | `IMPROVING.md` | How the kit records lessons, updates its research and methods, and builds and publishes releases |
 | `improve/` | Reusable audit and release briefs |
-| `bin/lane` | One dispatcher for ten lanes on five CLIs: luna, terra, sol and astra/codex, haiku, sonnet and opus/claude, gemini/agy, glm/cline, amp. It checks each arm against the catalog, encodes each CLI's failure modes, masks credentials, prints a verdict, and records every run's usage, time, ETA and peak memory in a ledger; it waits for memory before launching. A Claude arm can also run as a subagent of the main session (`--subagent`) or in a cloud VM (`--cloud`, and `codex-cloud`) |
+| `bin/lane` | One dispatcher for fourteen lanes on seven CLIs: luna, terra, sol, astra and codex-cloud/codex, haiku, sonnet, opus and fable/claude, gemini/agy, cursor/cursor-agent, grok, glm/cline, amp. It checks each arm against the catalog, encodes each CLI's failure modes, masks credentials, prints a verdict, and records every run's usage, time, ETA and peak memory in a ledger; it waits for memory before launching. A Claude arm can also run as a subagent of the main session (`--subagent`) or in a cloud VM (`--cloud`, and `codex-cloud`) |
 | `bin/lane-stats` | Turns the run ledger into decisions: `pick` chooses the next arm to run (with its ETA), `review` records each run's outcome, `report` shows the usable rate against usage, time and peak memory per lane, effort and class, `recommend` shows which classes have locked in, `arms` lists the catalog, `eta` estimates a run's wall-clock time, `export` and `import` pool runs across machines |
 | `bin/lane-mask` | The Linux credential mask (mount namespace) that `lane` uses. Windows has no mask |
 | `bin/lane-term` | Runs one command in a fresh pseudo-terminal (ConPTY on Windows, a pty elsewhere), types scripted answers to its prompts, stops it once a given text appears, and saves what the terminal showed. For programs that refuse to run without a terminal, such as `claude --cloud` |
-| `bin/usage-status` | Headroom across Claude, Codex and Gemini, and this machine's memory: how many more workers of each provider fit. Codex is read live from its app-server and falls back to the newest rollout when needed |
+| `bin/usage-status` | Headroom across Claude, Codex and Gemini, an Amp line (credits left and recent recorded spend), and this machine's memory: how many more workers of each provider fit. Codex is read live from its app-server and falls back to the newest rollout when needed |
 | `bin/turn-meter` | Records every turn's list-price cost, time and the meters before and after it. The installer runs it as the `UserPromptSubmit` and `Stop` hook; `eta` records Claude's own estimate of the time left, and `current` (time so far and to go), `report` (by turn or session) and `calibrate` (cost and estimate accuracy) read the record; `census` counts every Claude Code and Codex session on the machine, kit or not |
 | `bin/claude-statusline` | A two-line statusline with session context, the running turn's time and share, and the kit's name and version (`Usage Optimizer 2026-10-29.3`, or the release whose policy the session last loaded and the newer one installed) on line one, and grouped Claude/Codex quota windows on line two; colors usage by level, fits the terminal width, and logs Claude's rate limits for `usage-status` |
 | `bin/claude-prompts` | Lists the questions typed in a session (`--latest`, `--session-id ID` or `--transcript PATH`; `--text` for people, JSON otherwise). Behind the mobile view's question list (`>`) |

@@ -1,6 +1,6 @@
 # Claude Usage Optimizer: usage policy
 
-Claude Usage Optimizer version: 2026-11-13.1. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Claude Usage Optimizer version: 2026-11-13.2. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
 Machine-specific rules (project dispatchers, locked lanes, local paths) belong in
 `~/.claude/CLAUDE.md` above the import line, and they win when the two conflict.
 On Amp or Codex CLI, read that platform's notes first (`~/.claude/usage-optimizer/platforms/<amp|codex>/PLATFORM.md`):
@@ -163,7 +163,7 @@ per-lane gotchas are in `~/.claude/usage-optimizer/LANES.md`.
 | terra | gpt-6.1-terra (codex-cli ≥ 0.159.0) | The same window, 10x luna per token (half of sol) | The review lane; a cheap code rung below sol (FINDINGS §12) |
 | sol | gpt-6.1-sol (codex-cli ≥ 0.159.1) | The same window, 20x luna per token | Scarce on Plus |
 | astra | gpt-6-astra (codex-cli ≥ 0.159.1) | The same window, 100x luna per token | A second frontier view |
-| gemini | gemini-3.8-flash low/medium/high (agy) | Google AI Pro, $0; at least about 100M tokens/week | Non-sensitive work only (consumer data terms) |
+| gemini | gemini-3.8-flash low/medium/high (agy); gemini-4-hydrogen low–xhigh as manual arms until `agy models` lists it (from 2026-11-13.2) | Google AI Pro, $0; at least about 100M tokens/week | Non-sensitive work only (consumer data terms) |
 | cursor | Cursor CLI (`cursor-agent -p`): grok-4.7 low–xhigh (composer retired by the owner; gpt-5.6-sol is outside the plan) | The owner's Cursor subscription; no account-wide meter (priced from priors) | Private code allowed while Cursor's privacy mode is on; never a `(NO ZDR)` or `claude-*` model (from 2026-11-07.1) |
 | grok | Grok Build CLI (`grok -p`): grok-4.7 low/medium/high, grok-4.7-build-fast | The owner's grok.com subscription; no account-wide meter; each run records its own cost | Non-sensitive work only, like gemini, until the owner confirms grok.com does not train on it (from 2026-11-07.1) |
 | haiku | claude-haiku-5-5 (`claude -p`) | The Claude plan; list price 1/40 of Opus | The cheap Claude worker |
@@ -172,7 +172,7 @@ per-lane gotchas are in `~/.claude/usage-optimizer/LANES.md`.
 | fable | claude-fable-5-2 (`claude -p` or a subagent) | The Claude plan, inside its own sub-cap of half the week; 2.21x Sonnet per list dollar on the week (3.3x Opus; FINDINGS §20) | Advisor by `--role`, and picked for hard and design units as role `work` (Advisor, from 2026-11-10.1) |
 | haiku, sonnet, opus `--cloud` | The same model and effort in a Claude Code cloud session (`claude --cloud`) | The Claude plan; whether a cloud-session credit pays first is unconfirmed (Known) | 4 vCPU/16 GB Linux VM, no local memory; needs GitHub and the Claude GitHub App (Routing step 2) |
 | codex-cloud | Codex Cloud's own model (not published) | The ChatGPT window, at a higher rate OpenAI does not publish | Manual arm, never picked; needs a Codex environment |
-| amp | Amp CLI (`amp -x --stream-json`): Opus 5.5 medium–xhigh, gpt-6.1-sol medium/high, gpt-6-astra xhigh, glm-5.3-flash (mechanical) | Amp's own credits, or the plan a model routes to (a model routed through the Claude subscription draws on Claude's week); no account-wide meter of its own; each run records its list $ and who paid, from `amp threads usage` | Manual arms, never picked (from 2026-11-13.1); `platforms/amp/PLATFORM.md` covers Amp as the main agent |
+| amp | Amp CLI (`amp -x --stream-json`): Opus 5.5 medium–xhigh, gpt-6.1-sol medium/high, gpt-6-astra xhigh, glm-5.3-flash (mechanical) | Amp's own credits, or the plan a model routes to (a model routed through the Claude subscription draws on Claude's week); no account-wide meter of its own; each run records its list $ and who paid, from `amp threads usage` | Manual arms, never picked (from 2026-11-13.1); `platforms/amp/PLATFORM.md` covers Amp as the main agent, where Claude and OpenAI arms run as agent threads through the plugin's `kit_lane_run` tool (from 2026-11-13.2) |
 | glm | z-ai/glm-5.3-flash (cline `-P cline`) | free OAuth | Throwaway work only; never picked |
 | subagents | Sonnet 5.5 by default (`CLAUDE_CODE_SUBAGENT_MODEL`); the kit's `lane-<lane>-<effort>` agents fix one arm each | The Claude plan | Short scoped reads where a lane round-trip isn't worth it; Claude arms run through `lane --subagent` (Routing step 2) |
 

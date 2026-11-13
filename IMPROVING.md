@@ -566,3 +566,15 @@ ships.
 - *Probe before units.* Free checks of each CLI's own output came first, so the units code against recorded facts.
 - *Synthetic fixtures are placeholders.* Fixtures written from documentation are marked as such, and the first live
   capture replaces them.
+
+**2026-11-13 (second release).**
+- *A second reader earns its keep on lost-run paths.* A Haiku verifier found a died tool call recorded as OK and a
+  Windows CRLF report hiding every cost figure; both passed the worker's own suite in the Linux cloud VM. A run with
+  no answer is never OK.
+- *Vendors rate-limit their own usage reports.* Amp allows 60 account and thread usage lookups an hour, so each finished
+  run reads its thread once and `usage-status` caches the account report for 15 minutes.
+- *Cloud session creation can fail for a while (HTTP 503).* Three launches failed and one retry got through; when
+  retries keep failing, a Claude arm falls back to `--subagent`, which needs no cloud.
+- *A new model can be announced before the CLI lists it.* Gemini 4 Hydrogen was live in Antigravity's docs on
+  2026-11-12 but missing from `agy models` here a day later: its arms ship `manual` and become active when the CLI
+  lists the id.

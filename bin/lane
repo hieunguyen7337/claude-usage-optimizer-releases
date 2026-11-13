@@ -62,10 +62,19 @@ AMP_THREAD_RE = re.compile(r"T-[0-9A-Za-z][0-9A-Za-z-]*")
 # Built-in copy of arms.json explore.platforms, used when the catalog has none (kit_platform, platform_places).
 PLATFORM_DEFAULTS = {
     "claude-code": {"places": ["process", "subagent", "cloud"], "env_markers": ["CLAUDECODE"]},
-    "amp": {"places": ["process", "cloud"], "env_markers": ["AMP_CURRENT_THREAD_ID"]},
+    "amp": {"places": ["process", "subagent", "cloud"], "env_markers": ["AMP_CURRENT_THREAD_ID"],
+            "subagent_lanes": ["haiku", "sonnet", "opus", "fable", "amp"], "agent_providers": ["anthropic", "openai"]},
     "codex": {"places": ["process", "cloud"], "env_markers": []},
 }
 AMP_SETTINGS_NAME = "amp-settings.json"
+# The Amp plugin tool that runs a prepared lane run as a child agent thread (platforms/amp/usage-optimizer.ts).
+AMP_LANE_TOOL = "kit_lane_run"
+# Tools an in-thread lane agent never gets: delegation (a worker starts no agents) and the lane tool itself.
+AMP_AGENT_EXCLUDE = (AMP_LANE_TOOL, "Task", "create_thread", "send_thread_message", "wait_for_threads")
+AMP_AGENT_RO_EXCLUDE = ("edit_file", "create_file", "apply_patch")
+# The kit's Claude Code settings this mirrors (settings.fragment.json): autoCompactWindow and CLAUDE_CODE_SUBAGENT_MODEL.
+AMP_MODE_COMPACTION_TOKENS = 250000
+AMP_MODE_SUBAGENT_LANE = "sonnet"
 PICK_RE = re.compile(r"[A-Za-z0-9._-]{1,64}")
 MASK_DEFAULTS = (
     "~/.ssh", "~/.gnupg", "~/.aws", "~/.azure", "~/.kube", "~/.docker",
@@ -3390,6 +3399,34 @@ def platform_places(catalog, platform):
     return list(places) if isinstance(places, list) else ["process", "subagent", "cloud"]
 
 
+def platform_list(catalog, platform, key):
+    """A list setting of explore.platforms.<platform>, else the built-in copy's, else None."""
+    entry = platform_table(catalog).get(platform)
+    value = entry.get(key) if isinstance(entry, dict) else None
+    if not isinstance(value, list):
+        value = (PLATFORM_DEFAULTS.get(platform) or {}).get(key)
+    return list(value) if isinstance(value, list) else None
+
+
+def platform_subagent_lanes(catalog, platform):
+    """The lanes a platform runs as agents of the main session: its subagent_lanes, else the Claude lanes."""
+    lanes = platform_list(catalog, platform, "subagent_lanes")
+    return tuple(lanes) if lanes is not None else CLAUDE_LANES
+
+
+def amp_agent_model(catalog, lane, model, effort):
+    """The provider/model an Amp agent runs for this arm (the amp lane's cli_model, a Claude lane's model under
+    anthropic/), or None when Amp cannot serve it as an agent (explore.platforms.amp.agent_providers)."""
+    if lane == "amp":
+        value = amp_cli_model(catalog, model, effort)
+    elif lane in CLAUDE_LANES:
+        value = model if "/" in model else "anthropic/" + model
+    else:
+        return None
+    providers = platform_list(catalog, "amp", "agent_providers") or []
+    return value if isinstance(value, str) and value.split("/", 1)[0] in providers else None
+
+
 def amp_events(text):
     """Every JSON object line of an amp stream-json output, in order; other lines are skipped."""
     events = []
@@ -3609,8 +3646,31 @@ def amp_billed_to(catalog):
     return billed if billed in ("claude", "codex") else None
 
 
-def amp_threads_usage(executable, thread, env, timeout=20):
-    """The thread's usage (amp_report_usage) from `amp threads usage --details` (20 s), or None when it cannot be read."""
+AMP_REPORT_INPUT_RE = re.compile(r"^Input tokens:[ \t]*([0-9][0-9,]*)(?:[ \t]*\(([0-9][0-9,]*) cache reads?\))?[ \t]*$",
+                                 re.M)
+AMP_REPORT_OUTPUT_RE = re.compile(r"^Output tokens:[ \t]*([0-9][0-9,]*)[ \t]*$", re.M)
+AMP_REPORT_TOTAL_RE = re.compile(r"^Total tokens:[ \t]*([0-9][0-9,]*)[ \t]*$", re.M)
+
+
+def amp_report_tokens(text):
+    """The thread's tokens from the report's Input/Output/Total lines, in run_tokens' shape (cached = cache reads), or
+    None unless the scope is the thread's whole lifetime and the input and output lines each appear once."""
+    if not isinstance(text, str) or AMP_REPORT_SCOPE not in text:
+        return None
+    inputs, outputs = AMP_REPORT_INPUT_RE.findall(text), AMP_REPORT_OUTPUT_RE.findall(text)
+    if len(inputs) != 1 or len(outputs) != 1:
+        return None
+    number_of = lambda cell: int(cell.replace(",", ""))
+    total_in, cached = number_of(inputs[0][0]), number_of(inputs[0][1]) if inputs[0][1] else 0
+    output = number_of(outputs[0])
+    totals = AMP_REPORT_TOTAL_RE.findall(text)
+    total = number_of(totals[0]) if len(totals) == 1 else total_in + output
+    return {"input": max(total_in - cached, 0), "cached": cached, "output": output, "total": total}
+
+
+def amp_threads_report(executable, thread, env, timeout=20):
+    """The text of `amp threads usage <thread> --details` (20 s), or None when it cannot be read. One call: Amp allows
+    60 usage lookups an hour (tests/fixtures/amp/usage-details.txt)."""
     argv = with_launcher([executable or "amp", "threads", "usage", thread, "--details"], executable)
     try:
         proc = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
@@ -3623,7 +3683,15 @@ def amp_threads_usage(executable, thread, env, timeout=20):
         return None
     if proc.returncode:
         return None
-    return amp_report_usage(strip_ansi(stdout.decode("utf-8", errors="replace")))
+    # The report's patterns anchor on line ends; a CRLF report (seen with the Windows fake) would hide every figure.
+    text = stdout.decode("utf-8", errors="replace").replace("\r\n", "\n").replace("\r", "\n")
+    return strip_ansi(text)
+
+
+def amp_threads_usage(executable, thread, env, timeout=20):
+    """The thread's usage (amp_report_usage) from `amp threads usage --details` (20 s), or None when it cannot be read."""
+    text = amp_threads_report(executable, thread, env, timeout)
+    return amp_report_usage(text) if text is not None else None
 
 
 def amp_token_list_usd(model, source, catalog):
@@ -3928,11 +3996,15 @@ def subagent_launch(lane, effort, unit_class, run_id, prompt_path):
                 run_id, prompt_path)}
 
 
-def prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_bytes, outdir, platform="claude-code"):
+def prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_bytes, outdir, platform="claude-code",
+                         agent_model=None):
     run_id = os.path.basename(os.path.normpath(outdir))
     prompt_path = os.path.join(outdir, "prompt.md")
     prompt_text = subagent_prompt(run_id, dir_path, opts.ro, sent_bytes.decode("utf-8"))
-    launch = subagent_launch(opts.lane, opts.effort, opts.unit_class, run_id, prompt_path)
+    # On Amp the run is an agent thread the plugin's kit_lane_run tool starts (LANES.md, amp: runs inside the thread).
+    in_amp = platform == "amp"
+    launch = ({"tool": AMP_LANE_TOOL, "run_id": run_id} if in_amp else
+              subagent_launch(opts.lane, opts.effort, opts.unit_class, run_id, prompt_path))
     if opts.unit_class is None:
         print("note: pass --class so lane-stats can compare lanes", file=sys.stderr)
     eta = estimate_eta(opts.lane, model, opts.effort, opts.unit_class, opts.tag, len(brief_bytes))
@@ -3940,7 +4012,12 @@ def prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_byte
     if opts.dry_run:
         print("subagent: would write {} ({} bytes) and {}".format(
             prompt_path, len(prompt_text.encode("utf-8")), os.path.join(outdir, "meta.json")))
-        print("subagent: launch with the Agent tool; the SubagentStop hook (lane hook subagent-stop) records the result")
+        if in_amp:
+            print("subagent: call the {} tool as an Amp agent on {}; it runs `lane hook amp-run-end`, which records "
+                  "the result".format(AMP_LANE_TOOL, agent_model))
+        else:
+            print("subagent: launch with the Agent tool; the SubagentStop hook (lane hook subagent-stop) records the "
+                  "result")
         print(json.dumps(launch, ensure_ascii=False))
         print("dry-run: nothing written")
         return 0
@@ -3951,7 +4028,7 @@ def prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_byte
         stream.write(sent_bytes)
     meta_path = os.path.join(outdir, "meta.json")
     started_at = utc_now()
-    before, before_error = read_usage("claude")
+    before, before_error = read_usage("amp" if in_amp else "claude")
     usage = {"before": before, "after": None, "tokens": None, "list_usd": None}
     if before_error:
         usage["error"] = before_error
@@ -3959,7 +4036,7 @@ def prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_byte
     before_head = git_head(dir_path) if is_git_repo(dir_path) else None
     eta_s = round(eta["minutes"] * 60, 1) if eta is not None else None
     p80_minutes = eta.get("p80_minutes") if eta is not None else None
-    meta = {"lane": opts.lane, "provider": "claude", "model": model, "effort": opts.effort, "dir": dir_path,
+    meta = {"lane": opts.lane, "provider": "amp" if in_amp else "claude", "model": model, "effort": opts.effort, "dir": dir_path,
             "class": opts.unit_class, "tag": opts.tag, "pick_id": opts.pick_id, "arm": arm_name,
             "off_catalog": bool(opts.off_catalog), "usage": usage, "place": "subagent", "platform": platform,
             "eta_s": eta_s, "eta_p80_s": round(p80_minutes * 60, 1) if is_eta_minutes(p80_minutes) else None,
@@ -3969,7 +4046,10 @@ def prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_byte
             "exit_code": None, "verdict": None, "session_id": None, "launched_at": None, "peak_mem_mb": None,
             "log": None, "cmd": None, "executable": None, "prompt": prompt_path,
             "git_before": {"status": before_status, "head": before_head},
-            "subagent": {"agent_type": launch["subagent_type"], "parent_session_id": None, "later_stops": []}}
+            "subagent": {"agent_type": launch["subagent_type"], "parent_session_id": None, "later_stops": []}
+            if not in_amp else
+            {"agent_type": "amp-agent", "agent_model": agent_model, "timeout_s": opts.timeout, "parent_thread_id": None,
+             "child_thread_id": None, "tool_started_at": None, "later_ends": []}}
     if opts.role:
         meta["role"] = opts.role
     with open(prompt_path, "w", encoding="utf-8", newline="\n") as stream:
@@ -3977,7 +4057,10 @@ def prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_byte
     # The subagent runs inside Claude Code's own process: no memory or task-headroom wait.
     meta["launched_at"] = utc_now()
     write_meta(meta_path, meta)
-    print("lane: subagent run {} prepared; launch it with the Agent tool:".format(run_id))
+    if in_amp:
+        print("lane: amp agent run {} prepared; call the {} tool with this input:".format(run_id, AMP_LANE_TOOL))
+    else:
+        print("lane: subagent run {} prepared; launch it with the Agent tool:".format(run_id))
     print(json.dumps(launch, ensure_ascii=False))
     return 0
 
@@ -4271,6 +4354,251 @@ def run_hook(handler):
     return 0
 
 
+def amp_run_lookup(data):
+    """(run_dir, meta, None) for the amp agent run named by data["run_id"], else (None, None, why)."""
+    run_id = data.get("run_id")
+    # The same rule as transcript_run_id: a bare run id under lane's own runs directory, never a path.
+    if (not isinstance(run_id, str) or not run_id or run_id in (".", "..") or os.path.basename(run_id) != run_id
+            or "/" in run_id or "\\" in run_id):
+        return None, None, "run_id must be the bare run id lane printed"
+    run_dir = os.path.join(state_dir(), "runs", run_id)
+    try:
+        with open(os.path.join(run_dir, "meta.json"), "r", encoding="utf-8") as stream:
+            meta = json.load(stream)
+    except (OSError, ValueError):
+        return None, None, "no lane run {} (meta.json is missing or invalid)".format(run_id)
+    if not isinstance(meta, dict) or meta.get("place") != "subagent" or meta.get("platform") != "amp":
+        return None, None, "lane run {} was not prepared as an Amp agent run (lane ... --subagent on Amp)".format(run_id)
+    return run_dir, meta, None
+
+
+def amp_run_spec_hook(data):
+    """What the kit_lane_run tool passes to amp.createAgent and Agent.run, from the prepared run's meta.json."""
+    run_dir, meta, error = amp_run_lookup(data)
+    if error:
+        return {"ok": False, "error": error}
+    if meta.get("verdict") is not None:
+        return {"ok": False, "error": "lane run {} already ended ({})".format(os.path.basename(run_dir), meta["verdict"])}
+    subagent = meta.get("subagent") if isinstance(meta.get("subagent"), dict) else {}
+    try:
+        with open(meta.get("prompt") or os.path.join(run_dir, "prompt.md"), "r", encoding="utf-8") as stream:
+            instructions = stream.read()
+    except (OSError, TypeError, ValueError):
+        return {"ok": False, "error": "lane run {} has no readable prompt.md".format(os.path.basename(run_dir))}
+    timeout_s = subagent.get("timeout_s")
+    timeout_s = timeout_s if isinstance(timeout_s, int) and not isinstance(timeout_s, bool) and timeout_s > 0 else 3600
+    exclude = list(AMP_AGENT_EXCLUDE) + (list(AMP_AGENT_RO_EXCLUDE) if meta.get("ro") else [])
+    parent = data.get("parent_thread_id")
+    if isinstance(parent, str) and AMP_THREAD_RE.fullmatch(parent):
+        subagent["parent_thread_id"] = parent
+    subagent["tool_started_at"] = utc_now()
+    meta["subagent"] = subagent
+    write_meta(os.path.join(run_dir, "meta.json"), meta)
+    spec = {"ok": True, "run_id": os.path.basename(run_dir), "model": subagent.get("agent_model"),
+            "instructions": instructions, "timeoutMs": timeout_s * 1000, "tools": {"exclude": exclude},
+            "message": "lane-run: {}\nDo the unit your instructions give, working only in {}, and end with the "
+                       "return contract they ask for.".format(os.path.basename(run_dir), meta.get("dir"))}
+    if meta.get("effort") in MAIN_EFFORTS:
+        spec["reasoningEffort"] = meta["effort"]
+    return spec
+
+
+def amp_run_verdict(meta, status, text, error_text):
+    """decide_verdict's rules for an agent thread: TIMEOUT, QUOTA or FAILED when Agent.run rejected, else the
+    subagent rules from the git state stored at preparation (a lost run, whose tool call died, takes these too)."""
+    if status == "timeout":
+        return "TIMEOUT", 124
+    if status in ("error", "cancelled") and not text.strip():
+        return ("QUOTA", 75) if AMP_QUOTA_RE.search(error_text or "") else ("FAILED", 4)
+    if status == "lost":
+        # The tool call died: no answer exists, so changed files are unfinished work and no change is a failure.
+        verdict = subagent_verdict(meta, text)
+        return ("FAILED", 4) if verdict[0] == "NOOP" else ("PARTIAL", 6)
+    return subagent_verdict(meta, text)
+
+
+def finish_amp_run(run_dir, meta, end, ended_epoch, recovered=False):
+    """Finishes an amp agent run's record as finish_subagent_run does a Claude Code subagent's: verdict, final.md,
+    tokens and dollars from one `amp threads usage <child> --details`, then the ledger."""
+    meta_path = os.path.join(run_dir, "meta.json")
+    dir_path = meta.get("dir")
+    ended = datetime.datetime.fromtimestamp(ended_epoch, datetime.timezone.utc)
+    started = parse_utc(meta.get("started_at"))
+    duration = (ended - started).total_seconds() if started else None
+    # The plugin always sends a status; anything else is not a clean finish.
+    status = end.get("status") if end.get("status") in ("done", "timeout", "error", "cancelled", "lost") else "error"
+    text = end.get("text") if isinstance(end.get("text"), str) else ""
+    error_text = end.get("error") if isinstance(end.get("error"), str) else ""
+    thread = end.get("thread_id") if isinstance(end.get("thread_id"), str) and AMP_THREAD_RE.fullmatch(
+        end.get("thread_id")) else None
+    verdict, exit_code = amp_run_verdict(meta, status, text, error_text)
+    warnings = [item for item in meta.get("warnings") or [] if isinstance(item, str)]
+    usage = meta.get("usage") if isinstance(meta.get("usage"), dict) else {}
+    meta["usage"] = usage
+    report = None
+    if thread:
+        try:
+            catalog = load_catalog()
+        except LaneError:
+            catalog = None
+        executable, _ = resolve_binary("amp")
+        report = amp_threads_report(executable, thread, amp_child_env(run_dir))
+        figures = amp_report_usage(report)
+        usage["tokens"] = amp_report_tokens(report)
+        if figures is not None:
+            usage.update({"list_usd": figures["list_usd"], "amp_usd": figures["amp_usd"],
+                          "billed": amp_billed_to(catalog) or figures["billed"], "cost_source": "amp-threads-usage"})
+        else:
+            usage.update({"list_usd": None, "cost_source": None, "tokens_error": "amp threads usage unavailable"})
+    else:
+        usage.update({"tokens": None, "list_usd": None, "cost_source": None,
+                      "tokens_error": "no child thread id (Agent.run did not resolve)"})
+    usage["after"] = None
+    if recovered:
+        error = usage.get("error")
+        usage["error"] = (str(error) + "; " if error else "") + "recovered: no after-reading"
+    if text:
+        with open(os.path.join(run_dir, "final.md"), "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(text if text.endswith("\n") else text + "\n")
+    text_warnings = []
+    started_epoch = meta.get("started_epoch")
+    if not meta.get("ro") and isinstance(dir_path, str) and os.path.isdir(dir_path) \
+            and isinstance(started_epoch, (int, float)):
+        text_warnings = encoding_warnings(dir_path, started_epoch)
+    if error_text:
+        warnings.append("Agent.run {}: {}".format(status, error_text[:300]))
+    subagent = meta.get("subagent") if isinstance(meta.get("subagent"), dict) else {}
+    parent = end.get("parent_thread_id")
+    subagent.update({"child_thread_id": thread, "status": status,
+                     "parent_thread_id": parent if isinstance(parent, str) and AMP_THREAD_RE.fullmatch(parent)
+                     else subagent.get("parent_thread_id")})
+    meta["subagent"] = subagent
+    if warnings:
+        meta["warnings"] = warnings
+    if text_warnings:
+        meta["text_warnings"] = text_warnings
+    meta.update({"ended_at": ended.isoformat(timespec="seconds").replace("+00:00", "Z"),
+                 "duration_s": round(duration, 3) if duration is not None else None, "exit_code": exit_code,
+                 "verdict": verdict, "session_id": thread, "peak_mem_mb": None, "place": "subagent",
+                 "platform": "amp"})
+    if recovered:
+        meta.update({"recovered": True, "recovered_at": utc_now()})
+    write_meta(meta_path, meta)
+    append_ledger(run_dir, meta)
+    return verdict, exit_code, duration
+
+
+def amp_run_end_hook(data):
+    """lane hook amp-run-end: the kit_lane_run tool's Agent.run settled (resolved or rejected); record the run."""
+    run_dir, meta, error = amp_run_lookup(data)
+    if error:
+        return {"ok": False, "error": error}
+    if meta.get("verdict") is not None:
+        subagent = meta.get("subagent") if isinstance(meta.get("subagent"), dict) else {}
+        later = subagent.get("later_ends") if isinstance(subagent.get("later_ends"), list) else []
+        later.append({"at": utc_now(), "thread_id": data.get("thread_id"), "status": data.get("status")})
+        subagent["later_ends"] = later
+        # A worker that answers after a recovery still leaves its answer; its cost stays unread (one record per run).
+        late_text = data.get("text") if isinstance(data.get("text"), str) else ""
+        final_path = os.path.join(run_dir, "final.md")
+        if late_text.strip() and not os.path.exists(final_path):
+            with open(final_path, "w", encoding="utf-8", newline="\n") as stream:
+                stream.write(late_text if late_text.endswith("\n") else late_text + "\n")
+        meta["subagent"] = subagent
+        write_meta(os.path.join(run_dir, "meta.json"), meta)
+        return {"ok": True, "verdict": meta["verdict"],
+                "summary": "lane run {} was already recorded ({})".format(os.path.basename(run_dir), meta["verdict"])}
+    verdict, exit_code, duration = finish_amp_run(run_dir, meta, data, time.time())
+    duration = duration or 0
+    return {"ok": True, "verdict": verdict, "exit_code": exit_code, "out": run_dir,
+            "summary": "lane={} verdict={} exit={} session={} secs={} out={}{}".format(
+                meta.get("lane") or "-", verdict, exit_code, meta.get("session_id") or "-", int(duration + 0.5),
+                run_dir, eta_summary_suffix(duration, meta.get("eta_s")))}
+
+
+def amp_mode_hook(_data):
+    """lane hook amp-mode: the kit agent mode's settings, from explore.main_session (arms.json) and the kit's Claude Code
+    defaults (settings.fragment.json: compaction at 250k tokens, Sonnet subagents)."""
+    try:
+        catalog = load_catalog()
+    except LaneError:
+        catalog = {}
+    explore = catalog.get("explore") if isinstance(catalog.get("explore"), dict) else {}
+    lanes = catalog.get("lanes") if isinstance(catalog.get("lanes"), dict) else {}
+    block = explore.get("main_session") if isinstance(explore.get("main_session"), dict) else {}
+
+    def amp_model(name):
+        # opus[1m] -> opus -> lanes.opus.model -> anthropic/claude-opus-5-5
+        name = re.sub(r"\[[^\]]*\]$", "", name) if isinstance(name, str) and name else "opus"
+        lane = lanes.get(name) if isinstance(lanes.get(name), dict) else None
+        if lane and isinstance(lane.get("model"), str):
+            name = lane["model"]
+        elif name in DEFAULT_MODELS:
+            name = DEFAULT_MODELS[name]
+        return name if "/" in name else "anthropic/" + name
+
+    effort = block.get("effort") if block.get("effort") in MAIN_EFFORTS else "xhigh"
+    return {"ok": True, "key": "kit", "label": "kit", "model": amp_model(block.get("model")), "reasoningEffort": effort,
+            "compactionThresholdTokens": AMP_MODE_COMPACTION_TOKENS,
+            "subagentModel": amp_model(AMP_MODE_SUBAGENT_LANE),
+            "description": "Claude Usage Optimizer main session: the kit's main model and effort, compaction at {}k "
+                           "tokens. Use it to plan, brief and review lane runs.".format(AMP_MODE_COMPACTION_TOKENS // 1000),
+            "instructions": "You are the main session of the Claude Usage Optimizer kit. Follow the kit policy and its "
+                            "Amp page (platforms/amp/PLATFORM.md) from your AGENTS.md."}
+
+
+AMP_HOOKS = {"amp-run-spec": amp_run_spec_hook, "amp-run-end": amp_run_end_hook, "amp-mode": amp_mode_hook}
+
+
+def run_amp_hook(name, args):
+    """lane hook amp-run-spec|amp-run-end|amp-mode [--json JSON|-]: one JSON line on stdout, exit 0 even on failure
+    (the Amp plugin turns {"ok": false} into a tool error). Without --json, or with --json -, the input is stdin."""
+    real_stdout = sys.stdout
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+    try:
+        if len(args) == 2 and args[0] == "--json" and args[1] != "-":
+            text = args[1]
+        elif args in ([], ["--json", "-"]):
+            text = sys.stdin.buffer.read().decode("utf-8", "replace")
+        else:
+            raise ValueError("usage: lane hook {} [--json JSON|-]".format(name))
+        data = json.loads(text) if text.strip() else {}
+        if not isinstance(data, dict):
+            raise ValueError("input is not a JSON object")
+        result = AMP_HOOKS[name](data)
+    except Exception as exc:
+        result = {"ok": False, "error": "lane hook {} failed: {}".format(name, exc)}
+        try:
+            os.makedirs(state_dir(), exist_ok=True)
+            with open(os.path.join(state_dir(), "hook-errors.log"), "a", encoding="utf-8") as stream:
+                stream.write("{} lane hook {}\n{}\n".format(utc_now(), name, traceback.format_exc()))
+        except Exception:
+            pass
+    finally:
+        sys.stdout.close()
+        sys.stdout = real_stdout
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
+
+
+def recover_amp_run(run_arg, run_dir, meta, force):
+    """An amp agent run whose kit_lane_run call died: finished from the git state, with no thread and no usage."""
+    subagent = meta.get("subagent") if isinstance(meta.get("subagent"), dict) else {}
+    timeout_s = subagent.get("timeout_s") if isinstance(subagent.get("timeout_s"), (int, float)) else 3600
+    started = parse_utc(subagent.get("tool_started_at")) or parse_utc(meta.get("launched_at"))
+    now = time.time()
+    if not force and started is not None and now < started.timestamp() + timeout_s + 60:
+        print("lane: cannot recover {}: its kit_lane_run call may still be running (lane timeout {} s; pass "
+              "--force)".format(run_arg, int(timeout_s)), file=sys.stderr)
+        return 2
+    verdict, exit_code, duration = finish_amp_run(run_dir, meta, {"status": "lost"}, now, recovered=True)
+    duration = duration or 0
+    print("lane={} verdict={} exit={} session=- secs={} out={} recovered=1{}".format(
+        meta.get("lane") or "-", verdict, exit_code, int(duration + 0.5), run_dir,
+        eta_summary_suffix(duration, meta.get("eta_s"))))
+    return 0
+
+
 def claude_projects_root():
     return os.path.abspath(os.path.expanduser(os.environ.get("LANES_CLAUDE_PROJECTS") or "~/.claude/projects"))
 
@@ -4346,6 +4674,8 @@ def recover_run(run_arg, force=False):
     if meta.get("ended_at"):
         print("lane: cannot recover {}: run already ended".format(run_arg), file=sys.stderr)
         return 2
+    if meta.get("place") == "subagent" and meta.get("platform") == "amp" and meta.get("verdict") is None:
+        return recover_amp_run(run_arg, run_dir, meta, force)
     if meta.get("place") == "subagent" and meta.get("verdict") is None:
         transcript = find_subagent_transcript(os.path.basename(os.path.normpath(run_dir)))
         if transcript:
@@ -4457,8 +4787,12 @@ def validate_options(parser, opts, catalog):
     if opts.subagent and "subagent" not in platform_places(catalog, platform):
         parser.error("--subagent is not available on {} (its places: {}); run this lane in its process form, "
                      "without --subagent".format(platform, ", ".join(platform_places(catalog, platform))))
-    if opts.subagent and opts.lane not in CLAUDE_LANES:
-        parser.error("--subagent is only available for haiku, sonnet, or opus")
+    subagent_lanes = platform_subagent_lanes(catalog, platform)
+    if opts.subagent and opts.lane not in subagent_lanes:
+        if subagent_lanes == CLAUDE_LANES:
+            parser.error("--subagent is only available for haiku, sonnet, or opus")
+        parser.error("--subagent is only available for {} on {}; run {} in its process form".format(
+            ", ".join(subagent_lanes), platform, opts.lane))
     if opts.subagent and (opts.cloud or opts.resume is not None or opts.web or opts.mask is True):
         parser.error("--subagent cannot be combined with --cloud, --resume, --web, or --mask")
     if opts.subagent and opts.outdir:
@@ -4501,7 +4835,7 @@ def validate_options(parser, opts, catalog):
         parser.error("gemini cannot take --web: agy --help has no search switch")
     if opts.web and opts.lane in ("cursor", "grok"):
         parser.error("{} cannot take --web: its CLI has no search switch".format(opts.lane))
-    if opts.lane == "amp":
+    if opts.lane == "amp" and not opts.subagent:
         if opts.ro:
             parser.error("amp cannot take --ro: amp -x has no read-only switch (approvals are a settings key)")
         if opts.web:
@@ -4567,6 +4901,13 @@ def run_lane(opts, parser):
     if catalog is not None and not opts.off_catalog:
         require_arm(opts.lane, model, effort, arm)
     arm_name = "/".join((arm["lane"], arm["model"], arm["effort"])) if arm else None
+    agent_model = None
+    if opts.subagent and kit_platform(catalog) == "amp":
+        agent_model = amp_agent_model(catalog, opts.lane, model, effort)
+        if agent_model is None:
+            raise LaneError("lane: {} {} cannot run as an Amp agent (Amp agents serve {} models); run it in its "
+                            "process form, without --subagent".format(opts.lane, model, ", ".join(
+                                platform_list(catalog, "amp", "agent_providers") or ["no"])), 2)
     dir_path = os.path.realpath(opts.dir_path)
     brief_path = os.path.abspath(os.path.expanduser(opts.brief))
     try:
@@ -4585,7 +4926,8 @@ def run_lane(opts, parser):
         outdir = reserve_run_dir(outdir)
     platform = kit_platform(catalog)
     if opts.subagent:
-        return prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_bytes, outdir, platform)
+        return prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_bytes, outdir, platform,
+                                    agent_model)
     provider = PROVIDERS[opts.lane]
     executable_name = {"codex": "codex", "claude": "claude", "gemini": "agy", "cursor": "cursor-agent",
                        "grok": "grok", "cline": "cline", "amp": "amp"}[provider]
@@ -6319,6 +6661,8 @@ def main(argv=None):
         return recover_run(argv[1], len(argv) == 3)
     if argv[:2] == ["hook", "subagent-stop"]:
         return run_hook(subagent_stop_hook)
+    if len(argv) >= 2 and argv[0] == "hook" and argv[1] in AMP_HOOKS:
+        return run_amp_hook(argv[1], argv[2:])
     if argv and argv[0] in ("muse", "prep-muse"):
         print("lane: {} was retired on 2026-10-17 (see POLICY.md)".format(argv[0]), file=sys.stderr)
         return 2

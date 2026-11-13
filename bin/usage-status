@@ -1530,6 +1530,168 @@ def window_changes(claude_data, codex_cache, agy, now):
         return []  # the watch never breaks the meter
 
 
+# Amp credits and recorded spend from `amp usage --details`. Amp allows 60 account and thread lookups an hour, so the
+# parsed result is cached in the usage directory for AMP_CACHE_SECONDS; a failed live read is retried no sooner than
+# that either, and the stale cache is shown with its age.
+AMP_CACHE_SECONDS = 900
+AMP_TIMEOUT_SECONDS = 20.0
+
+
+def amp_binary():
+    configured = os.path.expanduser(os.environ.get("LANES_AMP_BIN", "").strip())
+    return configured or shutil.which("amp")
+
+
+def _amp_money(text):
+    try:
+        return float(text.replace(",", ""))
+    except (AttributeError, ValueError):
+        return None
+
+
+def _amp_source_rows(text):
+    # Rows of the markdown table under "## From" (header and rule rows dropped); [] when there is no such table.
+    lines = text.splitlines()
+    start = next((index for index, line in enumerate(lines) if line.strip() == "## From"), None)
+    if start is None:
+        return []
+    rows = []
+    for line in lines[start + 1:]:
+        if line.startswith("## "):
+            break
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+        if all(re.fullmatch(r":?-+:?", cell) for cell in cells) or cells[0] == "Source":
+            continue
+        rows.append(cells)
+    return rows
+
+
+def amp_parse(text):
+    # The figures from `amp usage --details`, or None when the output states none of them. Never raises.
+    if not isinstance(text, str):
+        return None
+    parsed = {}
+    match = re.search(r"\*\*Individual credits:\*\*\s*\$([0-9][0-9,]*(?:\.[0-9]+)?)\s+remaining", text)
+    if match:
+        parsed["credits_remaining_usd"] = _amp_money(match.group(1))
+    match = re.search(r"^Total recorded cost:\s*\$([0-9][0-9,]*(?:\.[0-9]+)?)", text, re.MULTILINE)
+    if match:
+        parsed["recorded_usd"] = _amp_money(match.group(1))
+    match = re.search(r"^Range:\s*(\S+)\s+to\s+(\S+)", text, re.MULTILINE)
+    if match:
+        start, end = parse_time(match.group(1)), parse_time(match.group(2))
+        if start and end and end > start:
+            parsed["range_days"] = int(round((end - start).total_seconds() / 86400.0))
+    sources = []
+    for cells in _amp_source_rows(text):
+        if len(cells) < 3:
+            continue
+        cost = re.search(r"\$([0-9][0-9,]*(?:\.[0-9]+)?)", cells[2])
+        tokens = re.fullmatch(r"[0-9][0-9,]*", cells[1])
+        if not cost or not tokens:
+            continue
+        sources.append({"name": cells[0], "tokens": int(cells[1].replace(",", "")),
+                        "recorded_usd": _amp_money(cost.group(1))})
+    if sources:
+        parsed["sources"] = sources
+    if any(parsed.get(key) is not None for key in ("credits_remaining_usd", "recorded_usd")) or sources:
+        return parsed
+    return None
+
+
+def _amp_live(binary):
+    # Runs `amp usage --details`; the parsed figures, or None on a missing, failed or timed-out run. Never raises.
+    try:
+        proc = subprocess.Popen([binary, "usage", "--details"], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    try:
+        stdout, _ = proc.communicate(timeout=AMP_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        # On Windows `amp` is usually an npm .cmd wrapper: killing cmd.exe alone leaves node holding the pipes.
+        if os.name == "nt":
+            try:
+                subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, timeout=10, check=False)
+            except (OSError, subprocess.SubprocessError):
+                pass
+        try:
+            proc.kill()
+            proc.communicate(timeout=5)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
+        return None
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None
+    return amp_parse(stdout) if proc.returncode == 0 else None
+
+
+def amp_section(directory, now):
+    # (data, line) for the Amp line, or (None, None) when amp is not installed, USAGE_OPTIMIZER_AMP=off, or no figures
+    # are known yet. Never raises.
+    try:
+        if os.environ.get("USAGE_OPTIMIZER_AMP", "").strip().lower() == "off":
+            return None, None
+        binary = amp_binary()
+        if not binary:
+            return None, None
+        path = os.path.join(directory, "amp-latest.json")
+        cache = read_json(path)
+        cache = cache if isinstance(cache, dict) else {}
+        observed = parse_time(cache.get("observed_at"))
+        attempted = parse_time(cache.get("attempted_at"))
+        cached = cache.get("parsed") if isinstance(cache.get("parsed"), dict) else None
+        fresh = observed is not None and cached is not None and (now - observed).total_seconds() < AMP_CACHE_SECONDS
+        throttled = attempted is not None and (now - attempted).total_seconds() < AMP_CACHE_SECONDS
+        if fresh:
+            parsed, read_at, stale = cached, observed, False
+        elif throttled:
+            parsed, read_at, stale = cached, observed, True
+        else:
+            live = _amp_live(binary)
+            record = {"attempted_at": utc_text(now)}
+            if live is not None:
+                parsed, read_at, stale = live, now, False
+                record.update({"observed_at": utc_text(now), "parsed": live})
+            else:
+                parsed, read_at, stale = cached, observed, True
+                if cached is not None:
+                    record.update({"observed_at": cache.get("observed_at"), "parsed": cached})
+            try:
+                os.makedirs(directory, exist_ok=True)
+                write_json_atomic(path, record)
+            except OSError:
+                pass
+        if not parsed or read_at is None:
+            return None, None
+        data = {"credits_remaining_usd": parsed.get("credits_remaining_usd"),
+                "recorded_usd": parsed.get("recorded_usd"), "range_days": parsed.get("range_days"),
+                "sources": parsed.get("sources") or [], "observed_at": utc_text(read_at), "stale": stale}
+        parts = []
+        if data["credits_remaining_usd"] is not None:
+            parts.append("credits ${:.2f} remaining".format(data["credits_remaining_usd"]))
+        if data["recorded_usd"] is not None:
+            label = "last {} days".format(data["range_days"]) if data["range_days"] else "recorded"
+            piece = "{} ${:.2f} recorded".format(label, data["recorded_usd"])
+            if data["sources"]:
+                piece += " (" + ", ".join("{} ${:.2f} for {:,} tokens".format(
+                    source["name"], source["recorded_usd"] or 0.0, source["tokens"])
+                    for source in data["sources"] if source.get("recorded_usd") is not None) + ")"
+            parts.append(piece)
+        if not parts:
+            return None, None
+        line = "Amp: " + "; ".join(parts) + "; read " + age_text(read_at, now)
+        if stale:
+            line += " (stale)"
+        return data, line
+    except Exception:
+        return None, None  # the Amp line never breaks usage-status
+
+
 def usage_status(args):
     now = dt.datetime.now(UTC)
     claude_dir = env_path("CLAUDE_USAGE_DIR", "~/.claude/usage")
@@ -1541,6 +1703,7 @@ def usage_status(args):
     claude, claude_line = claude_section(claude_dir, now)
     codex, codex_line = codex_section(codex_home, now, claude_dir, args.no_codex_live)
     agy, agy_line = (None, None) if args.no_agy else agy_section()
+    amp, amp_line = amp_section(claude_dir, now)
     claude_weekly = claude.get("windows", {}).get("seven_day", {}).get("used_percentage")
     codex_five = codex.get("five_hour", {}).get("used_percent") if codex.get("five_hour") else None
     codex_weekly = codex.get("seven_day", {}).get("used_percent") if codex.get("seven_day") else None
@@ -1584,6 +1747,8 @@ def usage_status(args):
     data = {"claude": claude, "codex": codex, "agy": agy, "local": local, "hint": hint}
     if changes:
         data["window_changes"] = changes
+    if amp is not None:
+        data["amp"] = amp
     if args.json:
         print(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
         return
@@ -1591,6 +1756,8 @@ def usage_status(args):
     lines = [claude_line, codex_line]
     if agy_line:
         lines.append(agy_line)
+    if amp_line:
+        lines.append(amp_line)
     lines.extend("warning: " + change["text"] for change in changes)
     if not args.no_local:
         lines.append(local_line(local))

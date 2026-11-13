@@ -65,6 +65,8 @@ class UsageLocalTests(unittest.TestCase):
             "LANES_STATE": self.state,
             "LANES_ARMS": self.catalog_path,
             "USAGE_OPTIMIZER_CLOUD_PROBE_MIN": "off",
+            # A machine with amp installed would add the Amp line and its `amp` key.
+            "USAGE_OPTIMIZER_AMP": "off",
             "USAGE_OPTIMIZER_CODEX_BIN": self.fake_bin,
             "USAGE_OPTIMIZER_CODEX_TIMEOUT": "2",
             "USAGE_OPTIMIZER_CODEX_TTL": "300",

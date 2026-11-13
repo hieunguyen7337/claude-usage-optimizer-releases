@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tiny stand-in for `amp threads usage <id> --details`, used only by test_turn_meter.py.
+"""Tiny stand-in for `amp threads usage <id> --details`, used by test_turn_meter.py and test_lane_subagent.py (amp agent runs).
 
 FAKE_AMP_MODE: "ok" (the default) prints the sanitised fixture; "subscription" prints the report of a thread routed through
 the Claude subscription (threads-usage-subscription.txt); "window" prints it with a windowed scope; "garbage" prints text
