@@ -205,6 +205,48 @@ def probe_claude(directory, max_age=15, quiet=False):
             pass
 
 
+def claude_json_path():
+    path = os.environ.get("USAGE_OPTIMIZER_CLAUDE_JSON")
+    if path:
+        return None if path.strip().lower() == "off" else path
+    return os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~"), ".claude.json")
+
+
+def cached_scoped_limits(now):
+    """Model-scoped weekly bars (Fable's own) from the usage response Claude Code caches for /usage
+    (cachedUsageUtilization in ~/.claude.json): [{name, used_percentage (of its own cap), resets_at, share_of_week,
+    allowance_of_week, fetched_at}], skipping a window that has reset since. USAGE_OPTIMIZER_CLAUDE_JSON names the
+    file (off turns it off)."""
+    path = claude_json_path()
+    data = read_json(path) if path else None
+    cache = data.get("cachedUsageUtilization") if isinstance(data, dict) else None
+    utilization = cache.get("utilization") if isinstance(cache, dict) else None
+    if not isinstance(utilization, dict):
+        return []
+    fetched = iso_time(cache.get("fetchedAtMs"))
+    shares = {}
+    for share in utilization.get("weekly_scoped_shares") or []:
+        if isinstance(share, dict):
+            shares[share.get("limit_index")] = share
+    found = []
+    limits = utilization.get("limits")
+    for index, item in enumerate(limits if isinstance(limits, list) else []):
+        if not isinstance(item, dict) or item.get("kind") != "weekly_scoped":
+            continue
+        scope = item.get("scope") if isinstance(item.get("scope"), dict) else {}
+        model = scope.get("model") if isinstance(scope.get("model"), dict) else {}
+        name = model.get("display_name") or model.get("id") or scope.get("surface") or "scoped"
+        percent = number(item.get("percent"))
+        reset = parse_time(item.get("resets_at"))
+        if percent is None or (reset is not None and reset <= now):
+            continue
+        share = shares.get(index) or {}
+        found.append({"name": str(name), "used_percentage": percent, "resets_at": iso_time(reset),
+                      "share_of_week": number(share.get("used_percent_of_weekly")),
+                      "allowance_of_week": number(share.get("allowance_percent_of_weekly")), "fetched_at": fetched})
+    return found
+
+
 def claude_section(directory, now):
     data = read_json(os.path.join(directory, "claude-latest.json"))
     if not isinstance(data, dict):
@@ -240,6 +282,39 @@ def claude_section(directory, now):
         status += "; read " + age_text(data.get("observed_at"), now)
     if stale:
         status += "; stale: any Claude session refreshes it"
+    scoped = read_json(os.path.join(directory, "claude-scoped.json"))
+    scoped = scoped.get("windows") if isinstance(scoped, dict) else None
+    shown = {}
+    for name, item in sorted(scoped.items()) if isinstance(scoped, dict) else ():
+        if not isinstance(item, dict) or number(item.get("used_percentage")) is None:
+            continue
+        reset = parse_time(item.get("resets_at"))
+        if reset is not None and reset <= now:
+            continue  # that window has reset since the lane run read it
+        shown[name] = item
+        piece = "; {} {}".format(name.replace("_", " "), pct_text(number(item["used_percentage"])))
+        if item.get("resets_at"):
+            piece += ", resets " + (local_reset(iso_time(item["resets_at"]), True) or str(item["resets_at"]))
+        status += piece + " (a lane run, read " + age_text(item.get("observed_at"), now) + ")"
+    if shown:
+        result["scoped"] = shown
+    limits = cached_scoped_limits(now)
+    for item in limits:
+        piece = "; {} {} of its own cap".format(item["name"], pct_text(item["used_percentage"]))
+        if item.get("share_of_week") is not None:
+            piece += " ({} of the week".format(pct_text(item["share_of_week"]))
+            if item.get("allowance_of_week") is not None:
+                piece += ", cap {} of the week".format(pct_text(item["allowance_of_week"]))
+            piece += ")"
+        reset = local_reset(item.get("resets_at"), True)
+        if reset:
+            piece += ", resets " + reset
+        status += piece + "; /usage read " + age_text(item.get("fetched_at"), now)
+        # lane reads these as windows: each run records the bar before and after, and the advisor gate checks it
+        windows["scoped:" + item["name"].lower()] = {"used_percentage": item["used_percentage"],
+                                                     "resets_at": item.get("resets_at")}
+    if limits:
+        result["scoped_limits"] = limits
     return result, "Claude: " + status
 
 

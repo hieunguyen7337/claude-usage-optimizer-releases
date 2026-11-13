@@ -66,13 +66,13 @@
       ]
     },
     "fable": {
-      "model": "claude-fable-5-1",
+      "model": "claude-fable-5-2",
       "provider": "claude",
       "places": [
         "process",
         "subagent"
       ],
-      "role": "advisor: disabled while its arms' status is disabled; once enabled, called by role through lane --role, never picked (explore.advisor, POLICY.md Advisor)"
+      "role": "advisor and worker: role calls through lane --role (plan, ladder, final-review, tiebreak, user); its active arms are also drawn by the picker for hard and design units, which run as role work (the owner, 2026-11-10: Fable 5.2 does real work first, judged by reviewed outcomes on real units; the Suite R comparison against Opus waits for spare allowance at the end of a week)"
     },
     "glm": {
       "model": "z-ai/glm-5.3-flash",
@@ -208,16 +208,17 @@
           "haiku": 1.72,
           "sonnet": 1.0,
           "opus": 0.95,
-          "fable": 2.06
+          "fable": 2.69
         },
         "model_weight_week": {
           "sonnet": 1.0,
           "opus": 0.67,
-          "fable": 1.69
+          "fable": 2.21
         },
-        "model_weight_week_source": "FINDINGS section 1 weekly weights per list dollar, Sonnet = 1 (Opus 0.22-2.00, Fable 0.75-4.49; Haiku has no point estimate). The calibrated pct_per_usd comes mostly from Opus main sessions, so lane-stats prices a Fable run at fable/opus of it",
-        "fable_weekly_list_usd": 531,
-        "source": "usage-lab C-series controlled blocks 2026-10-19 (U2b); haiku weight unresolved (0-3.75)"
+        "model_weight_week_source": "FINDINGS section 1 weekly weights per list dollar, Sonnet = 1 (Opus 0.22-2.00). Fable is Fable 5.2 from 2026-11-10, read from Claude Code's own Fable bar (FINDINGS section 20): 2.21 (2.15-2.27), 3.30x Opus per list dollar, against 1.69 for Fable 5.1. Its 5h weight 2.69 is 5.1's 5h/week ratio (2.06/1.69) applied to 2.21, unmeasured: the account shows no 5h window. The calibrated pct_per_usd comes mostly from Opus main sessions, so lane-stats prices a Fable run at fable/opus of it",
+        "fable_weekly_list_usd": 410,
+        "source": "usage-lab C-series controlled blocks 2026-10-19 (U2b); haiku weight unresolved (0-3.75)",
+        "fable_weekly_list_usd_source": "Claude Code's /usage data, 2026-11-10 09:14 UTC (FINDINGS section 20): the Fable cap is 50% of the week (allowance_percent_of_weekly), and $37.88 of Fable list stood at 9% of it and 5% of the week, so 0.122% of the week per Fable list dollar and a $410 cap ($399-421); Fable 5.1 measured $531"
       },
       "prices": {
         "claude-haiku-5-5": {
@@ -256,7 +257,14 @@
           "cache_write_1h": 20,
           "cache_read": 0.25
         },
-        "source": "Claude API reference, cached 2026-10-06; Sonnet and Haiku cache writes and the Haiku cache read follow its 1.25x / 2x / 0.1x rule"
+        "source": "Claude API reference, cached 2026-10-06; Sonnet and Haiku cache writes and the Haiku cache read follow its 1.25x / 2x / 0.1x rule",
+        "claude-fable-5-2": {
+          "input": 8,
+          "output": 40,
+          "cache_write_5m": 10,
+          "cache_write_1h": 16,
+          "cache_read": 0.2
+        }
       }
     },
     "gemini": {
@@ -384,17 +392,19 @@
     },
     "advisor": {
       "lane": "fable",
-      "model": "claude-fable-5-1",
-      "active": false,
-      "inactive_reason": "the fable lane is disabled: only Fable 5.1 is accessible, it is weaker than Opus 5.5 on every public index and costs more, and a Fable 5.5 is not confirmed (the owner, 2026-11-01); the advisor turns on for a Fable model that passes the switch rule in POLICY.md (Advisor)",
+      "model": "claude-fable-5-2",
+      "active": true,
       "roles": {
         "plan": "xhigh",
         "ladder": "xhigh",
         "final-review": "high",
-        "tiebreak": "medium"
+        "tiebreak": "medium",
+        "work": "high"
       },
-      "weekly_list_usd": 60,
-      "budget_basis": "Fable list dollars over the last 7 days, every role but user. $60 is about 11% of the measured Fable sub-cap ($531, FINDINGS section 1) and, at Fable's weekly weight, about 5-6% of Claude's week: room for a planner call on each hard or design unit and a final review of each release"
+      "weekly_list_usd": 120,
+      "budget_basis": "Fable list dollars over the last 7 days, every role but user (picked work included). $120 is about 15% of Claude's week and 29% of the Fable 5.2 cap ($410) at the measured 0.122% of the week per Fable list dollar (FINDINGS section 20). The gate also stops role calls at fable_guard_pct of Fable's own bar",
+      "active_reason": "the owner, 2026-11-10: Fable 5.2 does real work first, judged by reviewed outcomes on real units; the Suite R comparison against Opus waits for spare allowance at the end of a week; skipped the switch rule's capability step by the owner's call",
+      "fable_guard_pct": 90
     },
     "main_session": {
       "model": "opus[1m]",
@@ -992,6 +1002,49 @@
     },
     {
       "lane": "fable",
+      "model": "claude-fable-5-2",
+      "effort": "medium",
+      "status": "manual",
+      "classes": [
+        "hard",
+        "design",
+        "review"
+      ],
+      "weight": 0,
+      "prior_pct": 0.66,
+      "prior_usable": 0.77,
+      "reason": "advisor arm (tiebreak role), never picked. Fable 5.2 (released 2026-11-09). prior_pct: Opus 5.5's at the same effort x 2 (list price $8/$40 against $4/$20) x 3.30 (Fable 5.2's measured weekly weight per list dollar over Opus's, 2.21/0.67, FINDINGS section 20); prior_usable: Opus's x 1.1 (Intelligence Index 65 against 59, Artificial Analysis, 2026-11-09). the owner, 2026-11-10: Fable 5.2 does real work first, judged by reviewed outcomes on real units; the Suite R comparison against Opus waits for spare allowance at the end of a week"
+    },
+    {
+      "lane": "fable",
+      "model": "claude-fable-5-2",
+      "effort": "high",
+      "status": "active",
+      "classes": [
+        "hard",
+        "design"
+      ],
+      "weight": 0.5,
+      "prior_pct": 1.32,
+      "prior_usable": 0.84,
+      "reason": "picked for hard and design units (role work) and the final-review role. Fable 5.2 (released 2026-11-09). prior_pct: Opus 5.5's at the same effort x 2 (list price $8/$40 against $4/$20) x 3.30 (Fable 5.2's measured weekly weight per list dollar over Opus's, 2.21/0.67, FINDINGS section 20); prior_usable: Opus's x 1.1 (Intelligence Index 65 against 59, Artificial Analysis, 2026-11-09). the owner, 2026-11-10: Fable 5.2 does real work first, judged by reviewed outcomes on real units; the Suite R comparison against Opus waits for spare allowance at the end of a week"
+    },
+    {
+      "lane": "fable",
+      "model": "claude-fable-5-2",
+      "effort": "xhigh",
+      "status": "active",
+      "classes": [
+        "hard",
+        "design"
+      ],
+      "weight": 0.5,
+      "prior_pct": 1.98,
+      "prior_usable": 0.88,
+      "reason": "picked for hard and design units (role work), and the plan and ladder roles. Fable 5.2 (released 2026-11-09). prior_pct: Opus 5.5's at the same effort x 2 (list price $8/$40 against $4/$20) x 3.30 (Fable 5.2's measured weekly weight per list dollar over Opus's, 2.21/0.67, FINDINGS section 20); prior_usable: Opus's x 1.1 (Intelligence Index 65 against 59, Artificial Analysis, 2026-11-09). the owner, 2026-11-10: Fable 5.2 does real work first, judged by reviewed outcomes on real units; the Suite R comparison against Opus waits for spare allowance at the end of a week"
+    },
+    {
+      "lane": "fable",
       "model": "claude-fable-5-1",
       "effort": "medium",
       "status": "disabled",
@@ -1003,7 +1056,7 @@
       "weight": 0,
       "prior_pct": 0.6,
       "prior_usable": 0.66,
-      "reason": "only Fable 5.1 is accessible, and a Fable 5.5 is not confirmed (the owner, 2026-11-01); the switch rule (POLICY.md, Advisor) sets the status to manual. Once enabled, an advisor arm: called by role, never drawn by the picker. Fable 5.1 scores below Opus 5.5 at every effort on Intelligence Index v5.0 (50 against 57 at xhigh) at 2.5x its list price, and on Suite R it matched Opus's recall at about 3x the price per item (FINDINGS section 5). prior_pct: Opus's at the same effort x Fable's Suite R cost per item over Opus's (about 3) x the weekly weight ratio (1.69/0.67), rounded down for a short advisor brief; prior_usable: Opus's x Fable's index over Opus's"
+      "reason": "superseded by Fable 5.2 (2026-11-10). only Fable 5.1 is accessible, and a Fable 5.5 is not confirmed (the owner, 2026-11-01); the switch rule (POLICY.md, Advisor) sets the status to manual. Once enabled, an advisor arm: called by role, never drawn by the picker. Fable 5.1 scores below Opus 5.5 at every effort on Intelligence Index v5.0 (50 against 57 at xhigh) at 2.5x its list price, and on Suite R it matched Opus's recall at about 3x the price per item (FINDINGS section 5). prior_pct: Opus's at the same effort x Fable's Suite R cost per item over Opus's (about 3) x the weekly weight ratio (1.69/0.67), rounded down for a short advisor brief; prior_usable: Opus's x Fable's index over Opus's"
     },
     {
       "lane": "fable",
@@ -1018,7 +1071,7 @@
       "weight": 0,
       "prior_pct": 1.0,
       "prior_usable": 0.72,
-      "reason": "only Fable 5.1 is accessible, and a Fable 5.5 is not confirmed (the owner, 2026-11-01); the switch rule (POLICY.md, Advisor) sets the status to manual. Once enabled, an advisor arm: called by role, never drawn by the picker. Fable 5.1 scores below Opus 5.5 at every effort on Intelligence Index v5.0 (50 against 57 at xhigh) at 2.5x its list price, and on Suite R it matched Opus's recall at about 3x the price per item (FINDINGS section 5). prior_pct: Opus's at the same effort x Fable's Suite R cost per item over Opus's (about 3) x the weekly weight ratio (1.69/0.67), rounded down for a short advisor brief; prior_usable: Opus's x Fable's index over Opus's"
+      "reason": "superseded by Fable 5.2 (2026-11-10). only Fable 5.1 is accessible, and a Fable 5.5 is not confirmed (the owner, 2026-11-01); the switch rule (POLICY.md, Advisor) sets the status to manual. Once enabled, an advisor arm: called by role, never drawn by the picker. Fable 5.1 scores below Opus 5.5 at every effort on Intelligence Index v5.0 (50 against 57 at xhigh) at 2.5x its list price, and on Suite R it matched Opus's recall at about 3x the price per item (FINDINGS section 5). prior_pct: Opus's at the same effort x Fable's Suite R cost per item over Opus's (about 3) x the weekly weight ratio (1.69/0.67), rounded down for a short advisor brief; prior_usable: Opus's x Fable's index over Opus's"
     },
     {
       "lane": "fable",
@@ -1033,7 +1086,7 @@
       "weight": 0,
       "prior_pct": 1.5,
       "prior_usable": 0.76,
-      "reason": "only Fable 5.1 is accessible, and a Fable 5.5 is not confirmed (the owner, 2026-11-01); the switch rule (POLICY.md, Advisor) sets the status to manual. Once enabled, an advisor arm: called by role, never drawn by the picker. Fable 5.1 scores below Opus 5.5 at every effort on Intelligence Index v5.0 (50 against 57 at xhigh) at 2.5x its list price, and on Suite R it matched Opus's recall at about 3x the price per item (FINDINGS section 5). prior_pct: Opus's at the same effort x Fable's Suite R cost per item over Opus's (about 3) x the weekly weight ratio (1.69/0.67), rounded down for a short advisor brief; prior_usable: Opus's x Fable's index over Opus's"
+      "reason": "superseded by Fable 5.2 (2026-11-10). only Fable 5.1 is accessible, and a Fable 5.5 is not confirmed (the owner, 2026-11-01); the switch rule (POLICY.md, Advisor) sets the status to manual. Once enabled, an advisor arm: called by role, never drawn by the picker. Fable 5.1 scores below Opus 5.5 at every effort on Intelligence Index v5.0 (50 against 57 at xhigh) at 2.5x its list price, and on Suite R it matched Opus's recall at about 3x the price per item (FINDINGS section 5). prior_pct: Opus's at the same effort x Fable's Suite R cost per item over Opus's (about 3) x the weekly weight ratio (1.69/0.67), rounded down for a short advisor brief; prior_usable: Opus's x Fable's index over Opus's"
     },
     {
       "lane": "sol",

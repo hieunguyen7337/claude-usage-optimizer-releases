@@ -297,6 +297,23 @@ ships.
   user-scope server with a `headersHelper` that prints `gh auth token` fixes it without putting a token in a file or
   an environment variable.
 
+**2026-11-10.1.**
+- *A new frontier model earns its place on real work, not only on benchmarks* (the owner, for Fable 5.2). Its arms
+  join the picker for hard and design units at once, with forced exploration giving each its first real units and a
+  weekly list-dollar budget bounding the spend; the costly capability suite waits for allowance that would otherwise
+  expire at the week's end.
+- *Measure a new model's meter weight before trusting its price.* Fable 5.1 drew 2.5x Opus's weekly share per list
+  dollar, so a 2x list price can mean about 5x on the meter. The Fable 5.2 probe brackets 20 output-heavy lane runs
+  with statusline readings, so it needs no direct `claude -p` meter call. It found Fable 5.2 heavier still: 3.4x
+  Opus per list dollar (FINDINGS §20), about 6.7x per token, which cut the placeholder budget from $150 to $120.
+- *Read every meter the vendor prints, from every run* (the owner: "shouldn't the kit auto check it?"). A statusline
+  sees only its own session's windows, so a model-scoped bar never reached the kit. Claude lane runs now stream their
+  `rate_limit_event` and keep every window it lists; on Fable 5.2 that showed no Fable window. The bar `/usage` shows
+  was on disk all along: Claude Code caches its usage response in `~/.claude.json`, and the kit now reads Fable's
+  bar there (the owner: "ensure the kit actually have the accurate fable usage rate instead of it being infer").
+  It replaced the probe's inferred weight (2.25, ±22%) with a measured one (2.21, ±3%). Before inferring a vendor
+  number, look for where the vendor's own UI gets it.
+
 **2026-11-07.1.**
 - *Every subscription with spare allowance is a lane.* The owner's Cursor and Grok plans sat unused while Claude ran
   at 86% and Codex fell to a free plan (30-day window full until 2026-12-07). `cursor` (Cursor CLI) and `grok` (Grok

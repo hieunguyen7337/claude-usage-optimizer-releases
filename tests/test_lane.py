@@ -331,7 +331,7 @@ class LaneTests(unittest.TestCase):
                 command = self.preview(name, ["-e", effort, "--resume", "resume-1"])
                 start = command.index("-p")
                 self.assertEqual(command[start:], [
-                    "-p", "--model", model, "--effort", effort, "--output-format", "json",
+                    "-p", "--model", model, "--effort", effort, "--output-format", "stream-json", "--verbose",
                     "--setting-sources", "project,local", "--strict-mcp-config", "--permission-mode", "acceptEdits",
                     "--allowedTools", "Bash", "Read", "Edit", "Write", "Glob", "Grep",
                     "--disallowedTools", "Agent", "Workflow", "WebSearch", "WebFetch",

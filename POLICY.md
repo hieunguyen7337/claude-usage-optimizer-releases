@@ -1,6 +1,6 @@
 # Claude Usage Optimizer: usage policy
 
-Claude Usage Optimizer version: 2026-11-07.1. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Claude Usage Optimizer version: 2026-11-10.1. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
 Machine-specific rules (project dispatchers, locked lanes, local paths) belong in
 `~/.claude/CLAUDE.md` above the import line, and they win when the two conflict.
 
@@ -66,10 +66,13 @@ Known (2026-10-31):
   and 10-30 00:24 UTC on the window resetting 2026-11-04T06:42Z, with no spend between. While it lasts, Pro Lite is
   about 16,800 credits/week and Plus about 1,450: per credit, Plus costs about 2.3x Pro Lite (72.5 against 168
   credits per dollar), and one % of a Pro Lite week holds about 11.6x one % of a Plus week (168 against 14.5 credits).
-- **Fable 5.1 is capped and heavy.** It may use at most 50% of the shared week (Anthropic, support article
-  15424964), and it weighs about 2x Sonnet on the 5h meter: one Fable review item took 0.6–2% of the 5h window.
-  The kit's `fable` lane is an advisor called by role, and it is disabled: only Fable 5.1 is accessible, it trails
-  Opus, and a Fable 5.5 is not confirmed (Advisor, below).
+- **Fable is capped and heavy.** It may use at most 50% of the shared week (Anthropic, support article
+  15424964), and Claude Code's own usage data confirms the cap at 50% of the week. Fable 5.2 (from 2026-11-10) weighs
+  2.21x Sonnet per list dollar on the week, 3.3x Opus (2.15–2.27, FINDINGS §20; Fable 5.1 was 1.69), so its cap holds
+  about $410 of Fable list ($399–421) and one Fable list dollar is about 0.122% of Claude's week, against about 0.037%
+  for an Opus dollar. Read from Claude Code's own Fable bar, not inferred: $37.88 of Fable list stood at 9% of Fable's
+  cap and 5% of the week. The kit reads that bar itself (Meters, "Fable's own bar"). The kit's `fable` lane is the
+  advisor and a worker for hard and design units (Advisor, below).
 - **Our review sweep (Suite R, `findings/FINDINGS.md` §5):** every model except luna found 84–100% of the
   planted defects at every effort, so for review the cheap end wins: haiku low/medium matched sonnet and
   opus within noise at 1/10 and 1/25 of their price per item, and Fable matched Opus at 3x its price.
@@ -164,7 +167,7 @@ per-lane gotchas are in `~/.claude/usage-optimizer/LANES.md`.
 | haiku | claude-haiku-5-5 (`claude -p`) | The Claude plan; list price 1/40 of Opus | The cheap Claude worker |
 | sonnet | claude-sonnet-5-5 (`claude -p`) | The Claude plan | |
 | opus | claude-opus-5-5 (`claude -p`) | The Claude plan; the dearest worker | Measured, not assumed |
-| fable | claude-fable-5-1 (`claude -p` or a subagent) | The Claude plan, inside its own sub-cap of half the week; 1.69x Sonnet per list dollar on the week | Advisor only: called by `--role`, never picked; disabled (Advisor) |
+| fable | claude-fable-5-2 (`claude -p` or a subagent) | The Claude plan, inside its own sub-cap of half the week; 2.21x Sonnet per list dollar on the week (3.3x Opus; FINDINGS §20) | Advisor by `--role`, and picked for hard and design units as role `work` (Advisor, from 2026-11-10.1) |
 | haiku, sonnet, opus `--cloud` | The same model and effort in a Claude Code cloud session (`claude --cloud`) | The Claude plan; whether a cloud-session credit pays first is unconfirmed (Known) | 4 vCPU/16 GB Linux VM, no local memory; needs GitHub and the Claude GitHub App (Routing step 2) |
 | codex-cloud | Codex Cloud's own model (not published) | The ChatGPT window, at a higher rate OpenAI does not publish | Manual arm, never picked; needs a Codex environment |
 | glm | z-ai/glm-5.3-flash (cline `-P cline`) | free OAuth | Throwaway work only; never picked |
@@ -416,20 +419,25 @@ the picker never draws them, and each call names its role.
 - **Its answer is input,** like any worker's: Claude decides, and records an outcome for every advisor run (a plan
   is `accepted` when the unit was briefed from it, `fixed` when Claude changed it first, `rejected` when unused).
 - **Budget and gate.** `lane` refuses a role call while `explore.advisor.active` is false, and once the last 7 days'
-  role calls have spent `explore.advisor.weekly_list_usd` ($60 list, about 11% of the Fable sub-cap and 5-6% of
+  role calls have spent `explore.advisor.weekly_list_usd` ($120 list, about 29% of the Fable 5.2 sub-cap and 15% of
   Claude's week). `lane-stats advisor` shows the spend and each role's outcomes. `lane-stats` prices a Fable run at
-  Fable's weekly weight (1.69 against Opus's 0.67 per list dollar, FINDINGS section 1).
+  Fable's weekly weight (2.21 against Opus's 0.67 per list dollar, FINDINGS section 20). The gate also refuses role
+  calls once Fable's own bar reaches `explore.advisor.fable_guard_pct` (90%; Meters, "Fable's own bar").
 - **A mirror does not call it:** the budget lives in the local ledger, and `lane main` gives a mirror no
   `lane-fable-*` agent. A mirror that wants a plan or a final review from Fable says so in a STATUS or READY
   marker, and the local session decides.
 
-**Now (2026-11-01): the fable lane is disabled** (the owner's call). Only Fable 5.1 is accessible on this account,
-and a Fable 5.5 is not confirmed. Fable 5.1 scores below Opus 5.5 at every effort (Intelligence Index v5.0:
-50 against 57 at xhigh) at 2.5x its list price, and on Suite R it matched Opus at about 3x the price per item. A
-Fable main session would also cost roughly 3x Opus per cached token on the weekly meter and stop mid-week at its
-sub-cap. Its arms carry status `disabled`, so `lane` refuses every fable run, `--role user` included, and no
-`lane-fable-*` agent ships. A run the owner asks for by name takes `--role user --off-catalog`, as a
-process (no `--subagent`).
+**Now (2026-11-10): Fable 5.2 does real work first** (the owner's call: "I want real work done by fable first
+instead of judging it through benchmark"). Fable 5.2 (released 2026-11-09, $8/$40 per MTok against Opus 5.5's $4/$20,
+cache reads $0.20 on both) is the advisor (`explore.advisor.active: true`, roles plan and ladder at xhigh,
+final-review at high, tiebreak at medium), and its high and xhigh arms are also drawn by the picker for hard and
+design units: a picked fable run is role `work`. Every role but `user` counts in the advisor budget ($120 list a
+week, about 15% of Claude's week at the weight the 2026-11-10 probe measured: step 1 of the switch rule, done). The
+switch rule's capability step (Suite R against Opus) waits for spare
+allowance at the end of a week; until then reviewed outcomes on real units are the evidence. Fable 5.2 stays out of
+the main seat: Anthropic keeps Opus 5.5 the default, a Fable main session would hit Fable's 50% sub-cap in about four
+days at our main-session spend, and independent reviewers see little gain on ordinary coding. The Fable 5.1 arms
+stay `disabled`.
 
 **The switch rule, once a Fable model newer than 5.1 is confirmed accessible on this account:**
 1. *Usage test* (runs without asking, after `usage-status`): measure its weight on the 5h and weekly bars and its
@@ -666,6 +674,19 @@ a serializer (`jq -n`, `json.dumps`): on Suite R luna broke 6.5% of its JSONL fi
   reading only when its session's cost has moved since its last refresh. A Claude `fell` event is also hidden when the
   rate history shows the meter back at its old level within 30 minutes. On 2026-11-01 an idle session kept writing 4%
   while the others read 5–8%, which faked a "window 1.5x larger" warning; add no `window_epochs` entry for it.
+- **Fable's own bar (from 2026-11-10.1).** Claude Code keeps the response behind `/usage` in `~/.claude.json`
+  (`cachedUsageUtilization`, refreshed every few minutes while a session runs). Its `limits` list holds a
+  `weekly_scoped` entry for Fable (the % of Fable's own cap) and `weekly_scoped_shares` gives Fable's share of the
+  whole week and its allowance (50%). The kit reads it there, with no model call and no credentials:
+  - the statusline shows `Fable 9%` beside the weekly bar and logs it in the rate log's `scoped` field;
+  - `usage-status` shows `Fable 9% of its own cap (5% of the week, cap 50% of the week)` with the reading's age;
+  - every Claude lane run records it before and after as the `fable weekly` window;
+  - the advisor gate refuses role calls (not `--role user`) at `explore.advisor.fable_guard_pct` (90%) of it.
+
+  `USAGE_OPTIMIZER_CLAUDE_JSON` names another file (`off` turns the reader off). Claude process runs also use
+  `--output-format stream-json` and keep the account's `rate_limit_event` (every window it lists, in `meta.json`, the
+  rate log and `claude-scoped.json`). That event carries no Fable window: on 2026-11-10 a Fable 5.2 call's listed only
+  `seven_day` and `seven_day_overage_included` (meaning not confirmed), and no 5h window (FINDINGS §20).
 - **Cloud meter (from 2026-11-01.4).** A cloud VM has no statusline, so in a cloud session `usage-status` reads
   Claude's 5h and weekly use with one `claude -p` Haiku call (its `rate_limit_event`) when the reading is missing or
   older than 15 minutes, and writes it as the statusline would (`"source": "probe"`). The prompt and Stop hooks start

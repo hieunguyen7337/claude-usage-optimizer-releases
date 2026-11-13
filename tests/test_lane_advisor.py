@@ -29,9 +29,17 @@ with open(os.environ["FAKE_CAPTURE"], "w", encoding="utf-8") as stream:
     json.dump({"argv": sys.argv[1:]}, stream)
 with open("worker.txt", "w", encoding="utf-8") as stream:
     stream.write("edited\\n")
-print(json.dumps({"session_id": "fake-session", "is_error": False, "result": "done", "total_cost_usd": 0.5,
-                  "usage": {"input_tokens": 1, "cache_creation_input_tokens": 1, "cache_read_input_tokens": 1,
-                            "output_tokens": 1}}))
+result = {"session_id": "fake-session", "is_error": False, "result": "done", "total_cost_usd": 0.5,
+          "usage": {"input_tokens": 1, "cache_creation_input_tokens": 1, "cache_read_input_tokens": 1,
+                    "output_tokens": 1}}
+if os.environ.get("FAKE_RATE"):
+    # stream-json: one event per line, the rate-limit event before the result, as claude -p --verbose prints them
+    print(json.dumps({"type": "system", "subtype": "init", "session_id": "fake-session"}))
+    print(json.dumps({"type": "rate_limit_event", "rate_limit_info": json.loads(os.environ["FAKE_RATE"])}))
+    print(json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "{not json"}]}}))
+    print(json.dumps(dict(result, type="result", subtype="success")))
+else:
+    print(json.dumps(result))
 '''
 
 
@@ -66,17 +74,21 @@ class LaneAdvisorTests(unittest.TestCase):
         self.write(self.brief, "Create worker.txt.\n")
         self.install_claude()
         self.catalog = self.shipped_catalog()
-        # Most tests cover the lane as the switch rule leaves it, its arms manual; the shipped catalog disables
-        # them (the tests under "the shipped catalog").
+        # Most tests cover the gate from a known state: every fable arm runnable, the advisor off with a $60 budget.
+        # The shipped catalog turns the advisor on (the tests under "the shipped catalog").
         for arm in self.catalog["arms"]:
             if arm["lane"] == "fable" and arm["status"] == "disabled":
                 arm["status"] = "manual"
+        self.catalog["explore"]["advisor"].update(active=False, weekly_list_usd=60,
+                                                  inactive_reason="switched off for this test")
         self.save_catalog()
         self.env = dict(os.environ, LANES_STATE=self.state, LANE_NO_USAGE="1", LANE_NO_ETA="1", LANES_MEM_CHECK="off",
                         PYTHONUTF8="1", LANES_CONFIG=os.path.join(self.root, "config"), FAKE_CAPTURE=self.capture,
                         LANES_ARMS=self.arms, LANES_ARMS_LOCAL=os.path.join(self.root, "no-local-arms.json"),
                         LANES_PROC_CGROUP=os.path.join(self.root, "no-proc-cgroup"),
                         LANES_CGROUP_ROOT=os.path.join(self.root, "cgroup"),
+                        CLAUDE_USAGE_DIR=os.path.join(self.root, "usage"),
+                        USAGE_OPTIMIZER_CLAUDE_JSON=os.path.join(self.root, "claude.json"),
                         PATH=self.bin + os.pathsep + os.environ.get("PATH", ""))
         for name in ("CLAUDE_CODE_REMOTE", "USAGE_OPTIMIZER_SESSION_GUARD"):
             self.env.pop(name, None)
@@ -134,31 +146,130 @@ class LaneAdvisorTests(unittest.TestCase):
 
     # ----- the shipped catalog -----
 
-    def test_the_shipped_catalog_disables_every_fable_arm(self):
+    def test_the_shipped_catalog_runs_fable_5_2_and_keeps_5_1_disabled(self):
         self.catalog = self.shipped_catalog()
         self.save_catalog()
-        fable = [arm for arm in self.catalog["arms"] if arm["lane"] == "fable"]
-        self.assertEqual(sorted(arm["effort"] for arm in fable), ["high", "medium", "xhigh"])
-        self.assertEqual({arm["status"] for arm in fable}, {"disabled"})
-        for extra in (["--role", "plan"], ["-e", "high", "--role", "user"],
-                      ["-e", "high", "--role", "user", "--subagent"]):
-            result = self.lane("fable", *extra)
-            self.assertEqual(result.returncode, 8, self.out(result))
-            self.assertIn("disabled", result.stderr)
-            self.assertFalse(self.launched())
-        # An active advisor still runs nothing while the arms are disabled.
-        self.activate()
-        result = self.lane("fable", "--role", "plan")
+        self.assertTrue(self.catalog["explore"]["advisor"]["active"])
+        status = {(arm["model"], arm["effort"]): arm["status"] for arm in self.catalog["arms"] if arm["lane"] == "fable"}
+        self.assertEqual(status, {
+            ("claude-fable-5-2", "medium"): "manual", ("claude-fable-5-2", "high"): "active",
+            ("claude-fable-5-2", "xhigh"): "active", ("claude-fable-5-1", "medium"): "disabled",
+            ("claude-fable-5-1", "high"): "disabled", ("claude-fable-5-1", "xhigh"): "disabled"})
+        result = self.lane("fable", "--role", "plan", "--dry-run")
+        self.assertEqual(result.returncode, 0, self.out(result))
+        argv = json.loads(next(line for line in result.stdout.splitlines() if line.startswith("argv: "))[6:])
+        self.assertEqual((argv[argv.index("--model") + 1], argv[argv.index("--effort") + 1]),
+                         ("claude-fable-5-2", "xhigh"))
+        result = self.lane("fable", "--role", "plan", "-m", "claude-fable-5-1")
         self.assertEqual(result.returncode, 8, self.out(result))
-        self.assertIn("is disabled: only Fable 5.1 is accessible", result.stderr)
+        self.assertIn("disabled", result.stderr)
         self.assertFalse(self.launched())
 
-    def test_the_shipped_catalog_runs_fable_only_with_role_user_and_off_catalog(self):
+    def test_a_picked_fable_run_is_role_work_and_counts_in_the_budget(self):
         self.catalog = self.shipped_catalog()
         self.save_catalog()
-        result = self.lane("fable", "-e", "high", "--role", "user", "--off-catalog")
+        self.ledger_row(usage={"list_usd": 4.0}, role="work")
+        result = self.lane("fable", "-e", "high", "--pick", "p-20261110-000000-abcd")
         self.assertEqual(result.returncode, 0, self.out(result))
-        self.assertTrue(self.launched())
+        self.assertIn("lane: advisor budget $4.00 of $120 used in the last 7 days", result.stderr)
+        self.assertEqual(self.meta(result)["role"], "work")
+
+    # ----- Fable's own weekly bar -----
+
+    def fable_rate(self, fable_used):
+        future = int((datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=3)).timestamp())
+        return json.dumps({"status": "allowed", "rateLimitType": "seven_day", "utilization": 0.14, "resetsAt": future,
+                           "unifiedWindows": {"five_hour": {"utilization": 0.05, "resetsAt": future},
+                                              "seven_day": {"utilization": 0.14, "resetsAt": future},
+                                              "seven_day_fable": {"utilization": fable_used, "resetsAt": future}}})
+
+    def test_a_claude_run_streams_and_records_fable_s_own_weekly_bar(self):
+        self.activate(budget=100)
+        result = self.lane("fable", "--role", "plan", "--dry-run")
+        argv = json.loads(next(line for line in result.stdout.splitlines() if line.startswith("argv: "))[6:])
+        self.assertEqual(argv[argv.index("--output-format") + 1], "stream-json")
+        self.assertIn("--verbose", argv)
+        result = self.lane("fable", "--role", "plan", env={"FAKE_RATE": self.fable_rate(0.093)})
+        self.assertEqual(result.returncode, 0, self.out(result))
+        self.assertIn("verdict=OK", result.stdout)
+        meta = self.meta(result)
+        self.assertEqual(meta["usage"]["list_usd"], 0.5)
+        self.assertAlmostEqual(meta["rate_limits"]["windows"]["seven_day_fable"]["used_percentage"], 9.3)
+        usage = os.path.join(self.root, "usage")
+        with open(os.path.join(usage, "claude-scoped.json"), "r", encoding="utf-8") as stream:
+            scoped = json.load(stream)["windows"]
+        self.assertAlmostEqual(scoped["seven_day_fable"]["used_percentage"], 9.3)
+        with open(os.path.join(usage, "claude-rate.jsonl"), "r", encoding="utf-8") as stream:
+            reading = json.loads(stream.read().splitlines()[-1])
+        self.assertEqual((reading["source"], reading["seven_day"]["used_percentage"]), ("lane", 14.0))
+        self.assertEqual([item["name"] for item in reading["scoped"]], ["seven_day_fable"])
+        result = self.lane("fable", "--role", "plan")
+        self.assertIn("Fable's own week 9.3%", result.stderr)
+
+    def test_the_gate_stops_fable_at_its_own_weekly_guard_but_not_a_user_run(self):
+        self.activate(budget=100)
+        result = self.lane("fable", "--role", "plan", env={"FAKE_RATE": self.fable_rate(0.91)})
+        self.assertEqual(result.returncode, 0, self.out(result))
+        os.remove(self.capture)
+        result = self.lane("fable", "--role", "plan")
+        self.assertEqual(result.returncode, 8, self.out(result))
+        self.assertIn("Fable's own weekly bar is at 91%", result.stderr)
+        self.assertFalse(self.launched())
+        result = self.lane("fable", "--role", "user", "-e", "high")
+        self.assertNotEqual(result.returncode, 8, self.out(result))
+        self.assertTrue(self.launched(), self.out(result))
+
+    def usage_cache(self, fable_percent, resets_in_days=3):
+        reset = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=resets_in_days)).isoformat()
+        self.write(os.path.join(self.root, "claude.json"), json.dumps({"cachedUsageUtilization": {
+            "fetchedAtMs": int(datetime.datetime.now(datetime.timezone.utc).timestamp() * 1000),
+            "utilization": {"seven_day": {"utilization": 16, "resets_at": reset}, "limits": [
+                {"kind": "weekly_all", "percent": 16, "resets_at": reset, "scope": None},
+                {"kind": "weekly_scoped", "percent": fable_percent, "resets_at": reset,
+                 "scope": {"model": {"id": None, "display_name": "Fable"}, "surface": None}}],
+                "weekly_scoped_shares": [{"limit_index": 1, "used_percent_of_weekly": 5,
+                                          "allowance_percent_of_weekly": 50}]}}}))
+
+    def test_the_gate_reads_fable_s_bar_from_claude_code_s_usage_cache(self):
+        self.activate(budget=100)
+        self.usage_cache(9)
+        result = self.lane("fable", "--role", "plan")
+        self.assertEqual(result.returncode, 0, self.out(result))
+        self.assertIn("Fable's own week 9%", result.stderr)
+        os.remove(self.capture)
+        self.usage_cache(92)
+        result = self.lane("fable", "--role", "plan")
+        self.assertEqual(result.returncode, 8, self.out(result))
+        self.assertIn("Fable's own weekly bar is at 92% (Fable", result.stderr)
+        self.assertFalse(self.launched())
+        self.usage_cache(99, resets_in_days=-1)
+        result = self.lane("fable", "--role", "plan")
+        self.assertNotEqual(result.returncode, 8, self.out(result))
+        self.assertTrue(self.launched(), self.out(result))
+
+    def test_a_run_records_fable_s_bar_before_and_after(self):
+        self.activate(budget=100)
+        self.usage_cache(9)
+        usage = os.path.join(self.root, "usage")
+        os.makedirs(usage)
+        self.write(os.path.join(usage, "claude-latest.json"), json.dumps({
+            "observed_at": days_ago(0), "seven_day": {"used_percentage": 16.0, "resets_at": "2099-01-01T00:00:00Z"}}))
+        env = {"LANE_NO_USAGE": "0", "USAGE_OPTIMIZER_CODEX": "off", "USAGE_OPTIMIZER_CLOUD_PROBE_MIN": "off"}
+        result = self.lane("fable", "--role", "plan", env=env)
+        self.assertEqual(result.returncode, 0, self.out(result))
+        before = self.meta(result)["usage"]["before"]
+        labels = {window["label"]: window["used_percent"] for window in before["windows"]}
+        self.assertEqual(labels.get("fable weekly"), 9.0, before)
+
+    def test_a_reset_fable_window_no_longer_gates(self):
+        self.activate(budget=100)
+        usage = os.path.join(self.root, "usage")
+        os.makedirs(usage)
+        self.write(os.path.join(usage, "claude-scoped.json"), json.dumps({"windows": {"seven_day_fable": {
+            "used_percentage": 99.0, "resets_at": days_ago(1), "observed_at": days_ago(2), "run": "old"}}}))
+        result = self.lane("fable", "--role", "plan")
+        self.assertEqual(result.returncode, 0, self.out(result))
+        self.assertNotIn("Fable's own week", result.stderr)
 
     # ----- the role option -----
 
@@ -207,10 +318,10 @@ class LaneAdvisorTests(unittest.TestCase):
         self.assertIn("lane: advisor budget $0.00 of $60 used in the last 7 days", result.stderr)
         self.assertIn("role=user", result.stdout)
         meta = self.meta(result)
-        self.assertEqual((meta["role"], meta["lane"], meta["model"]), ("user", "fable", "claude-fable-5-1"))
+        self.assertEqual((meta["role"], meta["lane"], meta["model"]), ("user", "fable", "claude-fable-5-2"))
         with open(self.capture, "r", encoding="utf-8") as stream:
             argv = json.load(stream)["argv"]
-        self.assertEqual(argv[argv.index("--model") + 1], "claude-fable-5-1")
+        self.assertEqual(argv[argv.index("--model") + 1], "claude-fable-5-2")
         self.assertEqual(argv[argv.index("--effort") + 1], "high")
         with open(os.path.join(self.state, "ledger.jsonl"), "r", encoding="utf-8") as stream:
             self.assertEqual(json.loads(stream.readline())["role"], "user")
@@ -272,7 +383,7 @@ class LaneAdvisorTests(unittest.TestCase):
             argv = json.loads(next(line for line in result.stdout.splitlines() if line.startswith("argv: "))[6:])
             self.assertEqual(argv[argv.index("--effort") + 1], effort, role)
             self.assertIn("--model", argv)
-            self.assertEqual(argv[argv.index("--model") + 1], "claude-fable-5-1")
+            self.assertEqual(argv[argv.index("--model") + 1], "claude-fable-5-2")
 
     def test_an_explicit_effort_wins_over_the_role_default(self):
         self.activate()

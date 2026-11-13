@@ -30,13 +30,13 @@ LANES = ("luna", "terra", "sol", "astra", "haiku", "sonnet", "opus", "fable", "g
          "codex-cloud")
 CODEX_LANES = ("luna", "terra", "sol", "astra")
 CLAUDE_LANES = ("haiku", "sonnet", "opus", "fable")
-FABLE_ROLES = ("plan", "ladder", "final-review", "tiebreak", "user")
+FABLE_ROLES = ("plan", "ladder", "final-review", "tiebreak", "work", "user")
 ADVISOR_DAYS = 7
 PROVIDERS = {"luna": "codex", "terra": "codex", "sol": "codex", "astra": "codex", "haiku": "claude",
              "sonnet": "claude", "opus": "claude", "fable": "claude", "gemini": "gemini", "cursor": "cursor", "grok": "grok", "glm": "cline", "codex-cloud": "codex"}
 DEFAULT_MODELS = {"luna": "gpt-6-luna", "terra": "gpt-6.1-terra", "sol": "gpt-6.1-sol", "astra": "gpt-6-astra",
                   "haiku": "claude-haiku-5-5", "sonnet": "claude-sonnet-5-5", "opus": "claude-opus-5-5",
-                  "fable": "claude-fable-5-1",
+                  "fable": "claude-fable-5-2",
                   "gemini": "gemini-3.8-flash-high", "cursor": "grok-4.7-medium", "grok": "grok-4.7", "glm": "z-ai/glm-5.3-flash", "codex-cloud": "codex-cloud"}
 # gpt-6.1-sol is absent from older catalogs, and a client without the model reports a 400 as an account refusal.
 # gpt-6.1-terra needs 0.159.0 (OpenAI's release notes, 2026-10-26).
@@ -723,7 +723,9 @@ def build_command(lane, opts, model, dir_path, brief_text, outdir, executable):
         if opts.ro:
             disallowed.extend(["Edit", "Write"])
         argv = [executable or "claude", "-p", "--model", model, "--effort", opts.effort,
-                "--output-format", "json", "--setting-sources", "project,local",
+                # stream-json (with --verbose) ends on the same result object as json and also carries the
+                # account's rate_limit_event, the only place a run sees Fable's own weekly bar.
+                "--output-format", "stream-json", "--verbose", "--setting-sources", "project,local",
                 "--strict-mcp-config", "--permission-mode", "acceptEdits", "--allowedTools"]
         argv.extend(allowed)
         argv.append("--disallowedTools")
@@ -2051,9 +2053,211 @@ def parse_json_objects(text):
     return [entry[1] for entry in top_level]
 
 
+def stream_json_result(text):
+    """The last result event of a stream-json output (one JSON object with a type per line, as `claude -p
+    --output-format stream-json` prints), or None when the text is not one or has no result. Reading it line by line
+    keeps a long transcript linear; parse_json_objects tries every brace."""
+    result = None
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if not line.startswith("{"):
+            return None
+        try:
+            event = json.loads(line)
+        except ValueError:
+            return None
+        if not isinstance(event, dict) or not isinstance(event.get("type"), str):
+            return None
+        if event["type"] == "result":
+            result = event
+    return result
+
+
 def last_gemini_object(text):
+    result = stream_json_result(text or "")
+    if result is not None:
+        return result
     objects = parse_json_objects(text)
     return objects[-1] if objects else {}
+
+
+CLAUDE_MAIN_WINDOWS = ("five_hour", "seven_day")
+
+
+def rate_reset(value):
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        seconds = float(value) / (1000.0 if abs(value) > 100000000000 else 1.0)
+        try:
+            moment = datetime.datetime.fromtimestamp(seconds, datetime.timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
+        return moment.isoformat(timespec="seconds").replace("+00:00", "Z")
+    return value if isinstance(value, str) and value else None
+
+
+def rate_window(utilization, resets_at):
+    if isinstance(utilization, bool):
+        return None
+    try:
+        value = float(utilization)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not math.isfinite(value) or value < 0:
+        return None
+    return {"used_percentage": round(value * 100, 4), "resets_at": rate_reset(resets_at)}
+
+
+def claude_rate_limits(text):
+    """Claude's rate windows from the last rate_limit_event a stream-json run printed, as {"windows": {name:
+    {used_percentage, resets_at}}, "info": the event's rate_limit_info}, or None without one. Windows other than
+    five_hour and seven_day (Fable's own weekly bar, when the event lists it) keep their own names."""
+    last = None
+    for line in (text or "").splitlines():
+        if '"rate_limit_event"' not in line:
+            continue
+        try:
+            event = json.loads(line.strip())
+        except ValueError:
+            continue
+        if isinstance(event, dict) and event.get("type") == "rate_limit_event":
+            last = event
+    info = last.get("rate_limit_info") if last else None
+    if not isinstance(info, dict):
+        return None
+    windows = {}
+    unified = info.get("unifiedWindows")
+    if isinstance(unified, dict):
+        for name, item in unified.items():
+            window = rate_window(item.get("utilization"), item.get("resetsAt")) if isinstance(item, dict) else None
+            if window:
+                windows[str(name)] = window
+    kind = info.get("rateLimitType")
+    if isinstance(kind, str) and kind and kind not in windows:
+        window = rate_window(info.get("utilization"), info.get("resetsAt"))
+        if window:
+            windows[kind] = window
+    return {"windows": windows, "info": info}
+
+
+def claude_usage_dir():
+    return os.path.expanduser(os.environ.get("CLAUDE_USAGE_DIR") or "~/.claude/usage")
+
+
+def record_claude_rate(run_id, rate, observed_at):
+    """Append a Claude run's rate reading to the rate log, as the statusline and usage-status do, and keep each
+    window other than 5h and weekly in claude-scoped.json, where usage-status and the advisor gate read Fable's own
+    weekly bar. A statusline sees only its own session's windows, so a Fable bar shows up here first."""
+    windows = rate.get("windows") or {}
+    reading = {"observed_at": observed_at, "source": "lane", "run": run_id}
+    for key in CLAUDE_MAIN_WINDOWS:
+        if key in windows:
+            reading[key] = windows[key]
+    reading["scoped"] = [dict(windows[name], kind="weekly_scoped", name=name)
+                         for name in sorted(windows) if name not in CLAUDE_MAIN_WINDOWS]
+    if len(reading) == 4 and not reading["scoped"]:
+        return
+    directory = claude_usage_dir()
+    try:
+        os.makedirs(directory, exist_ok=True)
+        with open(os.path.join(directory, "claude-rate.jsonl"), "a", encoding="utf-8") as stream:
+            stream.write(json.dumps(reading, separators=(",", ":"), ensure_ascii=False) + "\n")
+        if not reading["scoped"]:
+            return
+        path = os.path.join(directory, "claude-scoped.json")
+        try:
+            with open(path, "r", encoding="utf-8") as stream:
+                current = json.load(stream)
+        except (OSError, ValueError):
+            current = {}
+        kept = current.get("windows") if isinstance(current, dict) else None
+        kept = kept if isinstance(kept, dict) else {}
+        for item in reading["scoped"]:
+            kept[item["name"]] = {"used_percentage": item["used_percentage"], "resets_at": item["resets_at"],
+                                  "observed_at": observed_at, "run": run_id}
+        handle, temporary = tempfile.mkstemp(prefix=".claude-scoped-", suffix=".tmp", dir=directory)
+        try:
+            with os.fdopen(handle, "w", encoding="utf-8") as stream:
+                json.dump({"windows": kept}, stream, indent=2, sort_keys=True)
+                stream.write("\n")
+            os.replace(temporary, path)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+    except OSError as error:
+        print("warning: could not record the run's Claude rate reading: {}".format(error), file=sys.stderr)
+
+
+def cached_fable_limit(now):
+    """Fable's own weekly bar from the usage response Claude Code caches for /usage (cachedUsageUtilization in
+    ~/.claude.json; USAGE_OPTIMIZER_CLAUDE_JSON names the file, off turns it off): (name, % of its own cap,
+    resets_at, fetched_at), or None."""
+    path = os.environ.get("USAGE_OPTIMIZER_CLAUDE_JSON")
+    if path and path.strip().lower() == "off":
+        return None
+    path = path or os.path.join(os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~"), ".claude.json")
+    try:
+        with open(path, "r", encoding="utf-8") as stream:
+            data = json.load(stream)
+    except (OSError, ValueError):
+        return None
+    cache = data.get("cachedUsageUtilization") if isinstance(data, dict) else None
+    utilization = cache.get("utilization") if isinstance(cache, dict) else None
+    limits = utilization.get("limits") if isinstance(utilization, dict) else None
+    fetched = rate_reset(cache.get("fetchedAtMs")) if isinstance(cache, dict) else None
+    for item in limits if isinstance(limits, list) else []:
+        if not isinstance(item, dict) or item.get("kind") != "weekly_scoped":
+            continue
+        scope = item.get("scope") if isinstance(item.get("scope"), dict) else {}
+        model = scope.get("model") if isinstance(scope.get("model"), dict) else {}
+        name = str(model.get("display_name") or model.get("id") or "")
+        used = item.get("percent")
+        if "fable" not in name.lower() or isinstance(used, bool) or not isinstance(used, (int, float)):
+            continue
+        try:
+            reset = datetime.datetime.fromisoformat(str(item.get("resets_at")).replace("Z", "+00:00"))
+        except ValueError:
+            reset = None
+        if reset is not None and reset.tzinfo is not None and reset <= now:
+            continue
+        return name, float(used), item.get("resets_at"), fetched
+    return None
+
+
+def fable_window(now=None):
+    """Fable's own weekly bar as (name, % of its own cap, resets_at, observed_at): from Claude Code's /usage cache,
+    else from the windows a lane run's rate_limit_event listed (claude-scoped.json); None when neither has one or its
+    window has reset since."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    cached = cached_fable_limit(now)
+    if cached:
+        return cached
+    try:
+        with open(os.path.join(claude_usage_dir(), "claude-scoped.json"), "r", encoding="utf-8") as stream:
+            data = json.load(stream)
+    except (OSError, ValueError):
+        return None
+    windows = data.get("windows") if isinstance(data, dict) else None
+    best = None
+    for name, item in (windows.items() if isinstance(windows, dict) else ()):
+        if "fable" not in str(name).lower() or not isinstance(item, dict):
+            continue
+        used = item.get("used_percentage")
+        if isinstance(used, bool) or not isinstance(used, (int, float)):
+            continue
+        try:
+            reset = datetime.datetime.fromisoformat(str(item.get("resets_at")).replace("Z", "+00:00"))
+        except ValueError:
+            reset = None
+        if reset is not None and reset.tzinfo is not None and reset <= now:
+            continue
+        candidate = (str(name), float(used), item.get("resets_at"), item.get("observed_at"))
+        if best is None or str(candidate[3]) > str(best[3]):
+            best = candidate
+    return best
 
 
 def usage_window(label, percent, reset):
@@ -2137,6 +2341,12 @@ def read_usage(provider):
             item = raw_windows.get(key) if isinstance(raw_windows, dict) else None
             if isinstance(item, dict):
                 windows.append(usage_window(label, item.get("used_percentage"), item.get("resets_at")))
+        # A model's own weekly bar from Claude Code's /usage cache ("scoped:fable" -> "fable weekly"), as a % of
+        # that model's cap, so a Fable run records it before and after.
+        for key, item in sorted(raw_windows.items()) if isinstance(raw_windows, dict) else ():
+            if str(key).startswith("scoped:") and isinstance(item, dict):
+                windows.append(usage_window("{} weekly".format(str(key)[7:]), item.get("used_percentage"),
+                                            item.get("resets_at")))
         status = "stale" if section.get("stale") else "ok"
     else:
         if section.get("error") or section.get("exit_code", 0) != 0:
@@ -3274,8 +3484,16 @@ def advisor_gate(opts, catalog):
         raise LaneError("advisor budget used up: ${:.2f} of {} used in the last {} days; a run you asked for takes "
                         "--role user".format(spend, "${:.2f}".format(budget) if budget is not None else "no budget set",
                                              ADVISOR_DAYS), 8)
-    print("lane: advisor budget ${:.2f} of ${} used in the last {} days".format(
-        spend, "{:g}".format(budget) if budget is not None else "-", ADVISOR_DAYS), file=sys.stderr)
+    fable = fable_window()
+    guard = advisor.get("fable_guard_pct") if advisor else None
+    guard = float(guard) if positive_number(guard) else 90.0
+    if fable and not user and fable[1] >= guard:
+        raise LaneError("Fable's own weekly bar is at {:g}% ({}, read {} by a lane run), at or past the advisor's guard "
+                        "of {:g}%; a run you asked for takes --role user".format(
+                            fable[1], fable[0], fable[3] or "at an unknown time", guard), 8)
+    print("lane: advisor budget ${:.2f} of ${} used in the last {} days{}".format(
+        spend, "{:g}".format(budget) if budget is not None else "-", ADVISOR_DAYS,
+        "; Fable's own week {:g}% (read {})".format(fable[1], fable[3] or "-") if fable else ""), file=sys.stderr)
 
 
 def parse_pick(value):
@@ -3837,8 +4055,12 @@ def validate_options(parser, opts, catalog):
                      "--cloud and --verify are not available")
     if opts.role and opts.lane != "fable":
         parser.error("--role is only for the fable lane")
+    if opts.lane == "fable" and not opts.role and opts.pick_id:
+        # A unit the picker sent to a fable arm is real work, counted in the advisor's weekly budget.
+        opts.role = "work"
     if opts.lane == "fable" and not opts.role:
-        parser.error("fable is called by role: pass --role plan, ladder, final-review, tiebreak, or user")
+        parser.error("fable is called by role: pass --role plan, ladder, final-review, tiebreak, work, or user "
+                     "(a picked run, with --pick, is role work)")
     if opts.lane == "fable" and not opts.effort and opts.role != "user":
         opts.effort = advisor_role_effort(catalog, opts.role)
     if opts.cloud and opts.lane not in CLAUDE_LANES:
@@ -4185,6 +4407,10 @@ def run_lane(opts, parser):
         usage["list_usd"] = last_gemini_object(strip_ansi(stdout_text or "")).get("total_cost_usd")
     if opts.lane in CLAUDE_LANES and not opts.cloud:
         usage["list_usd"] = last_gemini_object(strip_ansi(stdout_text or "")).get("total_cost_usd")
+        rate = claude_rate_limits(strip_ansi(stdout_text or ""))
+        if rate:
+            meta["rate_limits"] = rate
+            record_claude_rate(os.path.basename(os.path.normpath(outdir)), rate, ended_at)
     # Only a run that produced no answer is a login failure; an answer may mention logins.
     if (opts.lane in ("cursor", "grok") and not final_text(opts.lane, outdir, log_text, stdout_text)
             and re.search(r"not authenticated|not logged in|please log ?in|run .*login", (stdout_text or "") + "\n"

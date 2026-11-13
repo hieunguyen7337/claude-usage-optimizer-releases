@@ -709,7 +709,7 @@ included. `explore.main_session` is the one
 place for the main session's model and effort: install.sh sets `model` and `effortLevel` from it when they are
 absent, moves a setting still at a value in `previous_models` / `previous_efforts` to the new one, and leaves any
 other value alone; `lane main` starts a mirror on its model without the `[...]` suffix. The Claude window also
-carries `model_weight_week`, the weekly weight per list dollar (Sonnet 1, Opus 0.67, Fable 1.69; FINDINGS section 1).
+carries `model_weight_week`, the weekly weight per list dollar (Sonnet 1, Opus 0.67, Fable 5.2 2.21; FINDINGS sections 1 and 20).
 
 `lane` refuses an arm that is absent, retired or disabled unless `--off-catalog` is passed. Machine-local arms and
 overrides go in `~/.config/lanes/arms.local.json`, matched by lane, model and effort. `lane-stats arms`
@@ -840,7 +840,7 @@ lane astra -C <dir> -b brief.md -e xhigh --class design --tag pair-3
 ### haiku, sonnet and opus — `claude -p` (the Claude plan)
 
 ```bash
-claude -p --model claude-haiku-5-5 --effort xhigh --output-format json --setting-sources project,local   --strict-mcp-config --permission-mode acceptEdits --allowedTools Bash Read Edit Write Glob Grep   --disallowedTools Agent Workflow WebSearch WebFetch --append-system-prompt "<worker block>" < brief.md
+claude -p --model claude-haiku-5-5 --effort xhigh --output-format stream-json --verbose --setting-sources project,local   --strict-mcp-config --permission-mode acceptEdits --allowedTools Bash Read Edit Write Glob Grep   --disallowedTools Agent Workflow WebSearch WebFetch --append-system-prompt "<worker block>" < brief.md
 claude -p --resume <session-id> <same flags> < fix.md          # continue that worker
 ```
 
@@ -848,6 +848,16 @@ claude -p --resume <session-id> <same flags> < fix.md          # continue that w
   and max. It is the dearest worker: Artificial Analysis v1.5 puts Opus 5.5 max at 66 for $13.04 a task
   (list). Those are priors; `lane-stats report` shows what our own runs cost.
 
+- **stream-json, from 2026-11-10.1.** The stream ends on the same result object `--output-format json` printed
+  (`lane` reads it line by line), and it also carries the account's `rate_limit_event`. `lane` keeps the last one in
+  the run's `meta.json` (`rate_limits`: every window it lists, plus the raw `rate_limit_info`), appends the reading to
+  `~/.claude/usage/claude-rate.jsonl` (`"source": "lane"`), and keeps each window other than `five_hour` and
+  `seven_day` in `claude-scoped.json`, which `usage-status` shows. That event lists no Fable window (2026-11-10).
+- **Fable's own bar** comes from Claude Code's cached `/usage` response in `~/.claude.json`
+  (`cachedUsageUtilization.utilization.limits`, the `weekly_scoped` entry named Fable; POLICY.md, Meters). Every Claude
+  run records it before and after as the `fable weekly` window (a % of Fable's own cap, half the week), and the
+  advisor gate refuses a role call (not `--role user`) once it reaches `explore.advisor.fable_guard_pct` (90). The
+  gate falls back to a Fable-named window in `claude-scoped.json` when the cache has none.
 - **Never `--bare`:** it ignores the subscription login and bills `ANTHROPIC_API_KEY` instead.
 - The workspace must be outside `~/.claude`: Claude Code treats everything there as sensitive and
   refuses headless edits (the run ends NOOP). `lane` refuses such a workspace for these lanes.
@@ -869,21 +879,18 @@ claude -p --resume <session-id> <same flags> < fix.md          # continue that w
 ```bash
 lane fable --subagent --role plan -C <abs dir> -b <brief> --class design   # effort from explore.advisor.roles
 lane fable --subagent --role user -e high -C <abs dir> -b <brief> --class review   # a run the user asked for
-lane fable --role user --off-catalog -e high -C <abs dir> -b <brief> --class review   # the same while disabled
+lane fable -C <abs dir> -b <brief> -e high --class hard --pick <id>   # a unit the picker sent here (role work)
 lane-stats advisor                          # the advisor's state, 7-day spend against budget, outcomes per role
 ```
 
-- **Disabled (2026-11-01, the owner):** only Fable 5.1 is accessible, and a Fable 5.5 is not confirmed. The three
-  arms carry status `disabled`, so `lane` refuses every fable run (exit 8), `--role user` included, unless
-  `--off-catalog` is also passed; `tools/make-lane-agents.py` writes no `lane-fable-*` agent, so such a run is a
-  process (no `--subagent`). The bullets below describe the lane once the switch rule (POLICY.md, Advisor) enables
-  it.
-- The opus contract with `--model claude-fable-5-1`. Once enabled, its arms are `manual`: `pick` never
-  draws them and a run takes no `--pick`. Places are process and subagent; `--cloud` and `--verify` refuse, and
-  `lane main` gives a mirror no `lane-fable-*` agent, since the budget lives in the local ledger.
-- `--role` is required: `plan`, `ladder`, `final-review`, `tiebreak` or `user`. It is recorded as `role` in the run's
-  meta.json, so `lane-stats report --by role` compares the roles. Without `-e` the effort comes from
-  `explore.advisor.roles`; `user` needs `-e`.
+- **Fable 5.2 on real work (2026-11-10, the owner):** the advisor is on, and the lane runs `claude-fable-5-2`. Its
+  medium arm is `manual` (tiebreak); its high and xhigh arms are `active` for hard and design units, so `pick` draws
+  them, forced exploration first. The Fable 5.1 arms stay `disabled` (exit 8 unless `--off-catalog`).
+- The opus contract with `--model claude-fable-5-2`. Places are process and subagent; `--cloud` and `--verify`
+  refuse, and `lane main` gives a mirror no `lane-fable-*` agent, since the budget lives in the local ledger.
+- `--role` is required: `plan`, `ladder`, `final-review`, `tiebreak`, `work` or `user`; a run with `--pick` and no
+  `--role` is `work`. It is recorded as `role` in the run's meta.json, so `lane-stats report --by role` compares the
+  roles. Without `-e` the effort comes from `explore.advisor.roles`; `user` needs `-e`.
 - The gate, before anything launches: while `explore.advisor.active` is false, every role but `user` exits 8; so
   does a role call once the last 7 days' role calls (every role but `user`) have spent `weekly_list_usd`. The gate
   counts this machine's ledger; `lane-stats advisor` also counts runs imported from other machines. Otherwise

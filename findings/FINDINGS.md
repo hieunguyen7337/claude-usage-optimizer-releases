@@ -1009,3 +1009,46 @@ A subsidy factor is the API value that a plan's allowance holds in a month, divi
 - Codex prices every model on one credit card, so each Codex plan has one factor. Sol is charged 1.19 to 1.36 times its card price (§2), so its plan cost is likely higher than the table implies.
 - Google AI Pro is a lower bound: at least about 100M gemini-3.8-flash tokens a week, about $80 at list (§3).
 - Example: a task that lists at $10 of Sonnet API value costs about $0.30 of plan dollars on Max 20x (10 ÷ 33.1), if the whole allowance is used.
+
+## 20. Fable 5.2 meter weight (2026-11-10)
+
+A usage test, run without asking under the switch rule's step 1 (POLICY.md, Advisor). Twenty `lane opus -m claude-fable-5-2 -e medium` sessions (tag `fprobe-52`, four at a time, each writing three files of about 6,000 words) ran from 04:55:20 to 05:34:44 UTC, bracketed by the statusline's weekly readings in `~/.claude/usage/claude-rate.jsonl`. No `claude -p` meter call was made.
+
+The probe's own estimate, from the account-wide meter (superseded by Claude Code's Fable bar, the next table):
+
+| Quantity | Value |
+|---|---|
+| Probe spend, Fable list (sum of the runs' `list_usd`) | $37.57 (20 runs, all OK, 309–501 s each) |
+| Claude weekly meter | 9% at 04:55 → 14% at 05:34:50 (+5 points; whole-point readings, ±1) |
+| Other spend in the window (turn meter and one haiku lane run, Opus and Haiku list) | $8.88 ≈ 0.33 points at the calibrated 0.037%/$ |
+| Fable's share | 4.67 points (3.67–5.67) |
+| Per Fable list dollar | 0.124% of the week (0.098–0.151) |
+| Against an Opus list dollar (0.037%/$) | 3.36x (2.64–4.08); Fable 5.1 was 2.52x (1.69/0.67) |
+| `model_weight_week` (Sonnet = 1, Opus 0.67) | **2.25** (1.77–2.74); Fable 5.1 1.69 |
+| Sub-cap, 50% of the week | **$402** of Fable list ($331–512); Fable 5.1 $531 |
+
+- The list price doubled from 5.1's to $8/$40, and the meter weight per list dollar rose too, so one Fable 5.2 token costs about 6.6x an Opus token on the weekly meter for the same mix (2x price × 3.30).
+- The statusline carried no 5h reading (`five_hour` null) and no separate Fable bar (`scoped` empty) during the probe. The 5h weight in `arms.json` (2.69) is 5.1's 5h/week ratio applied to 2.21, not a measurement.
+- Other machines and cloud sessions could also move the account-wide meter; none was known to be running, so the weight is an upper bound in the same sense as §18.
+- §19's "Claude Max 20x, Fable" subsidy row is Fable 5.1's.
+- What changed in the kit (2026-11-10.1): `model_weight_week.fable` 2.21, `model_weight_5h.fable` 2.69, `fable_weekly_list_usd` 410, the advisor budget $120 a week (about 15% of the week, 29% of the cap), `explore.advisor.fable_guard_pct` 90, and the Fable 5.2 arms' `prior_pct` (Opus's × 2 × 3.30: medium 0.66, high 1.32, xhigh 1.98).
+- **Fable's own bar is not in the rate-limit event (2026-11-10, 08:37 UTC).** One `lane fable --role user` call ($0.31 list) printed a `rate_limit_event` whose `unifiedWindows` listed `seven_day` at 14% and `seven_day_overage_included` at 8%, both resetting with the week, and no `five_hour` window (the statusline has shown none all day either). No window named for Fable appeared, so the bar comes from Claude Code's own usage data instead (below). `seven_day_overage_included` is unexplained: Fable's share of the week since the reset would be about 9% of the sub-cap (4.7 points of 50), close to 8%, but the name suggests the launch offer's extra usage or overage accounting. Comparing it with the Fable bar on claude.ai's usage page settles it. From 2026-11-10.1 every Claude process run records these windows, so a Fable window shows up in `usage-status` the first time the event lists one.
+
+**Measured from Claude Code's own Fable bar (2026-11-10 09:14 UTC).** `/usage` gets its numbers from an account usage response that Claude Code caches in `~/.claude.json` (`cachedUsageUtilization`). Its `limits` list holds a `weekly_scoped` entry for the model with display name Fable, and `weekly_scoped_shares` gives that limit's share of the whole week and its allowance. Since the week reset (2026-11-08 02:00 UTC) the only Fable spend on record is the 21 lane runs above, $37.88 of Fable list (the ledger).
+
+| Quantity | Value |
+|---|---|
+| Fable's own bar (`limits`, `weekly_scoped`) | 9% of Fable's cap, resetting 2026-11-15 01:59:59 UTC |
+| Fable's share of the week (`used_percent_of_weekly`) | 5% |
+| Fable's allowance (`allowance_percent_of_weekly`) | 50% of the week: the support article's cap, confirmed |
+| Week used (all models) | 16% |
+| Fable's points of the week (both whole-percent readings: 9% of 50 is 4.25–4.75, and 5% is 4.5–5.5) | 4.5–4.75 |
+| Per Fable list dollar | 0.122% of the week (0.119–0.125) |
+| Against an Opus list dollar (0.037%/$) | 3.30x (3.21–3.39) |
+| `model_weight_week` | **2.21** (2.15–2.27) |
+| Cap, 50% of the week | **$410** of Fable list ($399–421) |
+
+- The probe's estimate (0.124%/$, $402) sits inside this range; the bar narrows it about eightfold.
+- It assumes no Fable use outside the lane runs since the reset. The week's breakdown in the same data puts 12% of the week's use in Cowork and 2% in chats; any of it on Fable would make Fable lighter than this.
+- The cached response also lists the week by surface (`seven_day_breakdown`: Claude Code 86%, Cowork 12%, chats 2%) and no 5h window. Claude Code refreshes it every few minutes while a session runs.
+- From 2026-11-10.1 the statusline, `usage-status`, every Claude lane run (`fable weekly` before and after) and the advisor gate read this bar (POLICY.md, Meters, "Fable's own bar").

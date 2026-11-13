@@ -281,16 +281,17 @@ class AdvisorTests(unittest.TestCase):
         self.assertEqual([row["status"] for row in fable], ["manual", "manual"])
         self.assertEqual(data["off_catalog"], [])
 
-    def test_the_shipped_catalog_loads_with_its_disabled_fable_arms(self):
+    def test_the_shipped_catalog_runs_fable_5_2_with_the_advisor_on(self):
         with open(os.path.join(ROOT, "arms.json"), "r", encoding="utf-8") as stream:
             self.catalog = json.load(stream)
         self.save_catalog()
         data = json.loads(self.cli("arms", "--json"))
-        fable = [row for row in data["arms"] if row["arm"].startswith("fable/")]
-        self.assertEqual([row["status"] for row in fable], ["disabled"] * 3)
+        fable = {row["arm"]: row["status"] for row in data["arms"] if row["arm"].startswith("fable/")}
+        self.assertEqual(sorted(status for arm, status in fable.items() if "fable-5-2" in arm),
+                         ["active", "active", "manual"])
+        self.assertEqual([status for arm, status in fable.items() if "fable-5-1" in arm], ["disabled"] * 3)
         advisor = json.loads(self.cli("advisor", "--json"))
-        self.assertFalse(advisor["active"])
-        self.assertIn("disabled", self.cli("advisor"))
+        self.assertTrue(advisor["active"])
 
 
 if __name__ == "__main__":

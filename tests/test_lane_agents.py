@@ -69,14 +69,17 @@ class LaneAgentsTests(unittest.TestCase):
         with open(os.path.join(self.out, "lane-fable-high.md"), encoding="utf-8", newline="") as stream:
             self.assertEqual(stream.read(), HAIKU_HIGH.replace("haiku-5-5", "fable-5-1").replace("haiku", "fable"))
 
-    def test_committed_arms_give_the_current_agents_and_none_for_the_disabled_fable_lane(self):
+    def test_committed_arms_give_the_current_agents_and_the_fable_5_2_agents(self):
         out = os.path.join(self.temp.name, "fresh")
         os.makedirs(out)
         self.assertEqual(self.run_tool(arms=os.path.join(ROOT, "arms.json"), out=out).returncode, 0)
         committed = sorted(os.path.basename(path) for path in glob.glob(os.path.join(ROOT, "agents", "lane-*.md")))
         self.assertEqual(sorted(os.listdir(out)), committed)
-        # The fable arms are disabled (arms.json), so no fable agent ships until the switch rule enables them.
-        self.assertEqual([name for name in committed if name.startswith("lane-fable-")], [])
+        # Fable 5.2's arms are manual or active (the owner, 2026-11-10), so their agents ship; 5.1's stay disabled.
+        self.assertEqual([name for name in committed if name.startswith("lane-fable-")],
+                         ["lane-fable-high.md", "lane-fable-medium.md", "lane-fable-xhigh.md"])
+        with open(os.path.join(ROOT, "agents", "lane-fable-xhigh.md"), encoding="utf-8") as stream:
+            self.assertIn("model: claude-fable-5-2", stream.read())
         self.assertIn("lane-opus-xhigh.md", committed)
         for name in committed:
             with open(os.path.join(out, name), "rb") as fresh, open(os.path.join(ROOT, "agents", name), "rb") as kept:
