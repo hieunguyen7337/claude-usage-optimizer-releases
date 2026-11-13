@@ -578,3 +578,12 @@ ships.
 - *A new model can be announced before the CLI lists it.* Gemini 4 Hydrogen was live in Antigravity's docs on
   2026-11-12 but missing from `agy models` here a day later: its arms ship `manual` and become active when the CLI
   lists the id.
+
+**2026-11-14.**
+- *Place a new model by effort, not by name.* Gemini 4 Hydrogen is "Sonnet level" overall, but per effort its high
+  (Intelligence Index 51) matches Sonnet xhigh and its xhigh (54) Sonnet max, so its arms take those priors.
+- *Pooling Claude subscriptions is out of bounds.* T3 Chat offers no Claude subscription login. pi (with community
+  packages), oh-my-pi and proxies such as CLIProxyAPI and CCS rotate several Claude Pro/Max OAuth logins on a 429.
+  Anthropic's Claude Code legal page bars routing requests through plan credentials in third-party apps, and its plan
+  limits "assume ordinary, individual usage". The kit runs Claude only through the unmodified Claude Code binary on
+  the owner's own login, and does not build account rotation.

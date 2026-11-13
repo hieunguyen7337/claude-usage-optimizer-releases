@@ -1,5 +1,5 @@
 {
-  "catalog_version": "2026-11-13.2",
+  "catalog_version": "2026-11-14.1",
   "about": "Exploration arms: one arm is one lane, model and effort. lane refuses an arm that is absent or retired unless --off-catalog; lane-stats pick samples only active arms. Add or override arms (same lane, model, effort) in ~/.config/lanes/arms.local.json. prior_pct is a guess at the share of the provider's weekly window one run takes on prior_plan's base window (before window_epochs), prior_usable a guess at its usable rate (Artificial Analysis coding-agent index v1.5 / 80); both give way to measured runs. lane-stats turns every weekly % into a share of today's window on today's plan (plan_scale, then window_epochs) and prices it in plan dollars (plan_prices; see explore.points_basis). weight scales how often exploration samples the arm.",
   "lanes": {
     "luna": {
@@ -761,12 +761,14 @@
       "status": "manual",
       "classes": [
         "mechanical",
-        "research"
+        "substantive",
+        "research",
+        "review"
       ],
       "weight": 1.0,
       "prior_pct": 0.4,
-      "prior_usable": 0.42,
-      "reason": "Gemini 4 Hydrogen (Google, 2026-11-12; Antigravity lists it for every plan at low, medium, high and xhigh, e.g. gemini-4-hydrogen-xhigh). Manual until `agy models` lists it on this account (it did not on 2026-11-13), then set active so forced exploration gives it real units. Classes and priors are Gemini 3.8 Flash's at the same effort (POLICY, Explore 6); vendor Terminal-Bench 4.1 57% against Flash's 18.2%"
+      "prior_usable": 0.5,
+      "reason": "the owner, 2026-11-14: Hydrogen is Sonnet level, so classes and prior_usable are Sonnet 5.5's at the same effort (low: a step below Sonnet medium); prior_pct stays Gemini 3.8 Flash's (its own Google AI Pro window). Gemini 4 Hydrogen (Google, 2026-11-12; Antigravity lists it for every plan at low, medium, high and xhigh, e.g. gemini-4-hydrogen-xhigh). Manual until `agy models` lists it on this account (it did not on 2026-11-13), then set active so forced exploration gives it real units. Classes and priors are Gemini 3.8 Flash's at the same effort (POLICY, Explore 6); vendor Terminal-Bench 4.1 57% against Flash's 18.2%"
     },
     {
       "lane": "gemini",
@@ -776,12 +778,13 @@
       "classes": [
         "mechanical",
         "substantive",
-        "research"
+        "research",
+        "review"
       ],
       "weight": 1.0,
       "prior_pct": 0.6,
-      "prior_usable": 0.48,
-      "reason": "Gemini 4 Hydrogen medium; see gemini-4-hydrogen-low"
+      "prior_usable": 0.58,
+      "reason": "the owner, 2026-11-14: Hydrogen is Sonnet level, so classes and prior_usable are Sonnet 5.5's at the same effort (low: a step below Sonnet medium); prior_pct stays Gemini 3.8 Flash's (its own Google AI Pro window). Gemini 4 Hydrogen medium; see gemini-4-hydrogen-low"
     },
     {
       "lane": "gemini",
@@ -789,15 +792,15 @@
       "effort": "high",
       "status": "manual",
       "classes": [
-        "mechanical",
         "substantive",
-        "research",
+        "hard",
+        "design",
         "review"
       ],
       "weight": 1.0,
-      "prior_pct": 1.0,
-      "prior_usable": 0.52,
-      "reason": "Gemini 4 Hydrogen high (Antigravity's default level); see gemini-4-hydrogen-low"
+      "prior_pct": 1.5,
+      "prior_usable": 0.79,
+      "reason": "Benchmarks (2026-11-14): Artificial Analysis Intelligence Index 51 at high (Google's launch post) and 54 at xhigh (artificialanalysis.ai), against Sonnet 5.5 54/50/41 at max/xhigh/high and Opus 5.5 52 at high (POLICY, Intelligence Index v5.0); so high and xhigh take Sonnet xhigh's and Sonnet max's usable priors. At xhigh it spent 304M output tokens on the index against a 72.8M median, so its cost priors on the Google window are raised (a guess until measured). the owner, 2026-11-14: Hydrogen is Sonnet level, so classes and prior_usable are Sonnet 5.5's at the same effort (low: a step below Sonnet medium); prior_pct stays Gemini 3.8 Flash's (its own Google AI Pro window). Gemini 4 Hydrogen high (Antigravity's default level); see gemini-4-hydrogen-low"
     },
     {
       "lane": "gemini",
@@ -805,15 +808,15 @@
       "effort": "xhigh",
       "status": "manual",
       "classes": [
-        "mechanical",
         "substantive",
-        "research",
+        "hard",
+        "design",
         "review"
       ],
       "weight": 1.0,
-      "prior_pct": 1.5,
-      "prior_usable": 0.52,
-      "reason": "Gemini 4 Hydrogen xhigh (Antigravity's \"Extra\" level); classes and usable prior copied from Flash high, cost prior 1.5x it for the larger reasoning budget (a guess until measured); see gemini-4-hydrogen-low"
+      "prior_pct": 3.0,
+      "prior_usable": 0.85,
+      "reason": "Benchmarks (2026-11-14): Artificial Analysis Intelligence Index 51 at high (Google's launch post) and 54 at xhigh (artificialanalysis.ai), against Sonnet 5.5 54/50/41 at max/xhigh/high and Opus 5.5 52 at high (POLICY, Intelligence Index v5.0); so high and xhigh take Sonnet xhigh's and Sonnet max's usable priors. At xhigh it spent 304M output tokens on the index against a 72.8M median, so its cost priors on the Google window are raised (a guess until measured). the owner, 2026-11-14: Hydrogen is Sonnet level, so classes and prior_usable are Sonnet 5.5's at the same effort (low: a step below Sonnet medium); prior_pct stays Gemini 3.8 Flash's (its own Google AI Pro window). Gemini 4 Hydrogen xhigh (Antigravity's \"Extra\" level); classes and usable prior copied from Flash high, cost prior 1.5x it for the larger reasoning budget (a guess until measured); see gemini-4-hydrogen-low"
     },
     {
       "lane": "haiku",

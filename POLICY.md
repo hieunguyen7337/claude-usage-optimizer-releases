@@ -1,6 +1,6 @@
 # Claude Usage Optimizer: usage policy
 
-Claude Usage Optimizer version: 2026-11-13.2. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Claude Usage Optimizer version: 2026-11-14.1. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
 Machine-specific rules (project dispatchers, locked lanes, local paths) belong in
 `~/.claude/CLAUDE.md` above the import line, and they win when the two conflict.
 On Amp or Codex CLI, read that platform's notes first (`~/.claude/usage-optimizer/platforms/<amp|codex>/PLATFORM.md`):
@@ -163,7 +163,7 @@ per-lane gotchas are in `~/.claude/usage-optimizer/LANES.md`.
 | terra | gpt-6.1-terra (codex-cli ≥ 0.159.0) | The same window, 10x luna per token (half of sol) | The review lane; a cheap code rung below sol (FINDINGS §12) |
 | sol | gpt-6.1-sol (codex-cli ≥ 0.159.1) | The same window, 20x luna per token | Scarce on Plus |
 | astra | gpt-6-astra (codex-cli ≥ 0.159.1) | The same window, 100x luna per token | A second frontier view |
-| gemini | gemini-3.8-flash low/medium/high (agy); gemini-4-hydrogen low–xhigh as manual arms until `agy models` lists it (from 2026-11-13.2) | Google AI Pro, $0; at least about 100M tokens/week | Non-sensitive work only (consumer data terms) |
+| gemini | gemini-3.8-flash low/medium/high (agy); gemini-4-hydrogen low–xhigh at Sonnet level (the owner, 2026-11-14), manual until `agy models` lists it (from 2026-11-13.2; agy 1.5.8 did not on 2026-11-14, nor Argon or Carbon) | Google AI Pro, $0; at least about 100M tokens/week | Non-sensitive work only (consumer data terms) |
 | cursor | Cursor CLI (`cursor-agent -p`): grok-4.7 low–xhigh (composer retired by the owner; gpt-5.6-sol is outside the plan) | The owner's Cursor subscription; no account-wide meter (priced from priors) | Private code allowed while Cursor's privacy mode is on; never a `(NO ZDR)` or `claude-*` model (from 2026-11-07.1) |
 | grok | Grok Build CLI (`grok -p`): grok-4.7 low/medium/high, grok-4.7-build-fast | The owner's grok.com subscription; no account-wide meter; each run records its own cost | Non-sensitive work only, like gemini, until the owner confirms grok.com does not train on it (from 2026-11-07.1) |
 | haiku | claude-haiku-5-5 (`claude -p`) | The Claude plan; list price 1/40 of Opus | The cheap Claude worker |
@@ -210,6 +210,9 @@ per-effort public source for every lane. Score at max / xhigh / high / medium / 
 54/50/41/30/25, Haiku 36/34/30/25/19, Astra 57/55/55/51/43, Luna 28/23/21/18/10, Fable 49/50/47/43/38, Gemini flash
 –/–/31/30/22, terra 51/45/42/38/29, sol 55/52/50/46/35. Max $/task: Opus $10.04, Sonnet $10.02, Astra $6.24, sol
 $1.27, terra $0.96, Haiku $0.41, Luna $0.15 (terra costs 0.44–0.53x sol's per task up to xhigh and 0.76x at max).
+Gemini 4 Hydrogen (2026-11-12, not yet in `agy models` here): –/54/51/–/– at $3.16 and $1.87 per task (xhigh from
+artificialanalysis.ai, high from Google's launch post), so its high matches Sonnet xhigh and its xhigh Sonnet max, with
+about 4x the median output tokens at xhigh.
 
 Why benchmarks disagree, and so why our own runs decide: scores move with the harness (the same model
 gains or loses 5+ points between its vendor CLI and a neutral one), the benchmark version (Terminal-Bench

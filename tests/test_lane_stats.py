@@ -1656,7 +1656,7 @@ class LaneStatsTests(unittest.TestCase):
                          {"codex": "prolite", "claude": "max_20x", "gemini": "google_ai_pro", "cline": None,
                           "cursor": None, "grok": None, "amp": None})
         self.assertEqual(catalog["explore"]["weeks_per_month"], 4.345)
-        self.assertEqual(catalog["catalog_version"], "2026-11-13.2")
+        self.assertEqual(catalog["catalog_version"], "2026-11-14.1")
         # The base window stays the measured 8,400: lane-bench divides credits by it, and plan_scale is base too.
         self.assertEqual(providers["codex"]["window"]["weekly_credits"], 8400)
         self.assertEqual(providers["codex"]["plan_scale"], {"prolite": 1.0, "plus": 5.8})
