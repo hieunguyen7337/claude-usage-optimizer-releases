@@ -587,3 +587,9 @@ ships.
   Anthropic's Claude Code legal page bars routing requests through plan credentials in third-party apps, and its plan
   limits "assume ordinary, individual usage". The kit runs Claude only through the unmodified Claude Code binary on
   the owner's own login, and does not build account rotation.
+- *A plan change can arrive as a mid-week meter reset.* Claude's move to Max showed as the weekly bar falling 34% → 0%
+  with the same reset time. The kit read it as an "early reset or a larger window" and its calibration counted the
+  fall as negative spend. A provider whose meter reports no plan needs the change recorded by time
+  (`plan_changes`), and a calibration must not sum large falls.
+- *Measure a renamed plan, don't scale by its name.* "Max 5x" against "Max 20x" suggested a 4x smaller window; the
+  meter and Anthropic's new weekly wording (5x against 10x Pro) both say 2x.

@@ -736,7 +736,11 @@ block for a wave; each completion arrives as a notification. Never poll, never t
 - A provider or plan with no price (cline; Codex 'pro') falls back to scarcity: share × scarcity × Claude's plan dollars
   per 1% of its week.
 - After a plan change, set `providers.<provider>.prior_plan` in `~/.config/lanes/arms.local.json`, and the plan's
-  `plan_prices` entry if it is not listed. `lane` records the plan on every run.
+  `plan_prices` entry if it is not listed. `lane` records the plan on every run where the meter reports one (Codex).
+- Claude's meter reports no plan, so a Claude plan change is a `providers.claude.plan_changes` entry
+  (`{"plan": "max_5x", "from": "2026-11-13T12:42:39Z"}`): a run without its own plan is on the plan in force at its
+  time, today's plan is the latest change, and `prior_plan` stays the plan the priors were written for. `turn-meter`
+  shows today's plan by its `plan_prices.<plan>.name` and calibrates only from readings after the latest change.
 
 ## Kit update (`kit-update`)
 

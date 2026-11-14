@@ -1,5 +1,5 @@
 {
-  "catalog_version": "2026-11-14.1",
+  "catalog_version": "2026-11-14.2",
   "about": "Exploration arms: one arm is one lane, model and effort. lane refuses an arm that is absent or retired unless --off-catalog; lane-stats pick samples only active arms. Add or override arms (same lane, model, effort) in ~/.config/lanes/arms.local.json. prior_pct is a guess at the share of the provider's weekly window one run takes on prior_plan's base window (before window_epochs), prior_usable a guess at its usable rate (Artificial Analysis coding-agent index v1.5 / 80); both give way to measured runs. lane-stats turns every weekly % into a share of today's window on today's plan (plan_scale, then window_epochs) and prices it in plan dollars (plan_prices; see explore.points_basis). weight scales how often exploration samples the arm.",
   "lanes": {
     "luna": {
@@ -184,22 +184,31 @@
       "prior_plan": "max_20x",
       "plan_scale": {
         "max_20x": 1.0,
-        "max_5x": 4.0
+        "max_5x": 2.0
       },
+      "plan_changes": [
+        {
+          "plan": "max_5x",
+          "from": "2026-11-13T12:42:39Z",
+          "source": "The owner moved Claude to Max (named Max 5x until 2026-10-30). The weekly meter fell from 34% (06:30 UTC) to 0% (first read 12:42:39 UTC) with the same reset time, and a 5h window appeared in the rate log (FINDINGS section 21)"
+        }
+      ],
       "plan_prices": {
         "max_20x": {
           "usd_per_month": 200,
-          "source": "Claude Max 20x, $200 a month",
-          "checked": "2026-10-31"
+          "name": "Ultra",
+          "source": "Claude Ultra (named Max 20x until 2026-10-30), $200 a month, 10x Pro weekly; verified accounts have no 5h limit (support 17728952, claude.com/pricing)",
+          "checked": "2026-11-14"
         },
         "max_5x": {
           "usd_per_month": 100,
-          "source": "Claude Max 5x, $100 a month; scale 4.0 is the 5x/20x naming, not measured",
-          "checked": "2026-10-31"
+          "name": "Max",
+          "source": "Claude Max (named Max 5x until 2026-10-30), $100 a month, 5x Pro per 5h and per week. Scale 2.0: Anthropic publishes 5x against Ultra's 10x Pro weekly, and the meter measured Max's week at 0.47-0.59 of Ultra's on 2026-11-13/14 (FINDINGS section 21)",
+          "checked": "2026-11-14"
         }
       },
-      "prior_pct_per_usd": 0.0656,
-      "basis": "usage-lab C-series controlled blocks 2026-10-19: 1% of the week ≈ $15.25 list (interval $10.2–30.5); turn-meter calibrate replaces it",
+      "prior_pct_per_usd": 0.069,
+      "basis": "Today's plan (Max, from 2026-11-13): 1% of the week ≈ $14.4 of non-Fable list (8 points over $115 of Opus, Haiku and Sonnet, 2026-11-13 12:42 to 11-14 03:15 UTC, FINDINGS section 21); turn-meter calibrate replaces it. On Max 20x the 2026-10-19 blocks gave $15.25 and 2026-11-01 about $30.6",
       "window": {
         "weekly_list_usd": 1525,
         "weekly_interval": [
@@ -433,8 +442,8 @@
         "tiebreak": "medium",
         "work": "high"
       },
-      "weekly_list_usd": 120,
-      "budget_basis": "Fable list dollars over the last 7 days, every role but user (picked work included). $120 is about 15% of Claude's week and 29% of the Fable 5.2 cap ($410) at the measured 0.122% of the week per Fable list dollar (FINDINGS section 20). The gate also stops role calls at fable_guard_pct of Fable's own bar",
+      "weekly_list_usd": 70,
+      "budget_basis": "Fable list dollars over the last 7 days, every role but user (picked work included). On Max (from 2026-11-13) $70 is about 15% of Claude's week and 29% of the Fable cap (about $240) at the measured 0.21% of the week per Fable list dollar (FINDINGS section 21); on Max 20x it was $120 against a $410 cap (section 20). The gate also stops role calls at fable_guard_pct of Fable's own bar",
       "active_reason": "the owner, 2026-11-10: Fable 5.2 does real work first, judged by reviewed outcomes on real units; the Suite R comparison against Opus waits for spare allowance at the end of a week; skipped the switch rule's capability step by the owner's call",
       "fable_guard_pct": 90
     },

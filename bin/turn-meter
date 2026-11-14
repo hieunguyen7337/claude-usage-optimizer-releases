@@ -910,19 +910,44 @@ def _catalog_claude():
     return claude, explore
 
 
+def _latest_plan_change(claude, now):
+    """(plan, from) of the latest providers.claude plan_changes entry at or before now, else (None, None)."""
+    chosen, chosen_at = None, None
+    if not isinstance(claude, dict) or now is None:
+        return None, None
+    for change in claude.get("plan_changes") or []:
+        if not isinstance(change, dict):
+            continue
+        start = _time(change.get("from"))
+        plan = change.get("plan")
+        if start is None or start > now or not isinstance(plan, str) or not plan:
+            continue
+        if chosen_at is None or start > chosen_at:
+            chosen, chosen_at = plan, start
+    return chosen, chosen_at
+
+
 def _plan_price():
-    # Claude's plan price from the catalog: providers.claude.plan_prices[prior_plan].usd_per_month over
-    # explore.weeks_per_month. ~/.config/lanes/arms.local.json (LANES_ARMS_LOCAL) can set another plan, merged over
-    # the catalog the way lane-stats merges it. None without a price, so callers show nothing extra.
+    # Claude's plan price from the catalog: the latest plan_changes entry already in force, else prior_plan,
+    # priced at plan_prices[plan].usd_per_month over explore.weeks_per_month. prior_plan is the plan the arms'
+    # priors were written for, not today's plan once a change has started. ~/.config/lanes/arms.local.json
+    # (LANES_ARMS_LOCAL) merges over the catalog the way lane-stats merges it. None without a price, so callers
+    # show nothing extra.
     claude, explore = _catalog_claude()
-    plan, prices = claude.get("prior_plan"), claude.get("plan_prices")
+    plan, _ = _latest_plan_change(claude, dt.datetime.now(UTC))
+    if plan is None:
+        prior = claude.get("prior_plan")
+        plan = prior if isinstance(prior, str) and prior else None
+    prices = claude.get("plan_prices")
     price = prices.get(plan) if isinstance(plan, str) and isinstance(prices, dict) else None
     monthly = _number(price.get("usd_per_month")) if isinstance(price, dict) else None
     if monthly is None or monthly <= 0:
         return None
     weeks = _number(explore.get("weeks_per_month"))
     weeks = weeks if weeks is not None and weeks > 0 else WEEKS_PER_MONTH
-    return {"plan": plan, "usd_per_month": monthly, "weeks_per_month": weeks, "usd_per_week": monthly / weeks}
+    name = price.get("name") if isinstance(price.get("name"), str) and price.get("name") else plan
+    return {"plan": plan, "name": name, "usd_per_month": monthly, "weeks_per_month": weeks,
+            "usd_per_week": monthly / weeks}
 
 
 def _plan_usd(weekly_pct, price):
@@ -934,7 +959,7 @@ def _plan_text(plan_usd, price):
     amount = "${:.2f}".format(plan_usd) if plan_usd >= 0.01 or plan_usd == 0 else "${:.3f}".format(plan_usd)
     monthly = price["usd_per_month"]
     monthly = "{:.0f}".format(monthly) if float(monthly).is_integer() else "{:.2f}".format(monthly)
-    return "≈{} of plan ({}, ${}/mo)".format(amount, price["plan"], monthly)
+    return "≈{} of plan ({}, ${}/mo)".format(amount, price.get("name") or price["plan"], monthly)
 
 
 def _mode_setting():
@@ -2156,12 +2181,17 @@ def _calibration_windows(usage_dir, now, activity):
     # So each week starts at its own first recorded activity, and a rise between two readings counts only when a
     # recorded turn or Claude lane run overlaps that span.
     cutoff = now - dt.timedelta(days=28)
+    # Readings from before the latest plan change are the previous plan's meter. Claude runs record no plan, so
+    # the catalog's plan_changes is what says which points belong to today's window.
+    _, changed = _latest_plan_change(_catalog_claude()[0], now)
     grouped = {}
     for row in _load_jsonl(os.path.join(usage_dir, "claude-rate.jsonl")):
         observed = _time(row.get("observed_at"))
         weekly = row.get("seven_day") if isinstance(row.get("seven_day"), dict) else {}
         reset = weekly.get("resets_at")
         percent = _number(weekly.get("used_percentage"))
+        if changed is not None and observed is not None and observed < changed:
+            continue
         if observed and observed >= cutoff and reset and percent is not None:
             grouped.setdefault(str(reset), (_time(reset), []))[1].append((observed, percent))
     windows = []
@@ -2174,6 +2204,10 @@ def _calibration_windows(usage_dir, now, activity):
             continue
         rise = 0.0
         for (left, low), (right, high) in zip(values, values[1:]):
+            # A fall of 1.5 points or more is a reset or a plan change, not spend. A smaller step is meter jitter
+            # (32 -> 31 -> 32) and still counts.
+            if high - low <= -1.5:
+                continue
             if any(start < right and stop > left for start, stop in activity):
                 rise += high - low
         windows.append({"resets_at": reset, "first_at": values[0][0], "last_at": values[-1][0], "rise_pct": rise})

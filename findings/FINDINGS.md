@@ -1052,3 +1052,35 @@ The probe's own estimate, from the account-wide meter (superseded by Claude Code
 - It assumes no Fable use outside the lane runs since the reset. The week's breakdown in the same data puts 12% of the week's use in Cowork and 2% in chats; any of it on Fable would make Fable lighter than this.
 - The cached response also lists the week by surface (`seven_day_breakdown`: Claude Code 86%, Cowork 12%, chats 2%) and no 5h window. Claude Code refreshes it every few minutes while a session runs.
 - From 2026-11-10.1 the statusline, `usage-status`, every Claude lane run (`fable weekly` before and after) and the advisor gate read this bar (POLICY.md, Meters, "Fable's own bar").
+
+## 21. Claude Max after the plan change (2026-11-13 to 11-14)
+
+The owner moved Claude from Max 20x to Max. Anthropic renamed the plans on 2026-10-30 (Max 5x → Max, $100, 5x Pro
+per 5h and per week; Max 20x → Ultra, $200, 10x Pro weekly, no 5h limit for verified accounts; support article
+17728952, claude.com/pricing). On paper Max's week is half of Ultra's.
+
+The switch in the rate log (`~/.claude/usage/claude-rate.jsonl`): the weekly meter read 34% at 2026-11-13 06:30 UTC
+and 0% at 12:42:39 with the same reset (2026-11-15 02:00), and from then on the readings carry a 5h window. Spend is
+every Claude Code transcript on this PC priced at list (the kit's price table), deduplicated per response.
+
+| Quantity (12:42 UTC 11-13 to 03:15 UTC 11-14) | Value |
+|---|---|
+| Spend, all models | $148.92 list: Opus $102.91 (main $84.53), Fable $33.71, Haiku $11.99, Sonnet $0.32 |
+| Weekly meter | 0% → 15% |
+| Fable's own bar | 14% of its cap = 7% of the week (assumes it restarted with the plan; it read 9% before) |
+| Non-Fable | 8 points over $115.22: **$14.4 a point, about $1,440 a week** |
+| Fable | 7 points over $33.71: 0.21% of the week per Fable list dollar, a cap of **about $240** ($232–250) |
+| Fable against Opus per list dollar | about 3.0x (3.3x on Max 20x, §20) |
+| 5h window 12:40–17:40 | $47.23 (Fable $2.76) → 32%; 5h window 17:40–22:40: $70.01 (Fable $28.58) → 77% by 22:18 |
+| 5h window in Opus-equivalent list (Fable × 3.3) | **about $165–175**, about 11% of the week; 1 weekly point ≈ 9 5h points (17:44–18:42) |
+| Max against Ultra (about $3,000 a week of Opus list, 2026-11-01) | **0.47–0.5** on the weekly meter; 0.59 from the Fable cap ($240 / $410) |
+
+- Lower bounds: claude.ai, the phone and cloud sessions also move the account-wide meter, and only this PC's spend is
+  counted, so the windows may be somewhat larger.
+- Where the week went: one project session's Opus main loop ($61) and its own Fable subagents ($31), a game project
+  session ($34) and the kit session ($17). The Fable subagents ran outside `lane`, so the advisor budget never saw them.
+- What changed in the kit (2026-11-14.2): `providers.claude.plan_changes` (switch to `max_5x` at 12:42:39 UTC),
+  `plan_scale.max_5x` 2.0 (was 4.0, a guess from the names), plan names Max and Ultra, `prior_pct_per_usd` 0.069, the
+  advisor budget $70 a week. `turn-meter` calibrates only from readings after the change and no longer counts a fall
+  of 1.5 points or more as negative spend (the 34% → 0% fall had cut the week's rise by 34 points).
+- Re-measure after a full week on Max (the reset on 2026-11-15 02:00 UTC starts the first one).

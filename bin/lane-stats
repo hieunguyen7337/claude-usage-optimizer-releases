@@ -580,7 +580,7 @@ def report_converter(catalog, runs, now):
     plan $ is set only when the provider's current plan has its own price (and Claude's does, so points are dollars).
     A provider on the scarcity fallback still has points, but no plan $.
     """
-    plans = current_plans(catalog, runs, {})
+    plans = current_plans(catalog, runs, {}, now)
     rates, _, dollars = point_rates(catalog, plans)
 
     def convert(run, pct):
@@ -910,7 +910,7 @@ def validate_catalog(catalog):
 
 
 def validate_plans(name, provider):
-    """prior_plan, window_epochs and plan_prices of one provider; each is optional."""
+    """prior_plan, window_epochs, plan_prices and plan_changes of one provider; each is optional."""
     prior = provider.get("prior_plan")
     if prior is not None and (not isinstance(prior, str) or not prior):
         raise CatalogError("invalid providers.{}.prior_plan: needs a plan id".format(name))
@@ -938,6 +938,22 @@ def validate_plans(name, provider):
             raise CatalogError("invalid {}.scale: needs a number above 0".format(where))
         if epoch.get("source") is not None and not isinstance(epoch["source"], str):
             raise CatalogError("invalid {}.source: needs text".format(where))
+    # Claude runs record no plan, so the catalog lists which plan was in force from each moment.
+    changes = provider.get("plan_changes", [])
+    if not isinstance(changes, list):
+        raise CatalogError("invalid providers.{}.plan_changes: needs a list".format(name))
+    for index, change in enumerate(changes):
+        where = "providers.{}.plan_changes[{}]".format(name, index)
+        if not isinstance(change, dict):
+            raise CatalogError("invalid {}: needs an object".format(where))
+        if not isinstance(change.get("plan"), str) or not change["plan"]:
+            raise CatalogError("invalid {}.plan: needs a plan id".format(where))
+        if change["plan"] not in known_plans:
+            raise CatalogError("invalid {}.plan: not a plan of providers.{}".format(where, name))
+        if parse_time(change.get("from")) is None:
+            raise CatalogError("invalid {}.from: needs a UTC time such as 2026-10-30T00:00:00Z".format(where))
+        if change.get("source") is not None and not isinstance(change["source"], str):
+            raise CatalogError("invalid {}.source: needs text".format(where))
     prices = provider.get("plan_prices", {})
     if not isinstance(prices, dict):
         raise CatalogError("invalid providers.{}.plan_prices: needs an object of plan ids".format(name))
@@ -947,7 +963,7 @@ def validate_plans(name, provider):
             raise CatalogError("invalid {}: not a plan of providers.{}".format(where, name))
         if not plan or not isinstance(price, dict) or not positive_number(price.get("usd_per_month")):
             raise CatalogError("invalid {}.usd_per_month: needs a number above 0".format(where))
-        for key in ("source", "checked"):
+        for key in ("source", "checked", "name"):
             if price.get(key) is not None and not isinstance(price[key], str):
                 raise CatalogError("invalid {}.{}: needs text".format(where, key))
 
@@ -1154,11 +1170,44 @@ def convert_pct(pct, settings, plan, when, current, now):
     return pct if target == source else pct * target / source
 
 
+def plan_at(settings, when):
+    """The plan in force at `when`: the latest plan_changes entry with from <= when, else prior_plan.
+
+    Entries may be in any order. Before every change, or when the provider records none, this is prior_plan.
+    None when neither a change nor a prior_plan exists. prior_plan stays the plan the arms' priors were written
+    for; once a change has started it is not the plan in force.
+    """
+    chosen, chosen_at = None, None
+    if isinstance(settings, dict) and when is not None:
+        for change in settings.get("plan_changes") or []:
+            if not isinstance(change, dict):
+                continue
+            start = parse_time(change.get("from"))
+            plan = change.get("plan")
+            if start is None or start > when or not isinstance(plan, str) or not plan:
+                continue
+            if chosen_at is None or start > chosen_at:
+                chosen, chosen_at = plan, start
+    if chosen is not None:
+        return chosen
+    prior = settings.get("prior_plan") if isinstance(settings, dict) else None
+    return prior if isinstance(prior, str) and prior else None
+
+
 def current_share(run, pct, provider, catalog, plans, now):
     # A run without a plan ran on the current plan; one without a time ran now (as recency_weight takes it).
+    # Claude runs record no plan, so a provider with plan_changes prices that run on the plan in force then.
     settings = catalog["providers"].get(provider)
     current = plans.get(provider)
-    return convert_pct(pct, settings, run_plan(run) or current, run_time(run) or now, current, now)
+    when = run_time(run) or now
+    recorded = run_plan(run)
+    if recorded:
+        plan = recorded
+    elif isinstance(settings, dict) and settings.get("plan_changes"):
+        plan = plan_at(settings, when)
+    else:
+        plan = current
+    return convert_pct(pct, settings, plan, when, current, now)
 
 
 def window_keyer(catalog, provider, plans):
@@ -1168,7 +1217,18 @@ def window_keyer(catalog, provider, plans):
     if not isinstance(settings, dict) or not settings.get("window_epochs"):
         return None
     current = (plans or {}).get(provider)
-    return lambda run, when: epoch_product(settings, run_plan(run) or current, when)
+
+    def window_of(run, when):
+        recorded = run_plan(run)
+        if recorded:
+            plan = recorded
+        elif settings.get("plan_changes"):
+            plan = plan_at(settings, when)
+        else:
+            plan = current
+        return epoch_product(settings, plan or current, when)
+
+    return window_of
 
 
 def weeks_per_month(catalog):
@@ -1367,13 +1427,35 @@ def recency_weight(run, config, now):
     return 0.5 ** (age / config["half_life_days"])
 
 
-def current_plans(catalog, runs, live):
+def current_plans(catalog, runs, live, now=None):
+    """The plan each provider is on now.
+
+    Without plan_changes, the plan recorded by the provider's latest run, else prior_plan. With plan_changes,
+    the plan in force now, unless a run that records its own plan ended after that change: then that run's plan
+    wins, which is the rule the other providers already use. A live Codex plan_type still overrides.
+    """
+    now = now or datetime.datetime.now(datetime.timezone.utc)
     plans = {}
     for provider, settings in catalog["providers"].items():
         candidates = [run for run in runs.values() if run.get("provider") == provider and run_plan(run)]
         candidates.sort(key=lambda run: parse_time(run.get("ended_at")) or parse_time(run.get("started_at"))
                         or datetime.datetime.min.replace(tzinfo=datetime.timezone.utc))
-        plan = run_plan(candidates[-1]) if candidates else settings.get("prior_plan")
+        if isinstance(settings, dict) and settings.get("plan_changes"):
+            plan = plan_at(settings, now)
+            latest = None
+            for change in settings.get("plan_changes") or []:
+                if not isinstance(change, dict):
+                    continue
+                start = parse_time(change.get("from"))
+                if start is not None and start <= now and (latest is None or start > latest):
+                    latest = start
+            ended_after = [run for run in candidates
+                           if latest is not None and parse_time(run.get("ended_at")) is not None
+                           and parse_time(run.get("ended_at")) > latest]
+            if ended_after:
+                plan = run_plan(ended_after[-1])
+        else:
+            plan = run_plan(candidates[-1]) if candidates else settings.get("prior_plan")
         codex = live.get("codex")
         if provider == "codex" and isinstance(codex, dict) and codex.get("plan_type"):
             plan = codex["plan_type"]
@@ -1381,8 +1463,18 @@ def current_plans(catalog, runs, live):
     return plans
 
 
-def on_plan(run, plan):
-    return not run_plan(run) or run_plan(run) == plan
+def on_plan(run, plan, settings=None, now=None):
+    """Whether a run's weekly % was read on `plan`.
+
+    A run that records no plan is on the current plan, so a call without settings still says yes. Pass the
+    provider settings when it has plan_changes: the run is then on the plan in force at its time.
+    """
+    recorded = run_plan(run)
+    if recorded:
+        return recorded == plan
+    if isinstance(settings, dict) and settings.get("plan_changes"):
+        return plan_at(settings, run_time(run) or now) == plan
+    return True
 
 
 def calibrated_rates(state, runs, catalog, plans, now=None):
@@ -1401,6 +1493,7 @@ def calibrated_rates(state, runs, catalog, plans, now=None):
         if provider not in catalog["providers"]:
             continue
         local = [run for run in runs.values() if run.get("provider") == provider and not run.get("_imported")]
+        settings = catalog["providers"][provider]
         shares, members = allocate_wave(local, "weekly", provider, window_keyer(catalog, provider, plans))
         waves = {}
         for run in local:
@@ -1411,7 +1504,7 @@ def calibrated_rates(state, runs, catalog, plans, now=None):
         for wave in waves.values():
             values = [weight_for(run, provider) for run, _ in wave]
             converted = [current_share(run, share, provider, catalog, plans, now) for run, share in wave]
-            if (any(not on_plan(run, plans[provider]) for run, _ in wave)
+            if (any(not on_plan(run, plans[provider], settings, now) for run, _ in wave)
                     or any(value is None or value < 0 for value in values) or sum(values) <= 0
                     or any(value is None for value in converted)):
                 continue
@@ -1461,10 +1554,11 @@ def fable_factor(run, catalog):
 def arm_cost(arm, history, attributed, catalog, plans, rates, now, class_name=None):
     """An arm's % of today's weekly window per run on the current plan, and the tier it came from."""
     provider = catalog["lanes"][arm["lane"]]["provider"]
+    settings = catalog["providers"][provider]
     plan = plans[provider]
     measured = []
     for key, run in history:
-        if "weekly" in attributed.get(key, {}) and on_plan(run, plan):
+        if "weekly" in attributed.get(key, {}) and on_plan(run, plan, settings, now):
             share = current_share(run, attributed[key]["weekly"], provider, catalog, plans, now)
             if share is not None:
                 measured.append((share, recency_weight(run, catalog["explore"], now)))
@@ -1481,7 +1575,6 @@ def arm_cost(arm, history, attributed, catalog, plans, rates, now, class_name=No
     if provider in rates and weights:
         return statistics.mean(weights) * rates[provider], "calibrated"
     # prior_pct is a share of prior_plan's base window (a plan_scale 1.0 plan when there is no prior_plan).
-    settings = catalog["providers"][provider]
     prior_plan = settings.get("prior_plan")
     prior = convert_pct(arm["prior_pct"], settings, prior_plan, None, plan, now) if prior_plan else None
     if prior is None:
@@ -1500,7 +1593,7 @@ def gather_context(args):
     live = read_live_usage(getattr(args, "no_usage", False))
     now = datetime.datetime.now(datetime.timezone.utc)
     config = catalog["explore"]
-    plans = current_plans(catalog, runs, live)
+    plans = current_plans(catalog, runs, live, now)
     rates = calibrated_rates(state, runs, catalog, plans, now)
     point_rate, per_claude_pct, _ = point_rates(catalog, plans)
     # Keep complete waves for calibration, even when the review horizon is shorter.

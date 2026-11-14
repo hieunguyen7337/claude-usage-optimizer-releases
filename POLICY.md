@@ -1,6 +1,6 @@
 # Claude Usage Optimizer: usage policy
 
-Claude Usage Optimizer version: 2026-11-14.1. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Claude Usage Optimizer version: 2026-11-14.2. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
 Machine-specific rules (project dispatchers, locked lanes, local paths) belong in
 `~/.claude/CLAUDE.md` above the import line, and they win when the two conflict.
 On Amp or Codex CLI, read that platform's notes first (`~/.claude/usage-optimizer/platforms/<amp|codex>/PLATFORM.md`):
@@ -59,7 +59,15 @@ better (Measure every task).
 Known (2026-10-31):
 - **The Claude meter is account-wide.** Every machine, claude.ai, the desktop app and the Claude lanes
   (haiku, sonnet, opus) draw on it. Judge headroom by the statusline %, never by one machine's spend.
-- **Measured windows:** Claude Max 20x holds about $1,525 list/week ($1,017–3,050) and $254/5h ($235–277).
+- **Claude is on Max from 2026-11-13 12:42 UTC** (the owner's plan change). Anthropic renamed the plans on 2026-10-30:
+  Max 5x is now **Max** ($100, 5x Pro per 5h and per week) and Max 20x is **Ultra** ($200, 10x Pro weekly, no 5h limit
+  for verified accounts). Measured on Max (FINDINGS §21; one PC's spend, so lower bounds): about $1,440 of non-Fable
+  list a week ($14.4 a point), 0.47–0.59 of Ultra's week, so `plan_scale.max_5x` is 2.0 (the old names suggested 4);
+  a 5h window of about $165–175 of Opus list, about 11% of the week; Fable's cap about $240 of Fable list.
+  `providers.claude.plan_changes` records the switch: `lane-stats` prices runs before it as Ultra runs, and
+  `turn-meter` shows today's plan and calibrates only from readings after it.
+- **Measured windows:** Claude Max 20x (now Ultra) held about $1,525 list/week ($1,017–3,050; about $3,000 by
+  2026-11-01) and $254/5h ($235–277) until 2026-11-13.
   Codex Pro Lite held about 8,400 credits/week (7,800–9,200) until 2026-10-29 16:56 UTC, and about 16,800 since
   (the next bullet). See `findings/FINDINGS.md`.
 - **The Codex Pro Lite doubling (2026-10-29 16:56 UTC).** Tibo (@thsottiaux, OpenAI) on X: usage limits doubled for
@@ -70,8 +78,9 @@ Known (2026-10-31):
   credits per dollar), and one % of a Pro Lite week holds about 11.6x one % of a Plus week (168 against 14.5 credits).
 - **Fable is capped and heavy.** It may use at most 50% of the shared week (Anthropic, support article
   15424964), and Claude Code's own usage data confirms the cap at 50% of the week. Fable 5.2 (from 2026-11-10) weighs
-  2.21x Sonnet per list dollar on the week, 3.3x Opus (2.15–2.27, FINDINGS §20; Fable 5.1 was 1.69), so its cap holds
-  about $410 of Fable list ($399–421) and one Fable list dollar is about 0.122% of Claude's week, against about 0.037%
+  2.21x Sonnet per list dollar on the week, 3.3x Opus (2.15–2.27, FINDINGS §20; Fable 5.1 was 1.69), so on Max 20x its cap
+  held about $410 of Fable list ($399–421) and one Fable list dollar about 0.122% of Claude's week (on Max: about $240
+  and 0.21%, FINDINGS §21), against about 0.037%
   for an Opus dollar. Read from Claude Code's own Fable bar, not inferred: $37.88 of Fable list stood at 9% of Fable's
   cap and 5% of the week. The kit reads that bar itself (Meters, "Fable's own bar"). The kit's `fable` lane is the
   advisor and a worker for hard and design units (Advisor, below).
@@ -265,7 +274,9 @@ public prices; use public scores to place a model's tier, never to choose betwee
    serves. A plan change (Pro Lite → Plus) re-prices Codex: `lane` records the plan, and `lane-stats`
    uses only runs on the current plan for measured cost, falling back to calibrated, then prior. After a plan
    change, set `providers.<provider>.prior_plan` (and the plan's `plan_prices` entry, if it is not listed) in
-   `~/.config/lanes/arms.local.json`: `prior_plan` names the plan that the prior guesses are for.
+   `~/.config/lanes/arms.local.json`: `prior_plan` names the plan that the prior guesses are for. A provider whose
+   runs record no plan (Claude) gets a `plan_changes` entry instead (`{plan, from}`, from 2026-11-14.2): runs before it
+   keep the old plan's window, today's plan is the latest change, and `prior_plan` stays the plan of the priors.
 7. **Pool machines.** `lane-stats export --out <file>` on one machine and `lane-stats import <file>` on
    another join their reviewed runs; the ledger itself stays per machine.
 8. **Codex reset credits are the user's.** A reset is worth the share used when it is redeemed, so when the
@@ -425,8 +436,10 @@ the picker never draws them, and each call names its role.
 - **Its answer is input,** like any worker's: Claude decides, and records an outcome for every advisor run (a plan
   is `accepted` when the unit was briefed from it, `fixed` when Claude changed it first, `rejected` when unused).
 - **Budget and gate.** `lane` refuses a role call while `explore.advisor.active` is false, and once the last 7 days'
-  role calls have spent `explore.advisor.weekly_list_usd` ($120 list, about 29% of the Fable 5.2 sub-cap and 15% of
-  Claude's week). `lane-stats advisor` shows the spend and each role's outcomes. `lane-stats` prices a Fable run at
+  role calls have spent `explore.advisor.weekly_list_usd` ($70 list on Max from 2026-11-14.2, about 29% of
+  the Fable cap and 15% of Claude's week; it was $120 on Max 20x). Fable subagents that a session starts itself, outside
+  `lane`, are not counted: on 2026-11-13 one project session's own Fable subagents spent $31 list, about 7% of the
+  week, unseen by the gate (FINDINGS §21). Send Fable work through `lane fable`. `lane-stats advisor` shows the spend and each role's outcomes. `lane-stats` prices a Fable run at
   Fable's weekly weight (2.21 against Opus's 0.67 per list dollar, FINDINGS section 20). The gate also refuses role
   calls once Fable's own bar reaches `explore.advisor.fable_guard_pct` (90%; Meters, "Fable's own bar").
 - **A mirror does not call it:** the budget lives in the local ledger, and `lane main` gives a mirror no
@@ -437,8 +450,9 @@ the picker never draws them, and each call names its role.
 instead of judging it through benchmark"). Fable 5.2 (released 2026-11-09, $8/$40 per MTok against Opus 5.5's $4/$20,
 cache reads $0.20 on both) is the advisor (`explore.advisor.active: true`, roles plan and ladder at xhigh,
 final-review at high, tiebreak at medium), and its high and xhigh arms are also drawn by the picker for hard and
-design units: a picked fable run is role `work`. Every role but `user` counts in the advisor budget ($120 list a
-week, about 15% of Claude's week at the weight the 2026-11-10 probe measured: step 1 of the switch rule, done). The
+design units: a picked fable run is role `work`. Every role but `user` counts in the advisor budget ($70 list a
+week on Max, about 15% of Claude's week; $120 on Max 20x at the weight the 2026-11-10 probe measured: step 1 of the
+switch rule, done). The
 switch rule's capability step (Suite R against Opus) waits for spare
 allowance at the end of a week; until then reviewed outcomes on real units are the evidence. Fable 5.2 stays out of
 the main seat: Anthropic keeps Opus 5.5 the default, a Fable main session would hit Fable's 50% sub-cap in about four

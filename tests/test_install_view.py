@@ -205,7 +205,7 @@ class InstallViewTests(unittest.TestCase):
             self.assertRegex(installed["command"], r"turn-meter(\.py)? hook$")
             self.assertEqual(installed["timeout"], 5)
         with open(os.path.join(self.prefix, "arms.json"), encoding="utf-8") as stream:
-            self.assertEqual(json.load(stream)["providers"]["claude"]["prior_pct_per_usd"], 0.0656)
+            self.assertEqual(json.load(stream)["providers"]["claude"]["prior_pct_per_usd"], 0.069)
         self.assertTrue(os.path.exists(os.path.join(self.prefix, "bin", "turn-meter")))
 
     def test_dry_run_previews_turn_meter_hooks(self):

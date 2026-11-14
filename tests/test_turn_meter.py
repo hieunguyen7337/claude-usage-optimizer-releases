@@ -29,6 +29,18 @@ meter = importlib.util.module_from_spec(_meter_spec)
 _meter_loader.exec_module(meter)
 
 
+def catalog_without_plan_changes(folder):
+    # The shipped catalog with Claude's plan_changes removed. Tests date their readings relative to now, and a real
+    # plan change (2026-11-13) would cut a calibration window short or not depending on the day the tests run.
+    with open(os.path.join(ROOT, "arms.json"), encoding="utf-8") as handle:
+        catalog = json.load(handle)
+    catalog["providers"]["claude"].pop("plan_changes", None)
+    path = os.path.join(folder, "arms-no-plan-changes.json")
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(catalog, handle)
+    return path
+
+
 class TurnMeterTests(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp(prefix="turn-meter-test-")
@@ -42,7 +54,7 @@ class TurnMeterTests(unittest.TestCase):
         os.makedirs(self.config)
         self.env = dict(os.environ)
         self.env.update({"LANES_STATE": self.state, "CLAUDE_USAGE_DIR": self.usage, "LANES_CONFIG": self.config,
-                         "LANES_ARMS": os.path.join(ROOT, "arms.json"), "HOME": self.root,
+                         "LANES_ARMS": catalog_without_plan_changes(self.root), "HOME": self.root,
                          "USERPROFILE": self.root, "NO_COLOR": "1", "USAGE_OPTIMIZER_CODEX": "off",
                          "USAGE_OPTIMIZER_KIT_LABEL": "off", "USAGE_OPTIMIZER_MODE_NOTICE": "off"})
         self.env.pop("CLAUDE_CONFIG_DIR", None)
@@ -491,6 +503,65 @@ class TurnMeterTests(unittest.TestCase):
         self.assertNotIn("estimated_plan_usd", value)
         self.assertNotIn("plan_price", value)
         self.assertNotIn("of plan", self.command("current", "--session", "session-1").stdout)
+
+    def test_a_plan_change_names_todays_plan_and_its_price(self):
+        self.write_cost("session-1", 1.0)
+        self.hook("UserPromptSubmit", prompt="price today's plan")
+        self.write_cost("session-1", 3.0)
+        now = dt.datetime.now(UTC)
+        self.plan_catalog(
+            plan_changes=[{"plan": "max_5x", "from": self.stamp(now - dt.timedelta(days=1)), "source": "text"},
+                          {"plan": "max_20x", "from": self.stamp(now - dt.timedelta(days=30))}],
+            plan_prices={"max_20x": {"usd_per_month": 200, "name": "Ultra"},
+                         "max_5x": {"usd_per_month": 100, "name": "Max"}})
+        value = json.loads(self.command("current", "--session", "session-1", "--json").stdout)["turn"]
+        self.assertEqual(value["plan_price"]["plan"], "max_5x")
+        self.assertEqual(value["plan_price"]["name"], "Max")
+        # 0.1% of the week (2 list dollars at 0.05% per dollar) of Max at $100 a month.
+        self.assertAlmostEqual(value["estimated_plan_usd"], 0.001 * 100 / 4.345)
+        first = self.command("current", "--session", "session-1").stdout.splitlines()[0]
+        self.assertRegex(first, r"≈\$0\.02 of plan \(Max, \$100/mo\)$")
+        # prior_plan in arms.local.json does not replace a change that has already started.
+        self.write_json(os.path.join(self.root, ".config", "lanes", "arms.local.json"),
+                        {"providers": {"claude": {"prior_plan": "max_20x"}}})
+        value = json.loads(self.command("current", "--session", "session-1", "--json").stdout)["turn"]
+        self.assertEqual((value["plan_price"]["plan"], value["plan_price"]["name"]), ("max_5x", "Max"))
+        os.remove(os.path.join(self.root, ".config", "lanes", "arms.local.json"))
+        # A change that has not started leaves prior_plan, and a price with no name shows the plan id.
+        self.plan_catalog(plan_changes=[{"plan": "max_5x", "from": self.stamp(now + dt.timedelta(days=30))}])
+        value = json.loads(self.command("current", "--session", "session-1", "--json").stdout)["turn"]
+        self.assertEqual((value["plan_price"]["plan"], value["plan_price"]["name"]), ("max_20x", "max_20x"))
+        self.assertRegex(self.command("current", "--session", "session-1").stdout.splitlines()[0],
+                         r"≈\$0\.05 of plan \(max_20x, \$200/mo\)$")
+
+    def test_calibration_ignores_readings_from_before_a_plan_change(self):
+        now = dt.datetime.now(UTC)
+        hours = lambda value: now - dt.timedelta(hours=value)
+        self.plan_catalog(plan_changes=[{"plan": "max_5x", "from": self.stamp(hours(15)), "source": "text"}])
+        # 5% was read on the old plan. One turn covers that step and the later one, so keeping the reading would
+        # add its +3 to the rise. The reading is before the change, so only 8% -> 14% counts.
+        self.write_readings(now + dt.timedelta(days=4), ((hours(18), 5), (hours(10), 8), (hours(5), 14)))
+        self.write_turns((hours(19), hours(6), 100))
+        value = self.calibrate()
+        self.assertEqual(value["source"], "calibrated")
+        self.assertEqual(value["rise_pct"], 6)
+        self.assertEqual(value["spend_usd"], 100)
+        self.assertAlmostEqual(value["pct_per_usd"], 0.06)
+
+    def test_calibration_does_not_count_a_meter_drop_of_one_and_a_half_points_or_more(self):
+        now = dt.datetime.now(UTC)
+        hours = lambda value: now - dt.timedelta(hours=value)
+        self.plan_catalog()
+        # 32 -> 31 -> 39 is jitter of one point and then spend. 39 -> 20 and 23 -> 21.5 are a reset, not spend.
+        self.write_readings(now + dt.timedelta(days=3), (
+            (hours(14), 32), (hours(12), 31), (hours(10), 39), (hours(8), 20),
+            (hours(6), 23), (hours(4), 21.5), (hours(2), 24.5)))
+        self.write_turns((hours(15), hours(2), 100))
+        value = self.calibrate()
+        self.assertEqual(value["source"], "calibrated")
+        self.assertEqual(value["rise_pct"], 13)
+        self.assertEqual(value["spend_usd"], 100)
+        self.assertAlmostEqual(value["pct_per_usd"], 0.13)
 
     def subagent_run(self, name, parent, cost):
         when = dt.datetime.now(UTC).isoformat().replace("+00:00", "Z")
@@ -1568,7 +1639,7 @@ class PlatformTests(unittest.TestCase):
             os.makedirs(folder)
         self.env = dict(os.environ)
         self.env.update({"LANES_STATE": self.state, "CLAUDE_USAGE_DIR": self.usage, "LANES_CONFIG": self.config,
-                         "LANES_ARMS": os.path.join(ROOT, "arms.json"), "HOME": self.root,
+                         "LANES_ARMS": catalog_without_plan_changes(self.root), "HOME": self.root,
                          "USERPROFILE": self.root, "NO_COLOR": "1", "USAGE_OPTIMIZER_CODEX": "off",
                          "USAGE_OPTIMIZER_KIT_LABEL": "off", "USAGE_OPTIMIZER_MODE_NOTICE": "off"})
         for name in ("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_REMOTE", "USAGE_OPTIMIZER_MODE", "LANES_ARMS_LOCAL",

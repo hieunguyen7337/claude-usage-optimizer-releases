@@ -666,7 +666,7 @@ class LaneStatsTests(unittest.TestCase):
             catalog = json.load(stream)
         stats.validate_catalog(catalog)
         self.assertEqual(catalog["providers"]["codex"]["plan_scale"], {"prolite": 1.0, "plus": 5.8})
-        self.assertEqual(catalog["providers"]["claude"]["prior_pct_per_usd"], 0.0656)
+        self.assertEqual(catalog["providers"]["claude"]["prior_pct_per_usd"], 0.069)
         self.assertEqual((catalog["explore"]["measured_weight"], catalog["explore"]["measured_shrink"],
                           catalog["explore"]["measured_min_n"]), (4, 4.0, 10))
 
@@ -1614,24 +1614,25 @@ class LaneStatsTests(unittest.TestCase):
         result = self.run_cli("export")
         self.assertEqual((result.returncode, result.stdout), (2, ""))
 
-    def test_max_5x_takes_four_times_the_percent_of_max_20x_and_costs_half_per_percent(self):
+    def test_max_5x_takes_twice_the_percent_of_max_20x_and_costs_half_per_percent(self):
         with open(os.path.join(ROOT, "arms.json"), encoding="utf-8") as stream:
             catalog = json.load(stream)
         settings = catalog["providers"]["claude"]
         now = stats.parse_time("2026-10-31T00:00:00Z")
-        # plan_scale is the % one unit takes, so the smaller 5x window takes 4x the % of the 20x window.
-        self.assertEqual(stats.convert_pct(1.0, settings, "max_20x", now, "max_5x", now), 4.0)
-        self.assertEqual(stats.convert_pct(1.0, settings, "max_5x", now, "max_20x", now), 0.25)
-        # An arm with no measurement falls back to its prior, a share of max_20x's window, so 4x on max_5x.
+        # plan_scale is the % one unit takes: Max (ex-5x) holds half of Ultra's (ex-20x) week (5x against 10x Pro,
+        # and the meter measured 0.47-0.59 on 2026-11-13/14), so a unit takes 2x the %.
+        self.assertEqual(stats.convert_pct(1.0, settings, "max_20x", now, "max_5x", now), 2.0)
+        self.assertEqual(stats.convert_pct(1.0, settings, "max_5x", now, "max_20x", now), 0.5)
+        # An arm with no measurement falls back to its prior, a share of max_20x's window, so 2x on max_5x.
         arm = dict(catalog["arms"][[(a["lane"], a["effort"]) for a in catalog["arms"]].index(("sonnet", "medium"))],
                    measured={})
         cost_5x, tier_5x = stats.arm_cost(arm, [], {}, catalog, {"claude": "max_5x"}, {}, now, "mechanical")
         cost_20x, tier_20x = stats.arm_cost(arm, [], {}, catalog, {"claude": "max_20x"}, {}, now, "mechanical")
         self.assertEqual((tier_5x, tier_20x), ("prior", "prior"))
-        self.assertAlmostEqual(cost_5x, 4.0 * cost_20x)
-        # Dollars: the 5x plan's price per % is half the 20x one, so the run's plan $ is 4 x 1/2 = 2x.
+        self.assertAlmostEqual(cost_5x, 2.0 * cost_20x)
+        # Dollars: the 5x plan's price per % is half the 20x one, so the run's plan $ is 2 x 1/2 = the same.
         self.assertAlmostEqual(stats.usd_per_pct(catalog, "claude", "max_5x") * cost_5x,
-                               2.0 * stats.usd_per_pct(catalog, "claude", "max_20x") * cost_20x)
+                               stats.usd_per_pct(catalog, "claude", "max_20x") * cost_20x)
 
     def test_repository_catalog_has_the_window_epoch_and_plan_prices(self):
         with open(os.path.join(ROOT, "arms.json"), encoding="utf-8") as stream:
@@ -1649,14 +1650,15 @@ class LaneStatsTests(unittest.TestCase):
                           for name, settings in providers.items()},
                          {"codex": {"prolite": 100, "plus": 20}, "claude": {"max_20x": 200, "max_5x": 100},
                           "gemini": {"google_ai_pro": 19.99}, "cline": {}, "cursor": {}, "grok": {}, "amp": {}})
-        self.assertEqual(providers["claude"]["plan_scale"], {"max_20x": 1.0, "max_5x": 4.0})
-        self.assertTrue(all(price["checked"] == "2026-10-31" and price["source"]
+        self.assertEqual(providers["claude"]["plan_scale"], {"max_20x": 1.0, "max_5x": 2.0})
+        self.assertEqual([change["plan"] for change in providers["claude"]["plan_changes"]], ["max_5x"])
+        self.assertTrue(all(price["checked"] in ("2026-10-31", "2026-11-14") and price["source"]
                             for settings in providers.values() for price in settings.get("plan_prices", {}).values()))
         self.assertEqual({name: settings.get("prior_plan") for name, settings in providers.items()},
                          {"codex": "prolite", "claude": "max_20x", "gemini": "google_ai_pro", "cline": None,
                           "cursor": None, "grok": None, "amp": None})
         self.assertEqual(catalog["explore"]["weeks_per_month"], 4.345)
-        self.assertEqual(catalog["catalog_version"], "2026-11-14.1")
+        self.assertEqual(catalog["catalog_version"], "2026-11-14.2")
         # The base window stays the measured 8,400: lane-bench divides credits by it, and plan_scale is base too.
         self.assertEqual(providers["codex"]["window"]["weekly_credits"], 8400)
         self.assertEqual(providers["codex"]["plan_scale"], {"prolite": 1.0, "plus": 5.8})
@@ -1802,6 +1804,126 @@ class LaneStatsTests(unittest.TestCase):
             "sonnet": ["process", "subagent", "cloud"], "opus": ["process", "subagent", "cloud"],
             "fable": ["process", "subagent"], "codex-cloud": ["cloud"]})
         self.assertEqual(catalog["explore"]["places"], ["process", "subagent", "cloud"])
+
+    def claude_plan_changes(self):
+        # max_5x takes twice the % of max_20x. The change at T is the brief's Max switch; prior_plan stays the
+        # plan the priors were written for.
+        return {"prior_plan": "max_20x", "plan_scale": {"max_20x": 1.0, "max_5x": 2.0},
+                "plan_prices": {"max_20x": {"usd_per_month": 200, "name": "Ultra"},
+                                "max_5x": {"usd_per_month": 100, "name": "Max"}},
+                "plan_changes": [{"plan": "max_5x", "from": "2026-11-13T12:42:39Z", "source": "text"},
+                                 {"plan": "max_20x", "from": "2026-10-01T00:00:00Z"}]}
+
+    def test_plan_at_uses_the_latest_change_at_or_before_the_time(self):
+        settings = self.claude_plan_changes()
+        at = stats.parse_time
+        # Listed with the later change first: order does not matter, and a change after `when` does not apply.
+        self.assertEqual(stats.plan_at(settings, at("2026-11-14T00:00:00Z")), "max_5x")
+        self.assertEqual(stats.plan_at(settings, at("2026-11-13T12:42:39Z")), "max_5x")
+        self.assertEqual(stats.plan_at(settings, at("2026-11-13T12:42:38Z")), "max_20x")
+        self.assertEqual(stats.plan_at(settings, at("2026-09-01T00:00:00Z")), "max_20x")
+        self.assertEqual(stats.plan_at({"prior_plan": "max_20x"}, at("2026-11-14T00:00:00Z")), "max_20x")
+        self.assertIsNone(stats.plan_at({}, at("2026-11-14T00:00:00Z")))
+        self.assertIsNone(stats.plan_at({"plan_changes": []}, at("2026-11-14T00:00:00Z")))
+
+    def test_a_planless_run_is_priced_on_the_plan_in_force_and_not_on_todays_plan_before_it(self):
+        settings = self.claude_plan_changes()
+        now = stats.parse_time("2026-11-14T00:00:00Z")
+        catalog = {"providers": {"claude": settings}, "lanes": {"sonnet": {"provider": "claude"}},
+                   "explore": {"half_life_days": 60, "weeks_per_month": 4.345}}
+        plans = {"claude": "max_5x"}
+
+        def run(stamp):
+            return {"provider": "claude", "lane": "sonnet", "started_at": stamp, "ended_at": stamp,
+                    "usage": {"before": {"observed_at": stamp, "windows": [{"label": "weekly", "used_percent": 1}]},
+                              "after": {"observed_at": stamp, "windows": [{"label": "weekly", "used_percent": 2}]}}}
+
+        before, after = run("2026-11-13T00:00:00Z"), run("2026-11-13T13:00:00Z")
+        # 1% of the max_20x window (scale 1) is 2% of today's max_5x window (scale 2); 1% after the change stays 1%.
+        self.assertEqual(stats.current_share(before, 1, "claude", catalog, plans, now), 2.0)
+        self.assertEqual(stats.current_share(after, 1, "claude", catalog, plans, now), 1.0)
+        self.assertFalse(stats.on_plan(before, "max_5x", settings, now))
+        self.assertTrue(stats.on_plan(before, "max_20x", settings, now))
+        self.assertTrue(stats.on_plan(after, "max_5x", settings, now))
+        # Without the provider settings a plan-less run is still on the plan asked about.
+        self.assertTrue(stats.on_plan(before, "max_5x"))
+        history = [("b1", before), ("b2", run("2026-11-12T00:00:00Z")), ("a1", after), ("a2", run("2026-11-14T00:00:00Z"))]
+        attributed = {name: {"weekly": 1.0} for name, _ in history}
+        cost, tier = stats.arm_cost({"lane": "sonnet", "prior_pct": 9, "measured": {}}, history, attributed,
+                                    catalog, plans, {}, now)
+        # The two runs from before the change are not on max_5x, so the measured cost is the 1% read after it.
+        self.assertEqual((tier, cost), ("measured", 1.0))
+        # The epoch product follows the same plan: max_20x's epoch before T, max_5x's after, and a recorded plan wins.
+        settings["window_epochs"] = [{"plan": "max_20x", "from": "2026-10-01T00:00:00Z", "scale": 2.0},
+                                     {"plan": "max_5x", "from": "2026-10-01T00:00:00Z", "scale": 3.0}]
+        keyer = stats.window_keyer(catalog, "claude", plans)
+        self.assertEqual(keyer(before, stats.parse_time("2026-11-12T00:00:00Z")), 2.0)
+        self.assertEqual(keyer(after, now), 3.0)
+        recorded = {"usage": {"before": {"plan": "max_20x"}}}
+        self.assertEqual(keyer(recorded, now), 2.0)
+        # No epochs still means no keyer, and a provider without plan_changes still uses the current plan.
+        self.assertIsNone(stats.window_keyer({"providers": {"claude": self.claude_plan_changes()}}, "claude", plans))
+        codex = {"plan_scale": {"prolite": 1.0},
+                 "window_epochs": [{"plan": "prolite", "from": "2026-10-01T00:00:00Z", "scale": 2.0}]}
+        codex_keyer = stats.window_keyer({"providers": {"codex": codex}}, "codex", {"codex": "prolite"})
+        self.assertEqual(codex_keyer({"usage": {}}, now), 2.0)
+
+    def test_current_plans_follows_the_change_unless_a_later_run_records_a_plan(self):
+        settings = self.claude_plan_changes()
+        now = stats.parse_time("2026-11-14T00:00:00Z")
+        catalog = {"providers": {"claude": settings, "codex": {"prior_plan": "prolite",
+                                                               "plan_scale": {"prolite": 1.0, "plus": 5.8}}}}
+
+        def run(provider, ended, plan):
+            return {"provider": provider, "started_at": ended, "ended_at": ended, "usage": {"after": {"plan": plan}}}
+
+        # No run records a plan: claude is the change, not prior_plan; codex is still its prior.
+        plans = stats.current_plans(catalog, {}, {}, now)
+        self.assertEqual(plans, {"claude": "max_5x", "codex": "prolite"})
+        runs = {"old": run("claude", "2026-11-13T00:00:00Z", "max_20x")}
+        self.assertEqual(stats.current_plans(catalog, runs, {}, now)["claude"], "max_5x")
+        # Ending at the change is not after it. Ending later, the run's own plan wins.
+        runs["at"] = run("claude", "2026-11-13T12:42:39Z", "max_20x")
+        self.assertEqual(stats.current_plans(catalog, runs, {}, now)["claude"], "max_5x")
+        runs["new"] = run("claude", "2026-11-13T18:00:00Z", "max_20x")
+        self.assertEqual(stats.current_plans(catalog, runs, {}, now)["claude"], "max_20x")
+        open_run = {"open": {"provider": "claude", "started_at": "2026-11-14T00:00:00Z",
+                             "usage": {"before": {"plan": "max_20x"}}}}
+        self.assertEqual(stats.current_plans(catalog, open_run, {}, now)["claude"], "max_5x")
+        # Codex has no plan_changes: the latest run's plan, and the live plan_type still overrides it.
+        runs["codex-old"] = run("codex", "2026-11-01T00:00:00Z", "plus")
+        runs["codex-new"] = run("codex", "2026-11-10T00:00:00Z", "prolite")
+        self.assertEqual(stats.current_plans(catalog, runs, {}, now)["codex"], "prolite")
+        self.assertEqual(stats.current_plans(catalog, runs, {"codex": {"plan_type": "plus"}}, now)["codex"], "plus")
+
+    def test_plan_changes_and_plan_price_names_are_validated(self):
+        provider = self.claude_plan_changes()
+        stats.validate_plans("claude", provider)
+        bare = {"prior_plan": "max_20x", "plan_prices": {"max_20x": {"usd_per_month": 200}},
+                "plan_changes": [{"plan": "max_20x", "from": "2026-11-13T12:42:39Z"}]}
+        stats.validate_plans("claude", bare)
+        del bare["plan_changes"]
+        stats.validate_plans("claude", bare)
+
+        def bad(update, message):
+            broken = json.loads(json.dumps(provider))
+            update(broken)
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(stats.CatalogError, message):
+                    stats.validate_plans("claude", broken)
+
+        bad(lambda item: item.update(plan_changes="max_5x"), r"providers\.claude\.plan_changes: needs a list")
+        bad(lambda item: item.update(plan_changes=["max_5x"]), r"plan_changes\[0\]: needs an object")
+        bad(lambda item: item.update(plan_changes=[{"plan": "", "from": "2026-11-13T12:42:39Z"}]),
+            r"plan_changes\[0\]\.plan: needs a plan id")
+        bad(lambda item: item.update(plan_changes=[{"plan": "pro", "from": "2026-11-13T12:42:39Z"}]),
+            r"plan_changes\[0\]\.plan: not a plan of providers\.claude")
+        bad(lambda item: item.update(plan_changes=[{"plan": "max_5x", "from": "soon"},
+                                                   {"plan": "max_5x", "from": "2026-11-13T12:42:39Z"}]),
+            r"plan_changes\[0\]\.from")
+        bad(lambda item: item.update(plan_changes=[{"plan": "max_5x", "from": "2026-11-13T12:42:39Z", "source": 3}]),
+            r"plan_changes\[0\]\.source: needs text")
+        bad(lambda item: item["plan_prices"]["max_5x"].update(name=3), r"plan_prices\.max_5x\.name: needs text")
 
 
 class AmpStatsTests(unittest.TestCase):

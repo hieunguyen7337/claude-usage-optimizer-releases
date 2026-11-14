@@ -171,7 +171,7 @@ class LaneAdvisorTests(unittest.TestCase):
         self.ledger_row(usage={"list_usd": 4.0}, role="work")
         result = self.lane("fable", "-e", "high", "--pick", "p-20261110-000000-abcd")
         self.assertEqual(result.returncode, 0, self.out(result))
-        self.assertIn("lane: advisor budget $4.00 of $120 used in the last 7 days", result.stderr)
+        self.assertIn("lane: advisor budget $4.00 of $70 used in the last 7 days", result.stderr)
         self.assertEqual(self.meta(result)["role"], "work")
 
     # ----- Fable's own weekly bar -----
