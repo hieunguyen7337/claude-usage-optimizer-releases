@@ -1,0 +1,4 @@
+{
+  "description": "Fix spelling and grammar slips in a typed prompt before Claude reads it, and show the corrected prompt",
+  "modules": ["./register.ts"]
+}

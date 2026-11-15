@@ -1,0 +1,6 @@
+{
+  "name": "prompt-fix",
+  "version": "0.1.0",
+  "description": "Fixes spelling and grammar slips in each typed prompt with one Haiku call, sends the corrected prompt on and shows it in the transcript (USAGE_OPTIMIZER_PROMPT_FIX=off turns it off).",
+  "author": { "name": "Claude Usage Optimizer" }
+}

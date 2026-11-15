@@ -1,5 +1,5 @@
 {
-  "catalog_version": "2026-11-14.2",
+  "catalog_version": "2026-11-16.1",
   "about": "Exploration arms: one arm is one lane, model and effort. lane refuses an arm that is absent or retired unless --off-catalog; lane-stats pick samples only active arms. Add or override arms (same lane, model, effort) in ~/.config/lanes/arms.local.json. prior_pct is a guess at the share of the provider's weekly window one run takes on prior_plan's base window (before window_epochs), prior_usable a guess at its usable rate (Artificial Analysis coding-agent index v1.5 / 80); both give way to measured runs. lane-stats turns every weekly % into a share of today's window on today's plan (plan_scale, then window_epochs) and prices it in plan dollars (plan_prices; see explore.points_basis). weight scales how often exploration samples the arm.",
   "lanes": {
     "luna": {
