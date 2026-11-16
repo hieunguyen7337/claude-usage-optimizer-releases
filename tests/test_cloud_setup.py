@@ -30,7 +30,7 @@ GIT_IDENTITY = ["-c", "user.name=t", "-c", "user.email=t@localhost"]
 
 def kit_version():
     with open(os.path.join(ROOT, "POLICY.md"), encoding="utf-8") as stream:
-        match = re.search(r"^Claude Usage Optimizer version: (\d{4}-\d{2}-\d{2}\.\d+)\.", stream.read(4096), re.M)
+        match = re.search(r"^(?:Coding Tool|Claude Usage) Optimizer version: (\d{4}-\d{2}-\d{2}\.\d+)\.", stream.read(4096), re.M)
     return match.group(1)
 
 

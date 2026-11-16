@@ -1,4 +1,4 @@
-<title>Claude Usage Optimizer</title>
+<title>Coding Tool Optimizer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -47,6 +47,8 @@ code, pre, kbd { font-family: var(--font-mono); font-size: 0.86em; }
 :not(pre) > code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 4px; overflow-wrap: anywhere; }
 .label { font: 500 0.72rem/1 var(--font-body); text-transform: uppercase; letter-spacing: 0.09em; color: var(--muted); }
 section { display: grid; gap: 14px; }
+section > *, details > * { min-width: 0; }
+.policy, .findings { overflow-wrap: anywhere; }
 .lede { color: var(--muted); font-size: 1.08rem; }
 
 header { display: grid; gap: 16px; }
@@ -79,6 +81,8 @@ table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
 th, td { text-align: left; vertical-align: top; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--rule); }
 th { font-weight: 600; color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; }
 td:first-child { white-space: nowrap; }
+.opinions h3 { font-size: 0.95rem; margin: 22px 0 6px; }
+table.rules td:first-child { white-space: normal; font-weight: 600; }
 
 ul.checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
 ul.checks label { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: start; cursor: pointer; }
@@ -121,14 +125,14 @@ footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--ru
 
 <div class="wrap">
   <header>
-    <span class="label">Claude Code configuration</span>
-    <h1>Claude Usage Optimizer</h1>
-    <p class="lede">One usage policy, eleven worker lanes with an arms catalog and a run ledger, a usage meter with a per-turn cost meter, and a mobile-style terminal view, shared by every Claude Code session on every machine. Claude plans and reviews; cheaper lanes do the writing.</p>
+    <span class="label">AI coding agent configuration</span>
+    <h1>Coding Tool Optimizer</h1>
+    <p class="lede">One usage policy, fourteen worker lanes across Claude, ChatGPT (Codex), Gemini, Cursor, Grok and Amp, an arms catalog and a run ledger, usage meters with a per-turn cost meter, and a mobile-style terminal view, shared by every Claude Code, Codex CLI or Amp session on every machine. Your main agent plans and reviews; cheaper lanes do the writing.</p>
     <div class="meta">
       <span class="chip">v{{VERSION}}</span>
       <span>bundle built {{GENERATED}}</span>
     </div>
-    <div class="term" aria-label="Example of the status line it installs"><span class="dim">statusline ›</span> Opus 5.5 · xhigh · ctx 189k/450k (42%) · ETA ~13m ≈0.07% wk · Usage Optimizer {{VERSION}}
+    <div class="term" aria-label="Example of the status line it installs"><span class="dim">statusline ›</span> Opus 5.5 · xhigh · ctx 189k/450k (42%) · ETA ~13m ≈0.07% wk · Coding Tool Optimizer {{VERSION}}
              Claude 5h 12% resets 19:00 · wk 61% resets Sun 02:00 · Fable 7% resets Sun 02:00 │ Codex wk 37% resets Mon 21:51</div>
   </header>
 
@@ -153,7 +157,7 @@ footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--ru
   <section aria-labelledby="bundle-h">
     <h2 id="bundle-h">The bundle</h2>
     <p>The prompt fetches this file with Claude's Artifact tool. A machine without that tool can take it from the clipboard, or by <code>scp</code> from the server that built it.</p>
-    <p>Without Claude Code, install from <a href="https://github.com/hieunguyen7337/claude-usage-optimizer-releases">the public releases repository</a>.</p>
+    <p>Without Claude Code, install from <a href="https://github.com/hieunguyen7337/coding-tool-optimizer">the public releases repository</a>.</p>
     <dl class="facts">
       <dt>File</dt><dd>{{BUNDLE}}</dd>
       <dt>Size</dt><dd>{{SIZE}}</dd>
@@ -171,6 +175,13 @@ footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--ru
       <summary>Show the bundle</summary>
       <pre class="bundle" id="bundle-text">Loading…</pre>
     </details>
+  </section>
+
+  <section aria-labelledby="opinions-h">
+    <h2 id="opinions-h">What the kit decides for you</h2>
+    <div class="opinions">
+{{OPINIONS}}
+    </div>
   </section>
 
   <section aria-labelledby="changes-h">
@@ -207,8 +218,8 @@ footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--ru
 
   <section aria-labelledby="measured-h">
     <h2 id="measured-h">What we measured</h2>
-    <p>Claude Max 20x: about $1,525 API-list value per week ($1,017–3,050) and $254 per 5h ($235–277). Fable draws from the shared week, with a 50% sub-cap. Cache-read charging remains unresolved.</p>
-    <p>Codex Pro Lite: about 8,400 credits per week (7,800–9,200), about $340 API value. Plus: about 1,450 credits per week. These are measured allowances, not guarantees.</p>
+    <p>Claude Max (from 2026-11-13): about $1,440 of non-Fable API-list value per week, a 5h window of about $165–175 of Opus list, and Fable's own cap at about $240 of Fable list. Before that, on Max 20x (now called Ultra): about $1,525 per week ($1,017–3,050) and $254 per 5h ($235–277). Fable draws from the shared week, with a 50% sub-cap, and weighs about 3.3x Opus per list dollar.</p>
+    <p>Codex Pro Lite: about 8,400 credits per week (7,800–9,200) until 2026-10-29, then about 16,800 after OpenAI doubled the Pro tiers' limits. Plus: about 1,450 credits per week. The Free plan has one 30-day window. These are measured allowances, not guarantees.</p>
     <p>The findings are our own measurements of the plan limits and of every model at every effort on a 36-item review suite, compared with public benchmarks. The bundle carries the data and the tools to regenerate them.</p>
     <ul class="evidence">
       <li><code>findings/FINDINGS.md</code>, <code>findings/findings.json</code>, <code>findings/public.json</code></li>

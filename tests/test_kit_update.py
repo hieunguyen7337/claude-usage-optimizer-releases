@@ -16,8 +16,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 KIT_UPDATE = os.path.join(ROOT, "bin", "kit-update")
 STATUSLINE = os.path.join(ROOT, "bin", "claude-statusline")
 GIT = shutil.which("git")
-POLICY = ("# Claude Usage Optimizer: usage policy\n\n"
-          "Claude Usage Optimizer version: {}. Installed at `~/.claude/usage-optimizer/`.\n")
+POLICY = ("# Coding Tool Optimizer: usage policy\n\n"
+          "Coding Tool Optimizer version: {}. Installed at `~/.claude/usage-optimizer/`.\n")
 FAKE_NOTIFY = ("import json, os, sys\n"
                "with open(os.environ['FAKE_NOTIFY_LOG'], 'a', encoding='utf-8') as handle:\n"
                "    handle.write(json.dumps(sys.argv[1:]) + '\\n')\n")
@@ -217,7 +217,7 @@ class KitUpdateCheckTests(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(os.stat(os.path.join(self.state, "notices")).st_mode), 0o700)
 
         # The push leaves the machine, so it names the checkout from ~.
-        self.assertEqual(self.pushes(), [["push", "--title", "Usage Optimizer 2026-11-01.1", "--message",
+        self.assertEqual(self.pushes(), [["push", "--title", "Coding Tool Optimizer 2026-11-01.1", "--message",
                                           "Installed 2026-10-31.13. Update: git -C ~/claude-usage-optimizer pull "
                                           "--ff-only && bash ~/claude-usage-optimizer/install.sh"]])
 
@@ -237,13 +237,13 @@ class KitUpdateCheckTests(unittest.TestCase):
         self.assertEqual(self.cache()["latest"], "2026-11-01.2")
         self.assertEqual(self.notices(), ["kit-update-2026-11-01.2.json"])
         self.assertEqual([push[2] for push in self.pushes()],
-                         ["Usage Optimizer 2026-11-01.1", "Usage Optimizer 2026-11-01.2"])
+                         ["Coding Tool Optimizer 2026-11-01.1", "Coding Tool Optimizer 2026-11-01.2"])
 
     def test_catching_up_removes_the_notice(self):
         self.check()
         self.install("2026-11-01.1")
         line = self.check()
-        self.assertEqual(line, "Claude Usage Optimizer 2026-11-01.1 is the newest published release.")
+        self.assertEqual(line, "Coding Tool Optimizer 2026-11-01.1 is the newest published release.")
         self.assertEqual(self.notices(), [])
         cache = self.cache()
         self.assertEqual((cache["installed"], cache["latest"], cache["error"]), ("2026-11-01.1", "2026-11-01.1", None))
@@ -311,7 +311,7 @@ class KitUpdateCheckTests(unittest.TestCase):
         self.check()
         self.git("-C", self.checkout, "remote", "set-url", "origin", missing)
         line = self.check()
-        self.assertIn("An earlier check found: Claude Usage Optimizer 2026-11-01.1 is published", line)
+        self.assertIn("An earlier check found: Coding Tool Optimizer 2026-11-01.1 is published", line)
         cache = self.cache()
         self.assertIn("failed", cache["error"])
         self.assertEqual((cache["latest"], cache["announced"]), ("2026-11-01.1", "2026-11-01.1"))
@@ -367,14 +367,14 @@ class KitUpdateCheckTests(unittest.TestCase):
                                     timeout=30, check=True)
             return result.stdout.splitlines()[0]
 
-        self.assertEqual(row(), "Opus 5.5 · Usage Optimizer 2026-10-31.13")
+        self.assertEqual(row(), "Opus 5.5 · Coding Tool Optimizer 2026-10-31.13")
         deadline = time.monotonic() + 60
         while not os.path.exists(os.path.join(self.state, "kit-update.json")) and time.monotonic() < deadline:
             time.sleep(0.05)
         while os.path.exists(os.path.join(self.state, "kit-update.lock")) and time.monotonic() < deadline:
             time.sleep(0.05)
         self.assertEqual(self.cache()["latest"], "2026-11-01.1")
-        self.assertEqual(row(), "Opus 5.5 · Usage Optimizer 2026-10-31.13 ⇡ 2026-11-01.1")
+        self.assertEqual(row(), "Opus 5.5 · Coding Tool Optimizer 2026-10-31.13 ⇡ 2026-11-01.1")
         deadline = time.monotonic() + 20
         while not self.pushes() and time.monotonic() < deadline:
             time.sleep(0.05)
@@ -470,6 +470,26 @@ class StatuslineSpawnTests(unittest.TestCase):
         write(os.path.join(self.state, "kit-update.json"), "not json")
         write(os.path.join(self.state, "kit-update.spawned"), "2026-10-31.13\n")
         self.assertEqual(self.latest(), (None, []))
+
+
+class FormerNameTest(unittest.TestCase):
+    """The kit was Claude Usage Optimizer until 2026-11-16.3: both names must keep reading a release."""
+
+    def test_the_parser_reads_both_names(self):
+        module = load(KIT_UPDATE, "kit_update_names")
+        for name in ("Coding Tool", "Claude Usage"):
+            match = module.VERSION_RE.search("# x\n\n{} Optimizer version: 2026-11-16.3. Installed.\n".format(name))
+            self.assertEqual(match.group(1), "2026-11-16.3", name)
+
+    def test_older_installs_still_find_this_release(self):
+        # The parser releases up to 2026-11-16.2 ship reads the first 4,096 bytes of POLICY.md.
+        old = __import__("re").compile(r"^Claude Usage Optimizer version: (\d{4}-\d{2}-\d{2}\.\d+)\.", 8)
+        with open(os.path.join(ROOT, "POLICY.md"), encoding="utf-8") as handle:
+            head = handle.read(4096)
+        new = load(KIT_UPDATE, "kit_update_head").VERSION_RE.search(head)
+        found = old.search(head)
+        self.assertIsNotNone(found, "POLICY.md lost its former-name version line")
+        self.assertEqual(found.group(1), new.group(1))
 
 
 if __name__ == "__main__":

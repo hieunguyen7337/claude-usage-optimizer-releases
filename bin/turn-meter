@@ -1068,7 +1068,7 @@ def _mode_notice(state, session_id):
 
     remote = os.environ.get("CLAUDE_CODE_REMOTE") == "true"
     rules = MODE_RULES_CLOUD if remote else MODE_RULES
-    text = "Usage Optimizer mode: {} ({}; POLICY \"Modes\"). {}".format(mode, why, rules[mode])
+    text = "Coding Tool Optimizer mode: {} ({}; POLICY \"Modes\"). {}".format(mode, why, rules[mode])
     if not remote:
         mains = _read_json(os.path.join(state, "mains.json")) or {}
         if isinstance(mains.get("mains"), dict) and mains["mains"]:
@@ -1166,10 +1166,10 @@ def _kit_notices(state, session_id, now):
     waiting = [(content_id, notice) for content_id, notice in waiting if content_id not in told]
     shown = waiting[-NOTICE_LIMIT:]
     rest = len(waiting) - len(shown)
-    texts = [notice["text"] if notice["text"].startswith("Usage Optimizer") else
-             "Usage Optimizer notice: " + notice["text"] for _, notice in shown]
+    texts = [notice["text"] if notice["text"].startswith("Coding Tool Optimizer") else
+             "Coding Tool Optimizer notice: " + notice["text"] for _, notice in shown]
     if rest:
-        texts.append("Usage Optimizer: {} more notice{} not shown here; run `turn-meter notices` to list {}.".format(
+        texts.append("Coding Tool Optimizer: {} more notice{} not shown here; run `turn-meter notices` to list {}.".format(
             rest, "" if rest == 1 else "s", "it" if rest == 1 else "them"))
     updated = {"told": (told + [content_id for content_id, _ in waiting])[-NOTICE_TOLD:]}
     if scanned is not None:
@@ -1197,7 +1197,7 @@ def _notices_list(state, now):
 
 def _notices_text(rows):
     if not rows:
-        return "no Usage Optimizer notices"
+        return "no Coding Tool Optimizer notices"
     return "\n\n".join("{} {} ({})\n{}".format(row["created_at"], row["id"], row["kind"], row["text"]) for row in rows)
 
 
@@ -1930,7 +1930,7 @@ def _current_text(value):
 
 
 STATUS_LIMIT = 100
-_KIT_VERSION = re.compile(r"^Claude Usage Optimizer version: (\d{4}-\d{2}-\d{2}\.\d+)\.", re.M)
+_KIT_VERSION = re.compile(r"^(?:Coding Tool|Claude Usage) Optimizer version: (\d{4}-\d{2}-\d{2}\.\d+)\.", re.M)
 
 
 def _kit_version():
@@ -1971,7 +1971,7 @@ def _status_segments(state, session_id):
             segments.append("{} wk {:.0f}%".format(provider, pct))
     version = _kit_version()
     if version:
-        segments.append("UO " + version[5:])  # 2026-11-10.1 shows as 11-10.1, as the statusline does
+        segments.append("CTO " + version[5:])  # 2026-11-10.1 shows as 11-10.1, as the statusline does
     return segments
 
 

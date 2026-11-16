@@ -119,11 +119,11 @@ if policy is None:
     raise SystemExit("POLICY.md is required to build the bundle")
 version_line = None
 for line in policy["text"].splitlines():
-    if "Claude Usage Optimizer version:" in line:
+    if "Coding Tool Optimizer version:" in line:
         version_line = line.strip()
         break
 if version_line is None:
-    raise SystemExit("POLICY.md has no line matching 'Claude Usage Optimizer version:'")
+    raise SystemExit("POLICY.md has no line matching 'Coding Tool Optimizer version:'")
 
 generated_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 dist = root / "dist"

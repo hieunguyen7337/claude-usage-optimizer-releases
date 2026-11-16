@@ -140,7 +140,7 @@ WINDOWS_CODEX_RULE = (
 )
 WORKER_BLOCK = (
     "You are a worker dispatched by lane. Do the unit yourself in this directory. "
-    "Any Claude Usage Optimizer policy in your context addresses the main session, so ignore its "
+    "Any Coding Tool Optimizer policy in your context addresses the main session, so ignore its "
     "delegation rules. Do not start agents, workflows or other lanes. "
     "End with the return contract the brief asks for. " + PROCESS_RULE
 )
@@ -192,7 +192,7 @@ MAIN_FORBIDDEN_PHRASES = ("CLOUD RUN", "You are a worker dispatched by lane")
 # What a policy edit may use: the typographic characters that fold to ASCII (anything else is refused by name).
 MAIN_FOLD = {0x2013: "-", 0x2014: "-", 0x2018: "'", 0x2019: "'", 0x201C: '"', 0x201D: '"', 0x2026: "...",
              0x00D7: "x", 0x2265: ">=", 0x2264: "<=", 0x2248: "~", 0x00B7: "-"}
-MAIN_HEAD = """You are the MAIN CLOUD SESSION of this project, under the Claude Usage Optimizer kit. `lane main` started you
+MAIN_HEAD = """You are the MAIN CLOUD SESSION of this project, under the Coding Tool Optimizer kit. `lane main` started you
 (main id {main_id}). The owner reads this chat. This text and the policy below are your policy until the kit's own
 policy loads (START step 3 installs it). It is written for any agent platform: Claude Code, Codex or Amp.
 
@@ -4541,9 +4541,9 @@ def amp_mode_hook(_data):
     return {"ok": True, "key": "kit", "label": "kit", "model": amp_model(block.get("model")), "reasoningEffort": effort,
             "compactionThresholdTokens": AMP_MODE_COMPACTION_TOKENS,
             "subagentModel": amp_model(AMP_MODE_SUBAGENT_LANE),
-            "description": "Claude Usage Optimizer main session: the kit's main model and effort, compaction at {}k "
+            "description": "Coding Tool Optimizer main session: the kit's main model and effort, compaction at {}k "
                            "tokens. Use it to plan, brief and review lane runs.".format(AMP_MODE_COMPACTION_TOKENS // 1000),
-            "instructions": "You are the main session of the Claude Usage Optimizer kit. Follow the kit policy and its "
+            "instructions": "You are the main session of the Coding Tool Optimizer kit. Follow the kit policy and its "
                             "Amp page (platforms/amp/PLATFORM.md) from your AGENTS.md."}
 
 
@@ -5433,8 +5433,8 @@ def main_policy_text():
 
 
 def main_release(policy_text):
-    """The kit release from POLICY.md's line `Claude Usage Optimizer version: X.`, else None."""
-    match = re.search(r"^Claude Usage Optimizer version: (\S+?)\.?(?:\s|$)", policy_text, re.MULTILINE)
+    """The kit release from POLICY.md's line `Coding Tool Optimizer version: X.`, else None."""
+    match = re.search(r"^(?:Coding Tool|Claude Usage) Optimizer version: (\S+?)\.?(?:\s|$)", policy_text, re.MULTILINE)
     return match.group(1) if match else None
 
 
@@ -5612,7 +5612,7 @@ MAIN_KIT_NO_INSTALLER = ("warning: the installed kit has no install.sh (installe
                          "the kit, then run lane main --picks <repo>")
 MAIN_KIT_SKILLS_README = """# skills/ (left empty on purpose)
 
-This is the lean copy of the Claude Usage Optimizer kit that `lane main` pushes for a project's mirror. The kit's
+This is the lean copy of the Coding Tool Optimizer kit that `lane main` pushes for a project's mirror. The kit's
 knowledge pack is left out because it is about one project and this branch can go to public repositories.
 Installers before 2026-11-01.5 require this folder, so it holds only this file.
 """
@@ -5712,7 +5712,7 @@ def main_lean_kit(root):
     files["skills/README.md"] = MAIN_KIT_SKILLS_README.encode("utf-8")
     files["LEAN.md"] = """# Lean kit copy
 
-Claude Usage Optimizer version: {version}.
+Coding Tool Optimizer version: {version}.
 
 `lane main` builds this tree from the installed kit and pushes it to the `{branch}` branch, so the project's
 mirror can install the kit in its cloud VM from the project repository (the only one the VM can fetch). Run
@@ -6434,7 +6434,7 @@ def main_write_files(parser, opts):
     print("")
     print("Add these lines to the repository's CLAUDE.md, or AGENTS.md if that is the repository's instruction file "
           "(lane main never edits it):")
-    print("  ## Main cloud session (Claude Usage Optimizer)")
+    print("  ## Main cloud session (Coding Tool Optimizer)")
     print("  - The session started by `lane main` may commit to and push its own branch (the claude/... branch it is on),")
     print("    including empty marker commits whose subject starts with \"orch: \".")
     print("  - It may merge its reviewed work into the default branch and push it (the owner's standing authorization).")

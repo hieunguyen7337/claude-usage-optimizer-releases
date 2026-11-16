@@ -52,7 +52,7 @@ PLATFORM_DEFAULTS = {
     "codex": {"places": ["process", "cloud"], "env_markers": []},
 }
 PLACE_FLAGS = {"process": None, "subagent": "--subagent", "cloud": "--cloud"}
-SHARE_REPO = "hieunguyen7337/claude-usage-optimizer-releases"
+SHARE_REPO = "hieunguyen7337/coding-tool-optimizer"
 SHARE_TOP_KEYS = {"schema", "week", "kit", "host", "install", "plans", "cells"}
 SHARE_CELL_KEYS = {"lane", "effort", "class", "runs", "reviewed", "usable", "med_min", "eta_ratio",
                    "wk_pct_per_usable", "usd_per_usable"}
@@ -2604,7 +2604,7 @@ def round_share(value):
 def kit_version():
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "POLICY.md")
     with open(path, "r", encoding="utf-8") as stream:
-        match = re.search(r"^Claude Usage Optimizer version: ([0-9][0-9.-]*)\.", stream.read(), re.MULTILINE)
+        match = re.search(r"^(?:Coding Tool|Claude Usage) Optimizer version: ([0-9][0-9.-]*)\.", stream.read(), re.MULTILINE)
     if match is None:
         raise ValueError("POLICY.md has no version line")
     return match.group(1)

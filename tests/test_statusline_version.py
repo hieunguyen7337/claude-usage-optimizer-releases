@@ -9,7 +9,7 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATUSLINE = os.path.join(ROOT, "bin", "claude-statusline")
-POLICY = "Claude Usage Optimizer version: {}. Installed at `~/.claude/usage-optimizer/`.\n"
+POLICY = "Coding Tool Optimizer version: {}. Installed at `~/.claude/usage-optimizer/`.\n"
 YELLOW = "\x1b[33m"
 CYAN = "\x1b[36m"
 
@@ -38,7 +38,7 @@ class StatuslineVersionTests(unittest.TestCase):
 
     def write_policy(self, version):
         with open(self.policy, "w", encoding="utf-8") as handle:
-            handle.write("# Claude Usage Optimizer: usage policy\n\n" + POLICY.format(version))
+            handle.write("# Coding Tool Optimizer: usage policy\n\n" + POLICY.format(version))
 
     def session_path(self, name="s1"):
         return os.path.join(self.usage, "sessions", name + ".json")
@@ -64,14 +64,14 @@ class StatuslineVersionTests(unittest.TestCase):
 
     def test_label_from_policy_and_session_record(self):
         line = self.row1()
-        self.assertTrue(line.endswith(" · Usage Optimizer 2026-10-29.3"), line)
+        self.assertTrue(line.endswith(" · Coding Tool Optimizer 2026-10-29.3"), line)
         self.assertEqual(self.stored()["kit_version"], "2026-10-29.3")
 
     def test_version_carries_over_and_mismatch_shows_both(self):
         self.row1(cost=2.0)
         self.write_policy("2026-10-29.4")
         line = self.row1(cost=3.0)
-        self.assertTrue(line.endswith(" · Usage Optimizer 2026-10-29.3 → 2026-10-29.4"), line)
+        self.assertTrue(line.endswith(" · Coding Tool Optimizer 2026-10-29.3 → 2026-10-29.4"), line)
         self.assertEqual(self.stored()["kit_version"], "2026-10-29.3")
         self.assertNotIn("\x1b", line)
 
@@ -79,29 +79,29 @@ class StatuslineVersionTests(unittest.TestCase):
         self.row1()
         self.write_policy("2026-10-29.4")
         line = self.row1(cost=3.0, NO_COLOR="", USAGE_OPTIMIZER_COLOR="on")
-        self.assertIn("Usage Optimizer 2026-10-29.3 " + YELLOW + "→ 2026-10-29.4\x1b[0m", line)
+        self.assertIn("Coding Tool Optimizer 2026-10-29.3 " + YELLOW + "→ 2026-10-29.4\x1b[0m", line)
 
     def test_record_without_field_gets_installed_version(self):
         os.makedirs(os.path.dirname(self.session_path()))
         with open(self.session_path(), "w", encoding="utf-8") as handle:
             json.dump({"session_id": "s1", "total_cost_usd": 1.5}, handle)
         line = self.row1(cost=2.0)
-        self.assertTrue(line.endswith("Usage Optimizer 2026-10-29.3"), line)
+        self.assertTrue(line.endswith("Coding Tool Optimizer 2026-10-29.3"), line)
         self.assertEqual(self.stored()["kit_version"], "2026-10-29.3")
 
     def test_fitting_steps(self):
         self.row1()
         self.write_policy("2026-10-29.4")
         steps = []
-        for columns in (200, 86, 73, 63, 57, 34, 12):
+        for columns in (200, 92, 74, 64, 58, 34, 12):
             steps.append((columns, self.row1(COLUMNS=str(columns))))
         by_columns = dict(steps)
         full = "Opus 5.5 · xhigh · ctx 321k/450k (71%)"
-        self.assertRegex(by_columns[200], r"^" + re.escape(full) + r" · turn .* · Usage Optimizer 2026-10-29\.3 → 2026-10-29\.4$")
-        self.assertEqual(by_columns[86], full + " · Usage Optimizer 2026-10-29.3 → 2026-10-29.4")
-        self.assertEqual(by_columns[73], full + " · UO 2026-10-29.3 → 2026-10-29.4")
-        self.assertEqual(by_columns[63], full + " · UO 10-29.3 → 10-29.4")
-        self.assertEqual(by_columns[57], "Opus 5.5 · xhigh · ctx 321k/450k · UO 10-29.3 → 10-29.4")
+        self.assertRegex(by_columns[200], r"^" + re.escape(full) + r" · turn .* · Coding Tool Optimizer 2026-10-29\.3 → 2026-10-29\.4$")
+        self.assertEqual(by_columns[92], full + " · Coding Tool Optimizer 2026-10-29.3 → 2026-10-29.4")
+        self.assertEqual(by_columns[74], full + " · CTO 2026-10-29.3 → 2026-10-29.4")
+        self.assertEqual(by_columns[64], full + " · CTO 10-29.3 → 10-29.4")
+        self.assertEqual(by_columns[58], "Opus 5.5 · xhigh · ctx 321k/450k · CTO 10-29.3 → 10-29.4")
         self.assertEqual(by_columns[34], "Opus 5.5 · xhigh · ctx 321k/450k")
 
     def test_label_off(self):
@@ -129,12 +129,12 @@ class StatuslineVersionTests(unittest.TestCase):
     def test_a_newer_published_release_follows_the_version_wide_and_narrow(self):
         self.write_policy("2026-10-31.13")
         self.write_update("2026-11-01.1", "2026-10-31.13")
-        self.assertTrue(self.row1().endswith(" · Usage Optimizer 2026-10-31.13 ⇡ 2026-11-01.1"))
+        self.assertTrue(self.row1().endswith(" · Coding Tool Optimizer 2026-10-31.13 ⇡ 2026-11-01.1"))
         full = "Opus 5.5 · xhigh · ctx 321k/450k (71%)"
-        for text in (full + " · Usage Optimizer 2026-10-31.13 ⇡ 2026-11-01.1",
-                     full + " · UO 2026-10-31.13 ⇡ 2026-11-01.1",
-                     full + " · UO 10-31.13 ⇡ 11-01.1",
-                     "Opus 5.5 · xhigh · ctx 321k/450k · UO 10-31.13 ⇡ 11-01.1"):
+        for text in (full + " · Coding Tool Optimizer 2026-10-31.13 ⇡ 2026-11-01.1",
+                     full + " · CTO 2026-10-31.13 ⇡ 2026-11-01.1",
+                     full + " · CTO 10-31.13 ⇡ 11-01.1",
+                     "Opus 5.5 · xhigh · ctx 321k/450k · CTO 10-31.13 ⇡ 11-01.1"):
             # Claude Code keeps 2 columns spare, so the line is fitted to COLUMNS - 2.
             self.assertEqual(self.row1(COLUMNS=str(len(text) + 2)), text)
 
@@ -143,11 +143,11 @@ class StatuslineVersionTests(unittest.TestCase):
         self.row1(cost=2.0)
         self.write_policy("2026-10-31.6")
         self.write_update("2026-11-01.1", "2026-10-31.6")
-        self.assertTrue(self.row1(cost=3.0).endswith(" · Usage Optimizer 2026-10-31.5 → 2026-10-31.6 ⇡ 2026-11-01.1"))
-        narrow = "Opus 5.5 · xhigh · ctx 321k/450k (71%) · UO 10-31.5 → 10-31.6 ⇡ 11-01.1"
+        self.assertTrue(self.row1(cost=3.0).endswith(" · Coding Tool Optimizer 2026-10-31.5 → 2026-10-31.6 ⇡ 2026-11-01.1"))
+        narrow = "Opus 5.5 · xhigh · ctx 321k/450k (71%) · CTO 10-31.5 → 10-31.6 ⇡ 11-01.1"
         self.assertEqual(self.row1(cost=3.0, COLUMNS=str(len(narrow) + 2)), narrow)
         coloured = self.row1(cost=3.0, NO_COLOR="", USAGE_OPTIMIZER_COLOR="on")
-        self.assertIn("Usage Optimizer 2026-10-31.5 " + YELLOW + "→ 2026-10-31.6\x1b[0m " + CYAN + "⇡ 2026-11-01.1\x1b[0m",
+        self.assertIn("Coding Tool Optimizer 2026-10-31.5 " + YELLOW + "→ 2026-10-31.6\x1b[0m " + CYAN + "⇡ 2026-11-01.1\x1b[0m",
                       coloured)
         self.assertNotIn("\x1b", self.row1(cost=3.0, USAGE_OPTIMIZER_COLOR="on"))
         self.assertNotIn("\x1b", self.row1(cost=3.0, NO_COLOR="", USAGE_OPTIMIZER_COLOR="off"))
@@ -157,9 +157,9 @@ class StatuslineVersionTests(unittest.TestCase):
         for latest in ("2026-10-31.13", "2026-10-31.12", None, "junk"):
             with self.subTest(latest=latest):
                 self.write_update(latest, "2026-10-31.13")
-                self.assertTrue(self.row1().endswith(" · Usage Optimizer 2026-10-31.13"))
+                self.assertTrue(self.row1().endswith(" · Coding Tool Optimizer 2026-10-31.13"))
         self.write_update(None, "2026-10-31.13", error="git fetch origin main failed (exit 128)")
-        self.assertTrue(self.row1().endswith(" · Usage Optimizer 2026-10-31.13"))
+        self.assertTrue(self.row1().endswith(" · Coding Tool Optimizer 2026-10-31.13"))
         # Updated since the last check: the arrow goes at once, before the next check runs.
         self.write_update("2026-11-01.1", "2026-10-31.13")
         self.write_policy("2026-11-01.1")
@@ -168,7 +168,7 @@ class StatuslineVersionTests(unittest.TestCase):
     def test_the_off_switches_hide_the_published_release(self):
         self.write_policy("2026-10-31.13")
         self.write_update("2026-11-01.1", "2026-10-31.13")
-        self.assertTrue(self.row1(USAGE_OPTIMIZER_UPDATE_CHECK="off").endswith(" · Usage Optimizer 2026-10-31.13"))
+        self.assertTrue(self.row1(USAGE_OPTIMIZER_UPDATE_CHECK="off").endswith(" · Coding Tool Optimizer 2026-10-31.13"))
         self.assertNotIn("Optimizer", self.row1(USAGE_OPTIMIZER_KIT_LABEL="off"))
 
     def session_start(self, payload, raw=None):

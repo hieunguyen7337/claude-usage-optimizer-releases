@@ -1340,7 +1340,7 @@ class PromptHookCase(unittest.TestCase):
 class ModeNoticeTests(PromptHookCase):
     def test_first_prompt_announces_mode_once_per_session(self):
         self.env["USAGE_OPTIMIZER_MODE"] = "utilization"
-        self.assertTrue(self.prompt_notice().startswith("Usage Optimizer mode: utilization"))
+        self.assertTrue(self.prompt_notice().startswith("Coding Tool Optimizer mode: utilization"))
         self.assertEqual(self.prompt_notice(), "")
 
     def test_cloud_session_notice_fans_out_to_subagents_not_sessions(self):
@@ -1363,7 +1363,7 @@ class ModeNoticeTests(PromptHookCase):
         self.env["USAGE_OPTIMIZER_MODE"] = "utilization"
         self.prompt_notice()
         self.env["USAGE_OPTIMIZER_MODE"] = "saving"
-        self.assertTrue(self.prompt_notice().startswith("Usage Optimizer mode: saving"))
+        self.assertTrue(self.prompt_notice().startswith("Coding Tool Optimizer mode: saving"))
         self.assertEqual(self.prompt_notice(), "")
 
     def test_stop_and_invalid_session_print_nothing(self):
@@ -1377,29 +1377,29 @@ class ModeNoticeTests(PromptHookCase):
         with open(os.path.join(self.config, "mode"), "w", encoding="utf-8") as handle:
             handle.write("saving\n")
         self.env["USAGE_OPTIMIZER_MODE"] = "utilization"
-        self.assertTrue(self.prompt_notice("env-session").startswith("Usage Optimizer mode: utilization"))
+        self.assertTrue(self.prompt_notice("env-session").startswith("Coding Tool Optimizer mode: utilization"))
         del self.env["USAGE_OPTIMIZER_MODE"]
-        self.assertTrue(self.prompt_notice("file-session").startswith("Usage Optimizer mode: saving"))
+        self.assertTrue(self.prompt_notice("file-session").startswith("Coding Tool Optimizer mode: saving"))
         os.remove(os.path.join(self.config, "mode"))
         # A catalog of the test's own (LANES_ARMS), so the shipped explore.mode, now auto, does not decide the result.
         catalog = os.path.join(self.root, "arms.json")
         self.write_json(catalog, {"explore": {"mode": "utilization"}})
         self.env["LANES_ARMS"] = catalog
-        self.assertTrue(self.prompt_notice("catalog-session").startswith("Usage Optimizer mode: utilization"))
+        self.assertTrue(self.prompt_notice("catalog-session").startswith("Coding Tool Optimizer mode: utilization"))
 
     def test_unknown_mode_counts_as_default(self):
         self.env["USAGE_OPTIMIZER_MODE"] = "bogus"
-        self.assertTrue(self.prompt_notice().startswith("Usage Optimizer mode: default"))
+        self.assertTrue(self.prompt_notice().startswith("Coding Tool Optimizer mode: default"))
 
     def test_auto_mode_follows_claude_week_projection(self):
         self.env["USAGE_OPTIMIZER_MODE"] = "auto"
         now = dt.datetime.now(UTC)
         self.write_claude_week(33, now + dt.timedelta(days=1))
         calm = self.prompt_notice("calm-session")
-        self.assertTrue(calm.startswith("Usage Optimizer mode: utilization"))
+        self.assertTrue(calm.startswith("Coding Tool Optimizer mode: utilization"))
         self.assertIn("projected", calm)
         self.write_claude_week(99, now + dt.timedelta(days=6))
-        self.assertTrue(self.prompt_notice("hot-session").startswith("Usage Optimizer mode: saving"))
+        self.assertTrue(self.prompt_notice("hot-session").startswith("Coding Tool Optimizer mode: saving"))
 
     def test_auto_cloud_mode_uses_only_a_current_pick_table(self):
         self.env.update({"USAGE_OPTIMIZER_MODE": "auto", "CLAUDE_CODE_REMOTE": "true"})
@@ -1409,13 +1409,13 @@ class ModeNoticeTests(PromptHookCase):
         self.write_json(picks, {"at": "2026-11-01T10:00:00Z", "modes": {"claude": "utilization"},
                                 "modes_until": {"claude": self.stamp(now + dt.timedelta(days=2))}})
         notice = self.prompt_notice("current")
-        self.assertTrue(notice.startswith("Usage Optimizer mode: utilization"))
+        self.assertTrue(notice.startswith("Coding Tool Optimizer mode: utilization"))
         self.assertIn("pick table of 2026-11-01T10:00:00Z", notice)
         self.write_json(picks, {"at": "old", "modes": {"claude": "utilization"},
                                 "modes_until": {"claude": self.stamp(now - dt.timedelta(seconds=1))}})
-        self.assertTrue(self.prompt_notice("expired").startswith("Usage Optimizer mode: saving"))
+        self.assertTrue(self.prompt_notice("expired").startswith("Coding Tool Optimizer mode: saving"))
         os.remove(picks)
-        self.assertTrue(self.prompt_notice("missing").startswith("Usage Optimizer mode: saving"))
+        self.assertTrue(self.prompt_notice("missing").startswith("Coding Tool Optimizer mode: saving"))
 
     def test_auto_without_meter_stays_default_locally(self):
         self.env["USAGE_OPTIMIZER_MODE"] = "auto"
@@ -1454,18 +1454,18 @@ class KitNoticeTests(PromptHookCase):
     def test_a_notice_is_told_once_per_session_and_again_for_a_new_created_at(self):
         first = dt.datetime.now(UTC) - dt.timedelta(hours=2)
         self.notice("window-1", "Claude's weekly window moved.", created=first)
-        self.assertEqual(self.prompt_notice(), "Usage Optimizer notice: Claude's weekly window moved.")
+        self.assertEqual(self.prompt_notice(), "Coding Tool Optimizer notice: Claude's weekly window moved.")
         self.assertEqual(self.prompt_notice(), "")
         self.notice("window-1", "Claude's weekly window moved again.", created=first + dt.timedelta(hours=1))
-        self.assertEqual(self.prompt_notice(), "Usage Optimizer notice: Claude's weekly window moved again.")
+        self.assertEqual(self.prompt_notice(), "Coding Tool Optimizer notice: Claude's weekly window moved again.")
         self.assertEqual(self.prompt_notice(), "")
         told = self.read_json(os.path.join(self.state, "turns", "notices", "session-1"))["told"]
         self.assertEqual(len(told), 2)  # one content id per notice text, not per notice id
 
     def test_two_sessions_are_each_told_once(self):
-        self.notice("kit-2.0", "Usage Optimizer 2.0 is out.", kind="kit_update")
-        self.assertEqual(self.prompt_notice("session-a"), "Usage Optimizer 2.0 is out.")
-        self.assertEqual(self.prompt_notice("session-b"), "Usage Optimizer 2.0 is out.")
+        self.notice("kit-2.0", "Coding Tool Optimizer 2.0 is out.", kind="kit_update")
+        self.assertEqual(self.prompt_notice("session-a"), "Coding Tool Optimizer 2.0 is out.")
+        self.assertEqual(self.prompt_notice("session-b"), "Coding Tool Optimizer 2.0 is out.")
         self.assertEqual(self.prompt_notice("session-a"), "")
         self.assertEqual(self.prompt_notice("session-b"), "")
 
@@ -1485,7 +1485,7 @@ class KitNoticeTests(PromptHookCase):
         with open(os.path.join(self.notices, "huge.json"), "w", encoding="utf-8") as handle:
             json.dump({"id": "huge", "kind": "window_change", "created_at": self.stamp(now), "text": "x" * 70000,
                        "expires_at": None}, handle)
-        self.assertEqual(self.prompt_notice(), "Usage Optimizer notice: Still current.")
+        self.assertEqual(self.prompt_notice(), "Coding Tool Optimizer notice: Still current.")
         self.assertFalse(os.path.exists(os.path.join(self.state, "turn-meter.err")))
 
     def test_at_most_five_notices_newest_first_each_capped(self):
@@ -1496,40 +1496,40 @@ class KitNoticeTests(PromptHookCase):
         text = self.prompt_notice()
         parts = text.split("\n\n")
         self.assertEqual(len(parts), 6)
-        self.assertEqual(parts[:4], ["Usage Optimizer notice: Notice {}.".format(index) for index in range(3, 7)])
-        self.assertEqual(len(parts[4]), len("Usage Optimizer notice: ") + 1500)
+        self.assertEqual(parts[:4], ["Coding Tool Optimizer notice: Notice {}.".format(index) for index in range(3, 7)])
+        self.assertEqual(len(parts[4]), len("Coding Tool Optimizer notice: ") + 1500)
         self.assertTrue(parts[4].endswith("…"))
-        self.assertEqual(parts[5], "Usage Optimizer: 3 more notices not shown here; run `turn-meter notices` to list them.")
+        self.assertEqual(parts[5], "Coding Tool Optimizer: 3 more notices not shown here; run `turn-meter notices` to list them.")
 
     def test_mode_and_notices_come_out_as_one_json_object(self):
         self.env["USAGE_OPTIMIZER_MODE_NOTICE"] = ""
         self.env["USAGE_OPTIMIZER_MODE"] = "utilization"
         now = dt.datetime.now(UTC)
         self.notice("window", "Claude's window moved.", created=now - dt.timedelta(hours=2))
-        self.notice("kit", "Usage Optimizer 2.0 is out.", kind="kit_update", created=now - dt.timedelta(hours=1))
+        self.notice("kit", "Coding Tool Optimizer 2.0 is out.", kind="kit_update", created=now - dt.timedelta(hours=1))
         result = self.hook_output("UserPromptSubmit")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(len(result.stdout.splitlines()), 1)
         context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
         mode, window, kit = context.split("\n\n")
-        self.assertTrue(mode.startswith("Usage Optimizer mode: utilization"))
-        self.assertEqual((window, kit), ("Usage Optimizer notice: Claude's window moved.",
-                                         "Usage Optimizer 2.0 is out."))
+        self.assertTrue(mode.startswith("Coding Tool Optimizer mode: utilization"))
+        self.assertEqual((window, kit), ("Coding Tool Optimizer notice: Claude's window moved.",
+                                         "Coding Tool Optimizer 2.0 is out."))
         self.assertEqual(self.prompt_notice(), "")
 
     def test_off_switches(self):
         self.notice("window", "Claude's window moved.", created=dt.datetime.now(UTC) - dt.timedelta(hours=2))
-        self.notice("kit", "Usage Optimizer 2.0 is out.", kind="kit_update")
+        self.notice("kit", "Coding Tool Optimizer 2.0 is out.", kind="kit_update")
         self.env["USAGE_OPTIMIZER_NOTICES"] = "off"
         self.assertEqual(self.prompt_notice(), "")
         del self.env["USAGE_OPTIMIZER_NOTICES"]
         self.env["USAGE_OPTIMIZER_UPDATE_CHECK"] = "off"
-        self.assertEqual(self.prompt_notice(), "Usage Optimizer notice: Claude's window moved.")
+        self.assertEqual(self.prompt_notice(), "Coding Tool Optimizer notice: Claude's window moved.")
         del self.env["USAGE_OPTIMIZER_UPDATE_CHECK"]
-        self.assertEqual(self.prompt_notice(), "Usage Optimizer 2.0 is out.")
+        self.assertEqual(self.prompt_notice(), "Coding Tool Optimizer 2.0 is out.")
         # The mode notice's own off switch (set in setUp) leaves the kit notices on.
         self.assertEqual(self.prompt_notice("session-2"),
-                         "Usage Optimizer notice: Claude's window moved.\n\nUsage Optimizer 2.0 is out.")
+                         "Coding Tool Optimizer notice: Claude's window moved.\n\nCoding Tool Optimizer 2.0 is out.")
 
     def test_an_unreadable_notices_folder_prints_nothing_and_the_turn_still_opens(self):
         shutil.rmtree(self.notices)
@@ -1537,7 +1537,7 @@ class KitNoticeTests(PromptHookCase):
             handle.write("not a folder")
         self.env["USAGE_OPTIMIZER_MODE_NOTICE"] = ""
         self.env["USAGE_OPTIMIZER_MODE"] = "saving"
-        self.assertTrue(self.prompt_notice().startswith("Usage Optimizer mode: saving"))
+        self.assertTrue(self.prompt_notice().startswith("Coding Tool Optimizer mode: saving"))
         self.assertTrue(os.path.exists(os.path.join(self.state, "turns", "open", "session-1.json")))
 
     def test_seven_waiting_notices_print_five_and_count_the_rest(self):
@@ -1545,8 +1545,8 @@ class KitNoticeTests(PromptHookCase):
         for index in range(7):
             self.notice("n-{}".format(index), "Notice {}.".format(index), created=now - dt.timedelta(hours=10 - index))
         parts = self.prompt_notice().split("\n\n")
-        self.assertEqual(parts[:5], ["Usage Optimizer notice: Notice {}.".format(index) for index in range(2, 7)])
-        self.assertEqual(parts[5], "Usage Optimizer: 2 more notices not shown here; run `turn-meter notices` to list them.")
+        self.assertEqual(parts[:5], ["Coding Tool Optimizer notice: Notice {}.".format(index) for index in range(2, 7)])
+        self.assertEqual(parts[5], "Coding Tool Optimizer: 2 more notices not shown here; run `turn-meter notices` to list them.")
         self.assertEqual(self.prompt_notice(), "")  # all seven are told, the two counted ones included
         listing = subprocess.run([sys.executable, METER, "notices", "--json"], env=self.env, cwd=self.cwd,
                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10, check=True)
@@ -1569,8 +1569,8 @@ class KitNoticeTests(PromptHookCase):
         with open(os.path.join(self.state, "turn-meter.err"), encoding="utf-8") as handle:
             self.assertIn("OSError", handle.read())
         told_again = self.prompt_notice().split("\n\n")
-        self.assertTrue(told_again[0].startswith("Usage Optimizer mode: utilization"))
-        self.assertEqual(told_again[1:], ["Usage Optimizer notice: Claude's weekly window moved."])
+        self.assertTrue(told_again[0].startswith("Coding Tool Optimizer mode: utilization"))
+        self.assertEqual(told_again[1:], ["Coding Tool Optimizer notice: Claude's weekly window moved."])
         self.assertEqual(self.prompt_notice(), "")
 
     def test_session_ids_that_name_a_folder_are_refused(self):
@@ -1588,24 +1588,24 @@ class KitNoticeTests(PromptHookCase):
         created = dt.datetime.now(UTC) - dt.timedelta(hours=2)
         path = os.path.join(self.notices, "window-1.json")
         self.notice("window-1", "Claude's weekly window moved.", created=created)
-        self.assertEqual(self.prompt_notice(), "Usage Optimizer notice: Claude's weekly window moved.")
+        self.assertEqual(self.prompt_notice(), "Coding Tool Optimizer notice: Claude's weekly window moved.")
         os.remove(path)
-        self.notice("kit-2", "Usage Optimizer 2.0 is out.", kind="kit_update")
-        self.assertEqual(self.prompt_notice(), "Usage Optimizer 2.0 is out.")
+        self.notice("kit-2", "Coding Tool Optimizer 2.0 is out.", kind="kit_update")
+        self.assertEqual(self.prompt_notice(), "Coding Tool Optimizer 2.0 is out.")
         self.notice("window-1", "Claude's weekly window moved.", created=created)  # the same content, a new file
         self.assertEqual(self.prompt_notice(), "")
 
     def test_only_files_newer_than_the_last_scan_are_read(self):
         now = dt.datetime.now(UTC)
         self.notice("fresh", "Fresh notice.", created=now - dt.timedelta(hours=1))
-        self.assertEqual(self.prompt_notice(), "Usage Optimizer notice: Fresh notice.")
+        self.assertEqual(self.prompt_notice(), "Coding Tool Optimizer notice: Fresh notice.")
         self.notice("old", "Old notice.", created=now - dt.timedelta(hours=5))
         mark = os.path.getmtime(os.path.join(self.notices, "fresh.json"))
         os.utime(os.path.join(self.notices, "old.json"), (mark - 3600, mark - 3600))  # older than the last scan
         self.assertEqual(self.prompt_notice(), "")
         # A session that has never scanned reads the old file too.
         self.assertEqual(self.prompt_notice("session-2"),
-                         "Usage Optimizer notice: Old notice.\n\nUsage Optimizer notice: Fresh notice.")
+                         "Coding Tool Optimizer notice: Old notice.\n\nCoding Tool Optimizer notice: Fresh notice.")
 
     def test_at_most_fifty_notice_files_are_read_per_scan(self):
         base = time.time() - 100000
@@ -1623,7 +1623,7 @@ class KitNoticeTests(PromptHookCase):
             texts_again, _ = meter._kit_notices(self.state, "session-3", dt.datetime.now(UTC))
             self.assertLessEqual(reader.call_count, 1)  # only the newest file, at the mark, and it is told already
         self.assertEqual(texts_again, [])
-        self.assertEqual(texts[-1], "Usage Optimizer: 45 more notices not shown here; run `turn-meter notices` to list them.")
+        self.assertEqual(texts[-1], "Coding Tool Optimizer: 45 more notices not shown here; run `turn-meter notices` to list them.")
 
 
 class PlatformTests(unittest.TestCase):
@@ -1863,7 +1863,7 @@ class PlatformTests(unittest.TestCase):
         self.assertEqual(len(lines), 1)
         payload = json.loads(lines[0])
         self.assertEqual(list(payload), ["context"])
-        self.assertTrue(payload["context"].startswith("Usage Optimizer mode: utilization"))
+        self.assertTrue(payload["context"].startswith("Coding Tool Optimizer mode: utilization"))
         self.assertEqual(self.run_hook("UserPromptSubmit", "--platform", "amp", session="amp-1").stdout, "")
 
         claude = self.run_hook("UserPromptSubmit", session="claude-1")
@@ -2127,7 +2127,7 @@ class PlatformTests(unittest.TestCase):
         version = meter._kit_version()
         self.assertIsNotNone(version)
         self.assertTrue(segments[0].startswith("ETA ~"), segments)
-        self.assertEqual(segments[1:], ["$1.84", "claude wk 42%", "codex wk 3%", "UO " + version[5:]])
+        self.assertEqual(segments[1:], ["$1.84", "claude wk 42%", "codex wk 3%", "CTO " + version[5:]])
 
         # An open Amp turn with no cost says so, and shows no dollar figure.
         self.hook("UserPromptSubmit", "--platform", "amp", env=env, session="amp-new")
@@ -2138,7 +2138,7 @@ class PlatformTests(unittest.TestCase):
         # With no open turn and no meters, only the kit version is left, and an empty folder shows nothing else.
         empty = dict(self.env, LANES_STATE=os.path.join(self.root, "empty-state"),
                      CLAUDE_USAGE_DIR=os.path.join(self.root, "empty-usage"))
-        self.assertEqual(self.command("statusline-text", env=empty).stdout, "UO {}\n".format(version[5:]))
+        self.assertEqual(self.command("statusline-text", env=empty).stdout, "CTO {}\n".format(version[5:]))
 
     def test_statusline_text_drops_segments_that_would_pass_100_characters(self):
         with mock.patch.object(meter, "_status_segments", return_value=["x" * 60, "y" * 60, "z"]):

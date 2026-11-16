@@ -54,9 +54,9 @@ MARKER_LINES = (
     "orch: REVIEW <unit> <outcome> arm=<lane>/<effort> class=<class> min=<minutes> tok=<in>/<out> usd=<list usd>",
 )
 
-SYNTHETIC_POLICY = """# Claude Usage Optimizer: usage policy
+SYNTHETIC_POLICY = """# Coding Tool Optimizer: usage policy
 
-Claude Usage Optimizer version: 2099-01-02.3. Installed at `~/.claude/usage-optimizer/`.
+Coding Tool Optimizer version: 2099-01-02.3. Installed at `~/.claude/usage-optimizer/`.
 
 ## Principle
 
@@ -314,7 +314,7 @@ def load_lane():
 
 
 def policy_release(text):
-    found = re.search(r"^Claude Usage Optimizer version: (\S+?)\.(?:\s|$)", text, re.MULTILINE)
+    found = re.search(r"^(?:Coding Tool|Claude Usage) Optimizer version: (\S+?)\.(?:\s|$)", text, re.MULTILINE)
     return found.group(1) if found else None
 
 
@@ -2162,7 +2162,7 @@ class MainBlockTests(unittest.TestCase):
         if not re.search(r"^## Main cloud sessions", raw, re.MULTILINE):
             self.skipTest("POLICY.md section not written yet")
         release = policy_release(raw)
-        self.assertTrue(release, "POLICY.md has no `Claude Usage Optimizer version: X.` line")
+        self.assertTrue(release, "POLICY.md has no `Coding Tool Optimizer version: X.` line")
         text = self.lane.main_policy_text()
         self.assertIsInstance(text, str)
         self.assertIn("## Briefs", text)

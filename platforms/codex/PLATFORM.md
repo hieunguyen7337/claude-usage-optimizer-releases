@@ -1,4 +1,4 @@
-# Claude Usage Optimizer on Codex CLI
+# Coding Tool Optimizer on Codex CLI
 
 This block is the kit's policy for a Codex CLI main session, generated from POLICY.md, which was written for Claude
 Code. Where they disagree, this part wins on Codex. Support for Codex as the main agent is new and not yet checked

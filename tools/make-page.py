@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render dist/index.html, the setup page published next to dist/claude-usage-optimizer-bundle.sh.
+"""Render dist/index.html, the setup page published next to dist/coding-tool-optimizer-bundle.sh.
 
 Usage: tools/make-page.py [--url <artifact url>]
 
@@ -17,9 +17,65 @@ import sys
 
 KIT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DIST = os.path.join(KIT, "dist")
-BUNDLE = "claude-usage-optimizer-bundle.sh"
+BUNDLE = "coding-tool-optimizer-bundle.sh"
 # The Suite R rescore evidence, published next to the bundle (tools/release_bundle.py EVIDENCE_NAME).
-EVIDENCE = "claude-usage-optimizer-evidence.sh"
+EVIDENCE = "coding-tool-optimizer-evidence.sh"
+
+
+OPINIONS_HEADING = "## What the kit decides for you"
+
+
+def _inline(text):
+    """Escape one markdown line and turn its `code` and **bold** spans into HTML."""
+    out = []
+    for index, part in enumerate(text.split("`")):
+        part = html.escape(part, quote=False)
+        if index % 2:
+            out.append("<code>" + part + "</code>")
+        else:
+            out.append(re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", part))
+    return "".join(out)
+
+
+def opinions_html(readme):
+    """The public README's "What the kit decides for you" section as HTML: paragraphs, **group** headings and tables."""
+    start = readme.find(OPINIONS_HEADING)
+    if start < 0:
+        sys.exit("make-page: public-repo/README-public.md has no '{}' section".format(OPINIONS_HEADING))
+    body = readme[start + len(OPINIONS_HEADING):]
+    end = re.search(r"^## ", body, re.M)
+    lines = (body[:end.start()] if end else body).strip().splitlines()
+    parts, para, rows = [], [], []
+
+    def flush():
+        if para:
+            parts.append("<p>" + _inline(" ".join(para)) + "</p>")
+            del para[:]
+        if rows:
+            cells = [[cell.strip() for cell in row.strip().strip("|").split("|")] for row in rows]
+            head = "".join("<th>" + _inline(cell) + "</th>" for cell in cells[0])
+            body_rows = "".join("<tr>" + "".join("<td>" + _inline(cell) + "</td>" for cell in row) + "</tr>"
+                                for row in cells[2:])
+            parts.append('<div class="table-scroll"><table class="rules"><thead><tr>' + head +
+                         "</tr></thead><tbody>" + body_rows + "</tbody></table></div>")
+            del rows[:]
+
+    for line in lines:
+        if line.startswith("|"):
+            if para:
+                flush()
+            rows.append(line)
+        elif not line.strip():
+            flush()
+        elif re.fullmatch(r"\*\*[^*]+\*\*", line.strip()):
+            flush()
+            parts.append("<h3>" + html.escape(line.strip()[2:-2], quote=False) + "</h3>")
+        else:
+            if rows:
+                flush()
+            para.append(line.strip())
+    flush()
+    return "\n".join(parts)
 
 
 def read(path):
@@ -56,9 +112,9 @@ def main():
         evidence_blob = handle.read()
 
     policy = read(os.path.join(KIT, "POLICY.md"))
-    match = re.search(r"Claude Usage Optimizer version:\s*([0-9][0-9.\-]*[0-9])", policy)
+    match = re.search(r"Coding Tool Optimizer version:\s*([0-9][0-9.\-]*[0-9])", policy)
     if not match:
-        sys.exit("make-page: no 'Claude Usage Optimizer version:' line in POLICY.md")
+        sys.exit("make-page: no 'Coding Tool Optimizer version:' line in POLICY.md")
     findings_path = os.path.join(KIT, "findings", "FINDINGS.md")
     if not os.path.exists(findings_path):
         sys.exit("make-page: {} is missing".format(findings_path))
@@ -76,6 +132,7 @@ def main():
         "POLICY": html.escape(policy, quote=False),
         "FINDINGS": html.escape(findings, quote=False),
         "IMPROVING": html.escape(improving, quote=False),
+        "OPINIONS": opinions_html(read(os.path.join(KIT, "public-repo", "README-public.md"))),
         "BUNDLE": BUNDLE,
         "SIZE": "{:,} bytes ({:.0f} KB)".format(len(blob), len(blob) / 1024.0),
         "SHA256": sha,

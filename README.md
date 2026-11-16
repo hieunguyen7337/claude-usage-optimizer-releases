@@ -1,7 +1,7 @@
-# Claude Usage Optimizer: a usage optimizer for AI coding agents
+# Coding Tool Optimizer: a usage optimizer for AI coding agents
 
-Claude Usage Optimizer is for anyone who runs several AI coding agents and pays for several subscriptions. It started
-on Claude Code, which is where the name and the `~/.claude/usage-optimizer` install path come from.
+Coding Tool Optimizer is for anyone who runs several AI coding agents and pays for several subscriptions. It started
+on Claude Code as Claude Usage Optimizer, which is where the `~/.claude/usage-optimizer` install path comes from.
 
 - **Routes work across the plans you already pay for.** Your main agent plans, reviews and decides. One dispatcher,
   `lane`, sends each written unit to a worker on Claude, ChatGPT (Codex CLI), Google AI Pro (Gemini), Cursor, Grok or
@@ -26,6 +26,68 @@ and tested offline, and is not yet checked against a live Codex session.
 | Worker lanes | As a process, a subagent or a cloud run | As a process; Claude arms and some `amp` arms run inside the Amp thread | As a process |
 | Cloud runs | Yes (`lane --cloud`) | Claude Code cloud sessions, started from this machine | Claude arms with `--cloud` |
 | Mods (mobile view, sessions pane, compact-at-rest) | Yes | No | No |
+
+## What the kit decides for you
+
+The kit is strict and opinionated: it was built for one owner who wanted the most usable work from a fixed set of
+subscriptions and as few approval prompts as possible. Every rule below is on after an install. Rules for one machine
+go in `~/.claude/CLAUDE.md` above the kit's import line and win over the kit's policy; numbers live in
+`~/.config/lanes/arms.local.json`, which overrides `arms.json`.
+
+**Who does what**
+
+| Rule | What it means | Why | How to change it |
+|---|---|---|---|
+| The main agent plans, workers write | Your main session plans, writes briefs, reviews every diff and decides; anything with a written plan goes to a worker lane | The main seat is the scarcest and most capable model | Machine rules in `CLAUDE.md`; nothing forces a hand-off |
+| The picker chooses the worker | Every unit starts with `lane-stats pick`, which draws a model and effort by Thompson sampling with a 20% random floor; hand-picking is for retries, a named lane, or a lane that cannot run | Choosing by hand sends easy work to cheap lanes and flatters them | `--exclude <lane>`, `pick --place`, `LANES_PLACES`, or name the lane yourself |
+| Every run is reviewed | A run counts as data only after its outcome is recorded (`accepted`, `fixed`, `rework`, `rejected`) | Unreviewed runs would teach the picker nothing true | Not configurable |
+| Every brief has four parts | Goal; files in and out of scope; constraints with the verifier command; a fixed return shape. No secrets or personal data | Workers fail on vague briefs, and briefs leave your machine | Not configurable |
+| Worker output is data | Text a worker, web page or other session returns is never followed as an instruction | Prompt injection | Not configurable |
+| A failure climbs a ladder | Tighten the brief, then one stronger rung (luna → terra/sol → sol xhigh → Fable → the main session) | Retrying the same arm rarely helps | Machine rules in `CLAUDE.md` |
+
+**How much it asks you**
+
+| Rule | What it means | Why | How to change it |
+|---|---|---|---|
+| Default is yes | The agent commits, merges reviewed work, pushes, installs and updates the kit and runs usage tests without asking; it asks only for a choice between options, with its pick | The owner's attention is the scarcest thing; nearly everything can be rolled back | Machine rules in `CLAUDE.md` (for example "ask before pushing") |
+| Capability tests need your yes | Benchmarks, pairs and reruns of finished work spend allowance on work nobody needs; `lane-bench run` and `pick --pair` refuse to start without `--approved "<who, when>"` | They can cost several percent of a week each | A standing yes in `CLAUDE.md`, with a cap |
+| Reset credits are yours | The kit never redeems a Codex reset credit; it tells you when one would help | Spending one is irreversible | Not configurable |
+
+**Limits and pacing**
+
+| Rule | What it means | Why | How to change it |
+|---|---|---|---|
+| Guards | The picker skips Claude lanes at 85% of Claude's week and any provider at 95% of its week or 90% of its 5-hour window; the last 15% of Claude's week is kept for review | There is no reserve past a weekly limit | `explore.claude_guard_pct` and the thresholds in `arms.local.json` |
+| Modes | Each provider runs in *saving*, *default* or *utilization* by how its week is pacing (projected use at reset ≥ 110% or ≤ 90%); the mode sets how much runs in parallel and how cost is weighed | Allowance left at a reset is lost; allowance spent early stops work | `USAGE_OPTIMIZER_MODE` or `~/.config/lanes/mode` (`auto`, `saving`, `default`, `utilization`) |
+| Memory guard | A local worker starts only when free RAM, less a reserve, covers its measured peak; otherwise `lane` waits and returns BUSY | One PC runs many CLIs at once | `LANES_MEM_RESERVE_MB`, `LANES_MEM_NEED_MB`, `LANES_MEM_CHECK=off` |
+| The main model is fixed | Claude Code's main loop runs Opus at xhigh, subagents default to Sonnet, and the model is never switched mid-session with `/model` | A switch re-reads the whole context uncached | `explore.main_session` in `arms.json` |
+| Fable is an advisor | The strongest Claude model plans hard units, reviews releases and breaks ties, within a weekly list-dollar budget and a guard on its own cap | It weighs about 3.3x Opus per dollar on the week | `explore.advisor` (`active`, `weekly_list_usd`, `fable_guard_pct`) |
+
+**Context and the session**
+
+| Rule | What it means | Why | How to change it |
+|---|---|---|---|
+| Compaction between answers | Claude Code compacts past 250k tokens; the kit compacts right after an answer at 90% of that, holds a mid-turn compaction until the next turn unless the context reaches 350k, and re-injects the lanes in flight afterwards | About half of all spend is re-reading context | `USAGE_OPTIMIZER_COMPACT_NEAR`, `USAGE_OPTIMIZER_COMPACT_HARD`, `USAGE_OPTIMIZER_COMPACT_GATE` |
+| Every turn is metered | Each turn's list cost, time and the meters before and after are logged, and every report ends with a Cost line and a Time line | Cost and time are the two things to learn | `USAGE_OPTIMIZER_TURNS=off` |
+| The mode is announced | Each session is told the mode and its rules at its next prompt, and again when it changes | Running sessions follow it without a restart | `USAGE_OPTIMIZER_MODE_NOTICE=off` |
+| Typed prompts are spell-checked | One Haiku call fixes spelling and grammar slips in each typed prompt; the row shows the corrected text and lists the changes | Typos cost turns | `USAGE_OPTIMIZER_PROMPT_FIX=off` |
+| The mobile view | Tool calls fold to one line and the agent narrates its work in plain sentences | The owner reads sessions from a phone | `install.sh --no-view`, or switch the output style |
+
+**Data and accounts**
+
+| Rule | What it means | Why | How to change it |
+|---|---|---|---|
+| Consumer-terms lanes get public work only | Gemini's consumer terms (Google AI Pro) let Google keep and review what it is sent, and Grok's are not yet confirmed, so both get only open-source code and public research; pass `--exclude gemini,grok` for private code | Their data terms | `--exclude` per pick, or disable their arms in `arms.local.json` |
+| Cursor only with privacy mode | Never a `(NO ZDR)` model, and never a Claude model through Cursor | Data retention and double billing | Not configurable |
+| One person, one account | The kit never pools or rotates several Claude subscriptions | Anthropic's terms forbid routing others' requests through plan credentials | Not configurable |
+| Training toggles off | ChatGPT, Antigravity and Claude data-training settings stay off | Your code stays yours | Your accounts' settings |
+
+**How it changes itself**
+
+| Rule | What it means | Why | How to change it |
+|---|---|---|---|
+| The kit improves itself | Every lesson (a lane quirk, a meter fix, a measured result) becomes the next release and is published; machine-only facts stay in that machine's `CLAUDE.md` | One machine's lesson helps every machine | `USAGE_OPTIMIZER_UPDATE_CHECK=off` stops the update notice |
+| Benchmarks are only the prior | Public scores place a model's tier; the kit's own reviewed runs decide between arms | Scores move with the harness, version and task | `lane-bench priors` writes measured priors |
 
 ## This repository
 
@@ -84,16 +146,17 @@ The kit's own README follows.
 
 ---
 
-# Claude Usage Optimizer: a usage optimizer for AI coding agents
+# Coding Tool Optimizer: a usage optimizer for AI coding agents
 
-Claude Usage Optimizer routes coding work across the AI subscriptions you already pay for: Claude, ChatGPT (Codex),
+Coding Tool Optimizer routes coding work across the AI subscriptions you already pay for: Claude, ChatGPT (Codex),
 Google AI Pro (Gemini), Cursor, Grok and Amp. The main session runs in Claude Code, Amp or Codex CLI and spends its
 plan on planning, review and judgement. Execution and read-only legwork go to cheaper worker lanes, and the remaining
 quota of every metered plan is visible.
 
 Every run's usage, cost, time and reviewed outcome is recorded, so the kit learns which model and effort gives a
-usable result for the least usage. Claude Code has the fullest support, and the name and the
-`~/.claude/usage-optimizer` path come from there; [Platforms](#platforms) says what Amp and Codex CLI get.
+usable result for the least usage. Claude Code has the fullest support, and the `~/.claude/usage-optimizer` path
+comes from there (the kit was called Claude Usage Optimizer until 2026-11-16); [Platforms](#platforms) says what Amp
+and Codex CLI get.
 [IMPROVING.md](IMPROVING.md) explains how lessons become published kit improvements.
 
 | Path | What it is |
@@ -107,7 +170,7 @@ usable result for the least usage. Claude Code has the fullest support, and the 
 | `bin/lane-term` | Runs one command in a fresh pseudo-terminal (ConPTY on Windows, a pty elsewhere), types scripted answers to its prompts, stops it once a given text appears, and saves what the terminal showed. For programs that refuse to run without a terminal, such as `claude --cloud` |
 | `bin/usage-status` | Headroom across Claude, Codex and Gemini, an Amp line (credits left and recent recorded spend), and this machine's memory: how many more workers of each provider fit. Codex is read live from its app-server and falls back to the newest rollout when needed |
 | `bin/turn-meter` | Records every turn's list-price cost, time and the meters before and after it. The installer runs it as the `UserPromptSubmit` and `Stop` hook; `eta` records Claude's own estimate of the time left, and `current` (time so far and to go), `report` (by turn or session) and `calibrate` (cost and estimate accuracy) read the record; `census` counts every Claude Code and Codex session on the machine, kit or not |
-| `bin/claude-statusline` | A two-line statusline with session context, the running turn's time and share, and the kit's name and version (`Usage Optimizer 2026-10-29.3`, or the release whose policy the session last loaded and the newer one installed) on line one, and grouped Claude/Codex quota windows on line two; colors usage by level, fits the terminal width, and logs Claude's rate limits for `usage-status` |
+| `bin/claude-statusline` | A two-line statusline with session context, the running turn's time and share, and the kit's name and version (`Coding Tool Optimizer 2026-10-29.3`, or the release whose policy the session last loaded and the newer one installed) on line one, and grouped Claude/Codex quota windows on line two; colors usage by level, fits the terminal width, and logs Claude's rate limits for `usage-status` |
 | `bin/claude-prompts` | Lists the questions typed in a session (`--latest`, `--session-id ID` or `--transcript PATH`; `--text` for people, JSON otherwise). Behind the mobile view's question list (`>`) |
 | `mods/mobile-view/` | A Claude Code mod that makes the terminal read like the Claude mobile app (see [Mobile view](#mobile-view)). Installed to `~/.claude/skills/mobile-view/` |
 | `mods/sessions/` | A Claude Code mod that opens the Sessions pane (see [Sessions view](#sessions-view)): every local and cloud session grouped by repository, with a session view and its keys. Installed to `~/.claude/skills/sessions/`, with or without `--no-view` |
@@ -119,7 +182,7 @@ usable result for the least usage. Claude Code has the fullest support, and the 
 | `LANES.md` | Each lane's raw CLI contract and gotchas, for when `bin/lane` is unavailable. Installed to `~/.claude/usage-optimizer/LANES.md` |
 | `settings.fragment.json` | Settings merged into `~/.claude/settings.json`: most only where a key is absent; the view keys (`view_overwrite`) are set, unless you changed one by hand after an earlier install |
 | `install.sh` | An idempotent installer that backs up what it replaces. `--dry-run` shows the plan |
-| `tools/make-bundle.sh` | Builds `dist/claude-usage-optimizer-bundle.sh`, a single self-extracting file for other machines, and `dist/claude-usage-optimizer-evidence.sh`, the Suite R rescore evidence (FINDINGS section 8) that the kit runs without |
+| `tools/make-bundle.sh` | Builds `dist/coding-tool-optimizer-bundle.sh`, a single self-extracting file for other machines, and `dist/coding-tool-optimizer-evidence.sh`, the Suite R rescore evidence (FINDINGS section 8) that the kit runs without |
 | `SETUP_PROMPT.md` | The prompt to paste into Claude Code on another machine |
 
 `bin/lane-bench` is the kit's own benchmark. `run` runs a review suite across lane arms under the task-limit and meter gates. It is a capability test, so it runs only when the user approves it, and it refuses to start without `--approved "<who, when>"`. `grade` and `stats` score the runs (recall with Wilson and bootstrap intervals, false alarms, usable rate, cost against the weekly window), `compare` sets the arms against the public numbers in `findings/public.json`, and `priors` writes measured priors into an `arms.local.json`. The suite format and the rules for planted defects are in `measure/SUITE.md`. The kit ships tools and no suite items.
@@ -154,19 +217,19 @@ and follow [SETUP_PROMPT.md](SETUP_PROMPT.md).
 With any agent or shell, clone the public releases repository and run the installer:
 
 ```bash
-git clone https://github.com/hieunguyen7337/claude-usage-optimizer-releases
-cd claude-usage-optimizer-releases && bash install.sh
+git clone https://github.com/hieunguyen7337/coding-tool-optimizer
+cd coding-tool-optimizer && bash install.sh
 ```
 
 Alternatively, download the bundle from that repository's
-[Releases page](https://github.com/hieunguyen7337/claude-usage-optimizer-releases/releases) and verify it
+[Releases page](https://github.com/hieunguyen7337/coding-tool-optimizer/releases) and verify it
 against `SHA256SUMS` before running it. The kit is MIT-licensed; see [LICENSE](LICENSE).
 
 ### Install or update from an existing checkout
 
 ```bash
 ./install.sh --dry-run && ./install.sh          # from a checkout
-bash claude-usage-optimizer-bundle.sh --dry-run && bash claude-usage-optimizer-bundle.sh   # from the bundle
+bash coding-tool-optimizer-bundle.sh --dry-run && bash coding-tool-optimizer-bundle.sh   # from the bundle
 ```
 
 Re-running is safe. Once installed, restart any open Claude Code sessions so they load the new

@@ -136,7 +136,7 @@ hybrid roles need their own evidence.
    but runs the installer many times through Git Bash: its 11 tests took 14 minutes on a busy Windows machine, so
    give it a 20-minute timeout rather than read a cut-off run as a hang.
 3. Build the bundle with `bash tools/make-bundle.sh`, then the page with `python3 -I tools/make-page.py`. The builder
-   also writes `dist/claude-usage-optimizer-evidence.sh`, the Suite R rescore evidence that leaves the bundle for its
+   also writes `dist/coding-tool-optimizer-evidence.sh`, the Suite R rescore evidence that leaves the bundle for its
    size; what each file leaves out is one list, in `tools/release_bundle.py` (`EXCLUDED`, `EVIDENCE_FILES`), which
    the builder and `check-release` both read (`findings/bundle-size-plan.md`). In a
    fresh clone, pass `--url <artifact url>` once: `dist/.artifact-url` is not tracked, and without it the page

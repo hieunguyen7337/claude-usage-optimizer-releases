@@ -247,6 +247,28 @@ def cached_scoped_limits(now):
     return found
 
 
+def cached_scoped_expired(now, current=()):
+    """Names of the model-scoped bars in the /usage cache whose window has reset since it was read (and that have no
+    current reading), with the cache's fetch time. Claude Code fetches usage only when /usage is opened, so after a
+    weekly reset the bar is unknown until then (seen 2026-11-16: one fetch on 11-14, none after)."""
+    path = claude_json_path()
+    data = read_json(path) if path else None
+    cache = data.get("cachedUsageUtilization") if isinstance(data, dict) else None
+    utilization = cache.get("utilization") if isinstance(cache, dict) else None
+    limits = utilization.get("limits") if isinstance(utilization, dict) else None
+    names = []
+    for item in limits if isinstance(limits, list) else []:
+        if not isinstance(item, dict) or item.get("kind") != "weekly_scoped":
+            continue
+        scope = item.get("scope") if isinstance(item.get("scope"), dict) else {}
+        model = scope.get("model") if isinstance(scope.get("model"), dict) else {}
+        name = str(model.get("display_name") or model.get("id") or scope.get("surface") or "scoped")
+        reset = parse_time(item.get("resets_at"))
+        if reset is not None and reset <= now and name not in current and name not in names:
+            names.append(name)
+    return names, iso_time(cache.get("fetchedAtMs")) if names else None
+
+
 def claude_section(directory, now):
     data = read_json(os.path.join(directory, "claude-latest.json"))
     if not isinstance(data, dict):
@@ -315,6 +337,13 @@ def claude_section(directory, now):
                                                      "resets_at": item.get("resets_at")}
     if limits:
         result["scoped_limits"] = limits
+    expired, fetched = cached_scoped_expired(now, {item["name"] for item in limits})
+    for name in expired:
+        # Claude Code rewrites its /usage cache only when usage is fetched (opening /usage), not on a timer.
+        status += ("; {} has no current reading: the last /usage read ({}) predates its weekly reset; open /usage in "
+                   "Claude Code to refresh it").format(name, age_text(fetched, now))
+    if expired:
+        result["scoped_expired"] = expired
     return result, "Claude: " + status
 
 
@@ -493,7 +522,7 @@ def kit_version():
     try:
         with open(policy, "r", encoding="utf-8") as handle:
             for line in handle:
-                match = re.match(r"^Claude Usage Optimizer version:\s*(\S+)", line)
+                match = re.match(r"^(?:Coding Tool|Claude Usage) Optimizer version:\s*(\S+)", line)
                 if match:
                     return match.group(1).rstrip(".")
     except OSError:

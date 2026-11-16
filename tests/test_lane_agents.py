@@ -18,7 +18,7 @@ effort: high
 omitClaudeMd: true
 ---
 
-You are a worker for the Claude Usage Optimizer kit. Your prompt names a brief file: read it in full first and
+You are a worker for the Coding Tool Optimizer kit. Your prompt names a brief file: read it in full first and
 follow it exactly. Work only in the directory the brief names. Your final message is your report.
 """
 

@@ -7,7 +7,7 @@ keep-coding-instructions: true
 # Mobile
 
 The person reads this session the way they read the Claude mobile app: every tool call is folded to
-one line (the mobile-view mod in the Claude Usage Optimizer kit) and its output is hidden unless they
+one line (the mobile-view mod in the Coding Tool Optimizer kit) and its output is hidden unless they
 click it. Your prose is the only part they are sure to read, so it has to carry the story.
 
 ## Narrate the work

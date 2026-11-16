@@ -57,11 +57,11 @@ KIT_COMMAND = HOOK_COMMAND[: -len(' hook || true')] + ' kit-reinstall || true'
 GUARD_MATCHER = "mcp__claude-code-remote__create_session|mcp__claude-code-remote__create_trigger|Bash"
 GUARD_COMMAND = HOOK_COMMAND[: -len(' hook || true')] + ' guard || true'
 GUARD_TOOLS = ("mcp__claude-code-remote__create_session", "mcp__claude-code-remote__create_trigger")
-GUARD_REASON = ("Claude Usage Optimizer: a cloud session never starts another session. Run this unit as a subagent "
+GUARD_REASON = ("Coding Tool Optimizer: a cloud session never starts another session. Run this unit as a subagent "
                 "of this session (the Agent tool). If it needs its own VM, ask the owner in this chat or push an "
                 "orch: STATUS marker for the local session. The owner can allow it with "
                 "USAGE_OPTIMIZER_SESSION_GUARD=off.")
-GUARD_BASH_REASON = ("Claude Usage Optimizer: a cloud session never starts another session, so this command "
+GUARD_BASH_REASON = ("Coding Tool Optimizer: a cloud session never starts another session, so this command "
                      "(claude --cloud or codex cloud exec) is denied. Run the unit as a subagent of this session, or "
                      "ask the owner or the local session to start it. If the command only quotes that text, write "
                      "the text with the Write tool instead. USAGE_OPTIMIZER_SESSION_GUARD=off turns the guard off.")

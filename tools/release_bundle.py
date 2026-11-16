@@ -7,7 +7,7 @@ import re
 import subprocess
 
 DELIMITER = "__USAGE_OPTIMIZER_EOF__"
-VERSION_MARKER = "Claude Usage Optimizer version:"
+VERSION_MARKER = "Coding Tool Optimizer version:"
 
 
 class BundleError(Exception):
@@ -26,8 +26,8 @@ def git_paths(root, *arguments):
         raise BundleError("kit contains a non-UTF-8 path")
 
 
-BUNDLE_NAME = "claude-usage-optimizer-bundle.sh"
-EVIDENCE_NAME = "claude-usage-optimizer-evidence.sh"
+BUNDLE_NAME = "coding-tool-optimizer-bundle.sh"
+EVIDENCE_NAME = "coding-tool-optimizer-evidence.sh"
 
 #: The one exclusion list: tools/make-bundle.sh imports is_shipped and EVIDENCE_FILES from here, and
 #: check-release's "fresh" check uses the same functions, so the two can never disagree
@@ -36,8 +36,11 @@ EVIDENCE_NAME = "claude-usage-optimizer-evidence.sh"
 #: - .claude/: the source checkout's own Claude Code setup; install.sh never copies it (plan step 1).
 #: - mods/<name>/tests/: install.sh never copies a mod's tests.
 #: - plans/: planning notes and probe captures for kit work (e.g. plans/amp-codex); never installed.
+#: - tests/.lane-*/: scratch folders the lane tests make and delete. They are not gitignored, because lane finds a
+#:   worker's changes through git and would then see none; a test running beside a build (parallel shards) must
+#:   not put them in the bundle.
 EXCLUDED = re.compile(
-    r"^(?:dist(?:/|$)|private(?:/|$)|public-repo(?:/|$)|plans(?:/|$)|\.claude/|mods/[^/]+/tests/)"
+    r"^(?:dist(?:/|$)|private(?:/|$)|public-repo(?:/|$)|plans(?:/|$)|\.claude/|mods/[^/]+/tests/|tests/\.lane-)"
 )
 
 #: Suite R rescore evidence (FINDINGS.md section 8). No kit tool reads it at run time, so it ships as its

@@ -1,7 +1,7 @@
-Set up this machine's Claude Code with my Claude Usage Optimizer, from <ARTIFACT_URL>. It is a shared usage policy,
+Set up this machine's Claude Code with my Coding Tool Optimizer, from <ARTIFACT_URL>. It is a shared usage policy,
 a dispatcher for my worker lanes, and a usage meter.
 
-**1. Get the bundle.** Use your Artifact tool: `action: "read"`, url <ARTIFACT_URL>, path `claude-usage-optimizer-bundle.sh`.
+**1. Get the bundle.** Use your Artifact tool: `action: "read"`, url <ARTIFACT_URL>, path `coding-tool-optimizer-bundle.sh`.
 Note where it saves the file.
 - If you have no Artifact tool, stop and ask me for the file. I'll copy it from the page, or
   `scp` it from my server.
@@ -78,8 +78,8 @@ these into that agent instead. Both use the public releases repository, not the 
 Amp session:
 
 ```
-Set up this machine's Amp with my Claude Usage Optimizer: a shared usage policy, a plugin that meters each turn,
-and a worker lane for Amp. Use https://github.com/hieunguyen7337/claude-usage-optimizer-releases.
+Set up this machine's Amp with my Coding Tool Optimizer: a shared usage policy, a plugin that meters each turn,
+and a worker lane for Amp. Use https://github.com/hieunguyen7337/coding-tool-optimizer.
 
 1. Clone that repository. Check the release against its SHA256SUMS (from its latest GitHub Release) and say
    which files you checked. If they do not match, stop and tell me.
@@ -87,7 +87,7 @@ and a worker lane for Amp. Use https://github.com/hieunguyen7337/claude-usage-op
    for my "go".
 3. On my "go", run `bash install.sh --platform amp`.
 4. Verify: restart Amp or run `plugins: reload`, and check that the status item shows. Then run
-   `amp -x "State the Claude Usage Optimizer version in your instructions"`.
+   `amp -x "State the Coding Tool Optimizer version in your instructions"`.
 
 Don't log in to Amp, don't change its settings file, and don't run a worker lane for real. Report what does not
 behave as written.
@@ -96,8 +96,8 @@ behave as written.
 Codex CLI session:
 
 ```
-Set up this machine's Codex CLI with my Claude Usage Optimizer: a shared usage policy, hooks that meter each turn,
-and a worker lane. Use https://github.com/hieunguyen7337/claude-usage-optimizer-releases.
+Set up this machine's Codex CLI with my Coding Tool Optimizer: a shared usage policy, hooks that meter each turn,
+and a worker lane. Use https://github.com/hieunguyen7337/coding-tool-optimizer.
 
 1. Clone that repository. Check the release against its SHA256SUMS (from its latest GitHub Release) and say
    which files you checked. If they do not match, stop and tell me.

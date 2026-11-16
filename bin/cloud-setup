@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# cloud-setup: the setup script for a Claude Code cloud environment, which installs the Claude Usage Optimizer kit.
+# cloud-setup: the setup script for a Claude Code cloud environment, which installs the Coding Tool Optimizer kit.
 #
 # Setup mode (no arguments) is what the environment's Setup script box runs, as root, in a fresh Ubuntu VM, before
 # Claude Code starts. It fetches the kit from its repository, a matching project clone, a lane-main/kit branch of a
@@ -17,7 +17,7 @@
 # Filled in by --print: the kit repository on GitHub (owner/name) and its branch (empty = the default branch).
 KIT_REPO_DEFAULT=""
 KIT_REF_DEFAULT=""
-KIT_PUBLIC_REPO_DEFAULT="hieunguyen7337/claude-usage-optimizer-releases"
+KIT_PUBLIC_REPO_DEFAULT="hieunguyen7337/coding-tool-optimizer"
 ANDROID_DEFAULT=""
 ANDROID_PACKAGES_DEFAULT=""
 
@@ -489,7 +489,7 @@ setup_mode() {
   (cd "$SETUP_DIR" && USAGE_OPTIMIZER_SKIP_CLI_CHECK=1 run_timeout 120 bash ./install.sh --no-view) >>"$OUT_SINK" 2>&1
   install_code=$?
   if [[ -f "$SETUP_DIR/POLICY.md" ]]; then
-    found="$(sed -n 's/^Claude Usage Optimizer version: \([^ ]*\)\..*/\1/p' "$SETUP_DIR/POLICY.md" | head -n 1)"
+    found="$(sed -n -e 's/^Coding Tool Optimizer version: \([^ ]*\)\..*/\1/p' -e 's/^Claude Usage Optimizer version: \([^ ]*\)\..*/\1/p' "$SETUP_DIR/POLICY.md" | head -n 1)"
     [[ -n "$found" ]] && version="$found"
   fi
   if ((install_code == 0)); then log "kit version $version from $KIT_SOURCE; install.sh exit 0"

@@ -17,8 +17,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import release_bundle
 
 
-IDENTITY = "Claude Usage Optimizer <kit@localhost>"
-PUBLIC_NAME = "claude-usage-optimizer-releases"
+IDENTITY = "Coding Tool Optimizer <kit@localhost>"
+PUBLIC_NAME = "coding-tool-optimizer"
 
 
 class PublishError(Exception):
@@ -110,7 +110,7 @@ def refuse_existing_tag(clone, tag):
 
 
 def commit_and_tag(clone, release_version, executables=()):
-    config = ["-c", "user.name=Claude Usage Optimizer", "-c", "user.email=kit@localhost"]
+    config = ["-c", "user.name=Coding Tool Optimizer", "-c", "user.email=kit@localhost"]
     git(clone, *config, "add", "-A")
     # Record scripts as executable in git too: on Windows core.fileMode is false, so the chmod above is not seen.
     if executables:
@@ -157,7 +157,7 @@ def publish(clone, kit):
     with tempfile.TemporaryDirectory() as temporary:
         assets = checksums(kit, pathlib.Path(temporary))
         command = ["gh", "release", "create", tag, "--title", release_version,
-                   "--notes", "Claude Usage Optimizer release " + release_version] + assets
+                   "--notes", "Coding Tool Optimizer release " + release_version] + assets
         print("ACTION GitHub release: " + " ".join(command[:-3]) + " [3 assets]")
         run(command, cwd=clone)
 

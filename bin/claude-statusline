@@ -112,6 +112,9 @@ def _rate_data(data):
     return five, seven, scoped
 
 
+STALE_SCOPED_HOURS = 6  # a /usage reading this old is drawn with its age
+
+
 def _claude_json_path():
     path = os.environ.get("USAGE_OPTIMIZER_CLAUDE_JSON")
     if path:
@@ -122,8 +125,13 @@ def _claude_json_path():
 def _cached_scoped(now):
     """Model-scoped weekly bars (Fable's own) from the usage response Claude Code caches for /usage
     (cachedUsageUtilization in ~/.claude.json), skipping a window that has reset since. The statusline input
-    carries no scoped limits, so this is where the Fable bar comes from (from 2026-11-10.1)."""
+    carries no scoped limits, so this is where the Fable bar comes from (from 2026-11-10.1).
+    Claude Code rewrites that cache only when it fetches usage (opening /usage), not on a timer (seen 2026-11-16 on
+    2.1.325: one fetch on 11-14, none after). So each entry carries `age_hours`, and a bar whose window has reset
+    since comes back as `{"name", "expired": True}` with no percentage, drawn as a hint to open /usage."""
     path = _claude_json_path()
+    if not path:
+        return []
     try:
         with open(path, "r", encoding="utf-8") as handle:
             data = json.load(handle)
@@ -136,6 +144,10 @@ def _cached_scoped(now):
     for share in utilization.get("weekly_scoped_shares") or [] if isinstance(utilization, dict) else []:
         if isinstance(share, dict):
             shares[share.get("limit_index")] = share
+    fetched_ms = _number(cache.get("fetchedAtMs")) if isinstance(cache, dict) else None
+    age_hours = None
+    if fetched_ms is not None:
+        age_hours = max(0.0, (now.timestamp() * 1000.0 - fetched_ms) / 3600000.0)
     found = []
     for index, item in enumerate(limits if isinstance(limits, list) else []):
         if not isinstance(item, dict) or item.get("kind") != "weekly_scoped":
@@ -145,9 +157,14 @@ def _cached_scoped(now):
         name = model.get("display_name") or model.get("id") or scope.get("surface") or "scoped"
         percent = _number(item.get("percent"))
         reset = _stamp(item.get("resets_at"))
-        if percent is None or (reset is not None and reset <= now):
+        if percent is None:
+            continue
+        if reset is not None and reset <= now:
+            found.append({"name": str(name), "expired": True})
             continue
         entry = {"name": str(name), "used_percentage": percent}
+        if age_hours is not None:
+            entry["age_hours"] = round(age_hours, 2)
         if reset is not None:
             entry["resets_at"] = reset.isoformat().replace("+00:00", "Z")
         share = shares.get(index) or {}
@@ -501,7 +518,15 @@ def _claude_text(five, seven, scoped, enabled, reset_mode="all", include_scoped=
     if include_scoped:
         for item in scoped:
             name = item.get("name") or item.get("id") or item.get("scope") or "scoped"
+            if item.get("expired"):
+                # The cached reading predates its window's reset: say how to refresh it instead of hiding the bar.
+                pieces.append("{} ? /usage".format(_label(str(name), enabled)))
+                continue
+            before = len(pieces)
             add(str(name), item, True)
+            age = _number(item.get("age_hours"))
+            if len(pieces) > before and age is not None and age >= STALE_SCOPED_HOURS:
+                pieces[-1] += " ({} old)".format("{}d".format(int(age // 24)) if age >= 48 else "{}h".format(int(age)))
     if not pieces:
         return None
     return _label("Claude", enabled) + " " + " · ".join(pieces)
@@ -590,7 +615,7 @@ def _fit_line(builder, columns, variants):
     return _truncate_visible(value, max(0, columns - 1))
 
 
-_KIT_VERSION_RE = re.compile(r"^Claude Usage Optimizer version: (\d{4}-\d{2}-\d{2}\.\d+)\.", re.M)
+_KIT_VERSION_RE = re.compile(r"^(?:Coding Tool|Claude Usage) Optimizer version: (\d{4}-\d{2}-\d{2}\.\d+)\.", re.M)
 
 
 def _kit_label_enabled():
@@ -622,7 +647,7 @@ def _session_version(directory, session_id):
 def _kit_segment(installed, started, enabled, short_label=False, short_date=False, latest=None):
     def date(value):
         return value[5:] if short_date else value
-    text = "{} {}".format("UO" if short_label else "Usage Optimizer", date(started))
+    text = "{} {}".format("CTO" if short_label else "Coding Tool Optimizer", date(started))
     if started != installed:
         text += " " + _style("→ " + date(installed), 33, enabled)
     if latest:
@@ -1081,7 +1106,8 @@ def main():
                 "observed_at": _dt.datetime.now(_dt.timezone.utc).isoformat().replace("+00:00", "Z"),
                 "five_hour": five,
                 "seven_day": seven,
-                "scoped": scoped,
+                "scoped": [{key: value for key, value in item.items() if key != "age_hours"}
+                           for item in scoped if not item.get("expired")],
                 "model": model_name,
             }
             session_id = data.get("session_id")

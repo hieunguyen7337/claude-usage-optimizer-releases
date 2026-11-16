@@ -29,7 +29,7 @@ class ReleaseToolsTest(unittest.TestCase):
                      "release_bundle.py", "diff-bundle.py", "check-release.py", "make-platform-policy.py"):
             shutil.copy2(ROOT / "tools" / name, self.kit / "tools" / name)
         (self.kit / "skills").mkdir()
-        (self.kit / "POLICY.md").write_text("Claude Usage Optimizer version: 9.8.7\n",
+        (self.kit / "POLICY.md").write_text("Coding Tool Optimizer version: 9.8.7\n",
                                               encoding="utf-8")
         (self.kit / "arms.json").write_text('{"catalog_version": 1, "arms": []}\n',
                                              encoding="utf-8")
@@ -42,9 +42,9 @@ class ReleaseToolsTest(unittest.TestCase):
         self.git("add", ".")
         self.git("commit", "-qm", "fixture")
         self.build()
-        self.bundle = self.kit / "dist" / "claude-usage-optimizer-bundle.sh"
+        self.bundle = self.kit / "dist" / "coding-tool-optimizer-bundle.sh"
         self.page = self.base / "page.html"
-        self.page.write_text("<p>Claude Usage Optimizer version: 9.8.7</p>\n", encoding="utf-8")
+        self.page.write_text("<p>Coding Tool Optimizer version: 9.8.7</p>\n", encoding="utf-8")
         self.patterns = self.base / "patterns-empty"
         self.patterns.write_text("", encoding="utf-8")
 
@@ -130,7 +130,7 @@ class ReleaseToolsTest(unittest.TestCase):
         self.assertIn("OK replacement:", self.check().stdout)
         (self.kit / "notes.md").write_bytes("escape it (`\"\ufffd\"`)\n".encode("utf-8"))
         self.build()
-        self.page.write_text("<p>Claude Usage Optimizer version: 9.8.7 \ufffd</p>\n", encoding="utf-8")
+        self.page.write_text("<p>Coding Tool Optimizer version: 9.8.7 \ufffd</p>\n", encoding="utf-8")
         result = self.check()
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn("FAIL replacement: U+FFFD (write it as an escape) in: page, notes.md", result.stdout)
@@ -271,7 +271,7 @@ class ReleaseToolsTest(unittest.TestCase):
 
     def test_platforms_check_runs_the_generator_and_the_plugin_tests(self):
         # PLAN.md 3.7: the platforms check runs make-platform-policy --check and the Amp plugin's static tests.
-        line = "Claude Usage Optimizer version: 2026-11-13.1"
+        line = "Coding Tool Optimizer version: 2026-11-13.1"
         (self.kit / "POLICY.md").write_text(
             "# Policy\n\n{}\n\n## Routing, in order\n\nRoute work.\n".format(line), encoding="utf-8")
         self.page.write_text("<p>{}</p>\n".format(line), encoding="utf-8")

@@ -2,7 +2,7 @@
   "name": "mobile-view",
   "version": "1.4.0",
   "description": "Reads like the Claude mobile app: one line per tool call, long code blocks folded, your prompts numbered, and a Questions view (> in an empty prompt, Esc to go back) that jumps back to any earlier prompt. /mobile-view off returns to stock rendering.",
-  "author": { "name": "Claude Usage Optimizer" },
+  "author": { "name": "Coding Tool Optimizer" },
   "types": "./types/index.d.ts",
   "userConfig": {
     "codeLines": {

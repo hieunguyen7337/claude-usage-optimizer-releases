@@ -16,7 +16,7 @@ class PublishPublicTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.base = pathlib.Path(self.temp.name)
-        self.origin = self.base / "claude-usage-optimizer-releases.git"
+        self.origin = self.base / "coding-tool-optimizer.git"
         subprocess.run(["git", "init", "--bare", "-q", str(self.origin)], check=True)
         seed = self.base / "seed"
         subprocess.run(["git", "init", "-q", str(seed)], check=True)
@@ -51,7 +51,7 @@ class PublishPublicTest(unittest.TestCase):
         files = publish_public.public_files(ROOT)
         self.assertNotIn("public-repo/README-public.md", files)
         self.assertTrue(files["README.md"].startswith(
-            (ROOT / "public-repo" / "README-public.md").read_bytes().rstrip() + b"\n\n# Claude"))
+            (ROOT / "public-repo" / "README-public.md").read_bytes().rstrip() + b"\n\n# Coding Tool Optimizer"))
         publish_public.replace_tree(self.clone, files)
         self.assertFalse((self.clone / "old.txt").exists())
         self.assertEqual((self.clone / "LICENSE").read_bytes(), (ROOT / "LICENSE").read_bytes())

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Tell this machine when a newer Claude Usage Optimizer release is published.
+"""Tell this machine when a newer Coding Tool Optimizer release is published.
 
   kit-update check    fetch the default branch of the recorded checkout's origin, compare its POLICY.md
                       version with the installed one, record the result and print one line
@@ -29,7 +29,7 @@ import time
 GIT_TIMEOUT = 30
 PUSH_TIMEOUT = 10
 LOCK_STALE = 300
-VERSION_RE = re.compile(r"^Claude Usage Optimizer version: (\d{4}-\d{2}-\d{2}\.\d+)\.", re.M)
+VERSION_RE = re.compile(r"^(?:Coding Tool|Claude Usage) Optimizer version: (\d{4}-\d{2}-\d{2}\.\d+)\.", re.M)
 RELEASE_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})\.(\d+)")
 NOTICE_RE = re.compile(r"kit-update-\d{4}-\d{2}-\d{2}\.\d+\.json")
 BRANCH_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]{0,199}")
@@ -301,7 +301,7 @@ def update_commands(checkout, home_relative=False):
 
 def notice_text(latest, installed, checkout):
     pull, install = update_commands(checkout)
-    return ("A newer Claude Usage Optimizer release, {}, is published (installed: {}). To update, run `{}`, "
+    return ("A newer Coding Tool Optimizer release, {}, is published (installed: {}). To update, run `{}`, "
             "then `{}`, and restart or /compact open sessions to load it.".format(latest, installed, pull, install))
 
 
@@ -330,7 +330,7 @@ def push(latest, installed, checkout):
     pull, install = update_commands(checkout, home_relative=True)
     message = "Installed {}. Update: {} && {}".format(installed, pull, install)
     try:
-        process = subprocess.Popen([sys.executable, script, "push", "--title", "Usage Optimizer " + latest,
+        process = subprocess.Popen([sys.executable, script, "push", "--title", "Coding Tool Optimizer " + latest,
                                     "--message", message], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                    stderr=subprocess.DEVNULL, **_detached())
     except Exception:
@@ -346,7 +346,7 @@ def summary(cache):
     newer = None
     if is_newer(latest, installed):
         pull, install = update_commands(cache["checkout"]) if cache.get("checkout") else ("", "")
-        newer = "Claude Usage Optimizer {} is published; this machine runs {}.".format(latest, installed)
+        newer = "Coding Tool Optimizer {} is published; this machine runs {}.".format(latest, installed)
         if pull:
             newer += " Update: {} && {}".format(pull, install)
     if error:
@@ -355,7 +355,7 @@ def summary(cache):
     if newer:
         return newer
     if latest == installed:
-        return "Claude Usage Optimizer {} is the newest published release.".format(installed)
+        return "Coding Tool Optimizer {} is the newest published release.".format(installed)
     return "This machine runs {}; the newest published release is {}.".format(installed, latest)
 
 
@@ -416,7 +416,7 @@ def main(argv=None):
             stream.reconfigure(encoding="utf-8", errors="replace")
         except (AttributeError, ValueError):
             pass
-    parser = argparse.ArgumentParser(description="Say when a newer Claude Usage Optimizer release is published.")
+    parser = argparse.ArgumentParser(description="Say when a newer Coding Tool Optimizer release is published.")
     commands = parser.add_subparsers(dest="command", metavar="check")
     commands.add_parser("check", help="fetch origin and compare its release with the installed one")
     args = parser.parse_args(argv)

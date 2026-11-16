@@ -334,7 +334,7 @@ copy_managed_file() {
   fi
 }
 
-printf '\nCopying Claude Usage Optimizer to %s\n' "$PREFIX"
+printf '\nCopying Coding Tool Optimizer to %s\n' "$PREFIX"
 action mkdir -p "$PREFIX"
 # install.sh goes too: `lane main` builds the mirror's lean kit branch from the installed kit, and that copy must be
 # able to install itself in the mirror's cloud VM.
@@ -503,7 +503,7 @@ for source_skill_dir in "${skill_dirs[@]}"; do
   prune_stale_skill_files "$PREFIX" "$source_skill_dir" "$skill_name" records record 0
 done
 
-KIT_VERSION="$(sed -n 's/^Claude Usage Optimizer version: \([^ ]*\)\..*/\1/p' "$SOURCE_DIR/POLICY.md" | head -n 1)"
+KIT_VERSION="$(sed -n -e 's/^Coding Tool Optimizer version: \([^ ]*\)\..*/\1/p' -e 's/^Claude Usage Optimizer version: \([^ ]*\)\..*/\1/p' "$SOURCE_DIR/POLICY.md" | head -n 1)"
 MOD_DIR="$CLAUDE_DIR/skills/mobile-view"
 printf '\nInstalling mods\n'
 shopt -s nullglob
@@ -566,7 +566,7 @@ fi
 OLD_IMPORT='@~/.claude/kit/POLICY.md'
 OLD_HEADING='# Usage policy (shared across machines; edit the kit, not this line)'
 NEW_IMPORT='@~/.claude/usage-optimizer/POLICY.md'
-NEW_HEADING='# Claude Usage Optimizer policy (shared across machines; edit its source, not this line)'
+NEW_HEADING='# Coding Tool Optimizer policy (shared across machines; edit its source, not this line)'
 import_migrated=0
 if [[ -f "$CLAUDE_MD" ]] && grep -Fqx "$OLD_IMPORT" "$CLAUDE_MD"; then
   # Installed under the old name, claude-kit: re-point the import in place, keeping its position.
@@ -588,7 +588,7 @@ for line in lines:
 with open(path, "w", encoding="utf-8", newline="") as stream:
     stream.write("".join(out))
 PY
-    printf 'Re-pointed the policy import from claude-kit to Claude Usage Optimizer.\n'
+    printf 'Re-pointed the policy import from claude-kit to Coding Tool Optimizer.\n'
   fi
 fi
 if ((import_migrated)) || { [[ -f "$CLAUDE_MD" ]] && grep -Fqx "$NEW_IMPORT" "$CLAUDE_MD"; }; then
@@ -598,7 +598,7 @@ else
   if ((DRY_RUN)); then
     printf 'DRY-RUN: append policy heading and @~/.claude/usage-optimizer/POLICY.md to %q\n' "$CLAUDE_MD"
   else
-    printf '\n# Claude Usage Optimizer policy (shared across machines; edit its source, not this line)\n@~/.claude/usage-optimizer/POLICY.md\n' >> "$CLAUDE_MD"
+    printf '\n# Coding Tool Optimizer policy (shared across machines; edit its source, not this line)\n@~/.claude/usage-optimizer/POLICY.md\n' >> "$CLAUDE_MD"
   fi
 fi
 
@@ -926,7 +926,7 @@ PY
     printf 'Error: %s is not a regular file.\n' "$AMP_AGENTS" >&2
     exit 1
   fi
-  AMP_HEADING='# Claude Usage Optimizer on Amp (shared across machines; edit its source, not this line)'
+  AMP_HEADING='# Coding Tool Optimizer on Amp (shared across machines; edit its source, not this line)'
   AMP_IMPORTS=('@~/.claude/usage-optimizer/platforms/amp/PLATFORM.md' '@~/.claude/usage-optimizer/POLICY.md')
   amp_missing=()
   for line in "${AMP_IMPORTS[@]}"; do

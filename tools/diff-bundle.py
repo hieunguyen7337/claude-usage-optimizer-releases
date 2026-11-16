@@ -46,7 +46,7 @@ def main():
         bundle = parse_bundle(args.bundle)
         kit = pathlib.Path(args.kit).resolve()
         bundled = bundle["files"]
-        # An evidence file (claude-usage-optimizer-evidence.sh) is compared with the evidence files, not the kit's.
+        # An evidence file (coding-tool-optimizer-evidence.sh) is compared with the evidence files, not the kit's.
         evidence = bool(bundled) and all(is_evidence(path) for path in bundled)
         current = shipped_files(kit, evidence=evidence)
         added = sorted(set(bundled) - set(current))

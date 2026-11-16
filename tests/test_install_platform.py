@@ -27,7 +27,7 @@ Platforms: claude-code (default)
 
 CLI check skipped (USAGE_OPTIMIZER_SKIP_CLI_CHECK=1)
 
-Copying Claude Usage Optimizer to <HOME>/.claude/usage-optimizer
+Copying Coding Tool Optimizer to <HOME>/.claude/usage-optimizer
 Recorded the source checkout for update checks: <SOURCE>
 Recorded the platform list in <HOME>/.claude/usage-optimizer/platforms.installed
 
@@ -283,7 +283,7 @@ class InstallPlatformTests(unittest.TestCase):
         self.assertTrue(os.path.exists(paths["python"]), paths)
 
         self.assertEqual(read_text(os.path.join(self.amp_dir, "AGENTS.md")).splitlines(), [
-            "# Claude Usage Optimizer on Amp (shared across machines; edit its source, not this line)",
+            "# Coding Tool Optimizer on Amp (shared across machines; edit its source, not this line)",
             "@~/.claude/usage-optimizer/platforms/amp/PLATFORM.md",
             "@~/.claude/usage-optimizer/POLICY.md",
         ])

@@ -1,6 +1,7 @@
-# Claude Usage Optimizer: usage policy
+# Coding Tool Optimizer: usage policy
 
-Claude Usage Optimizer version: 2026-11-16.2. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Coding Tool Optimizer version: 2026-11-16.3. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Claude Usage Optimizer version: 2026-11-16.3. (The kit's name until 2026-11-16.3; this line lets older installs find this release.)
 Machine-specific rules (project dispatchers, locked lanes, local paths) belong in
 `~/.claude/CLAUDE.md` above the import line, and they win when the two conflict.
 On Amp or Codex CLI, read that platform's notes first (`~/.claude/usage-optimizer/platforms/<amp|codex>/PLATFORM.md`):
@@ -679,9 +680,9 @@ a serializer (`jq -n`, `json.dumps`): on Suite R luna broke 6.5% of its JSONL fi
   each machine adds up to the account's whole picture, beside the account-wide meters. On 2026-10-29 it found
   18.9 h of interactive Codex sessions, mostly astra, that no other kit tool showed.
 - **The statusline** has two rows: this session (`Opus 5.5 · xhigh · ctx 180k/250k (72%) · ETA ~18m ≈0.07% wk ·
-  Usage Optimizer 2026-10-31.6`), whose last part names the kit release whose policy the session last loaded
+  Coding Tool Optimizer 2026-10-31.6`), whose last part names the kit release whose policy the session last loaded
   (at start, resume or compaction, which reloads it: seen 2026-10-31; `… 2026-10-31.5 → 2026-10-31.6` once a newer
-  one is installed: restart or `/compact` to load it; `UO 10-31.6` when narrow),
+  one is installed: restart or `/compact` to load it; `CTO 10-31.6` when narrow),
   then the quotas grouped by provider (`Claude 5h 9% resets 10:40 · wk 23% resets Sun 12:00 │ Codex wk 37% resets Mon 21:51`).
   Percentages turn yellow at 80% and red at 95%. Past the compaction threshold the context reads
   `ctx 280k/250k, compacts between turns` in yellow (red at the 350k ceiling). In a narrow terminal it drops the turn cost and reset
@@ -699,7 +700,10 @@ a serializer (`jq -n`, `json.dumps`): on Suite R luna broke 6.5% of its JSONL fi
   rate history shows the meter back at its old level within 30 minutes. On 2026-11-01 an idle session kept writing 4%
   while the others read 5–8%, which faked a "window 1.5x larger" warning; add no `window_epochs` entry for it.
 - **Fable's own bar (from 2026-11-10.1).** Claude Code keeps the response behind `/usage` in `~/.claude.json`
-  (`cachedUsageUtilization`, refreshed every few minutes while a session runs). Its `limits` list holds a
+  (`cachedUsageUtilization`). Claude Code rewrites it only when it fetches usage, which opening `/usage` does, not on a
+  timer: on 2026-11-16 the last fetch was two days old and its Fable window had reset, so the bar had vanished. From
+  2026-11-16.3 a reading 6 h old or more is drawn with its age (`Fable 14% (22h old)`), and once its window has reset the
+  statusline shows `Fable ? /usage` and `usage-status` says to open `/usage`. Its `limits` list holds a
   `weekly_scoped` entry for Fable (the % of Fable's own cap) and `weekly_scoped_shares` gives Fable's share of the
   whole week and its allowance (50%). The kit reads it there, with no model call and no credentials:
   - the statusline shows `Fable 9%` beside the weekly bar and logs it in the rate log's `scoped` field;

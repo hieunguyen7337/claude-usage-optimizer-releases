@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "description": "Fixes spelling and grammar slips in each typed prompt with one Haiku call, sends the corrected prompt on and draws it in the prompt's own transcript row (USAGE_OPTIMIZER_PROMPT_FIX=off turns it off).",
   "author": {
-    "name": "Claude Usage Optimizer"
+    "name": "Coding Tool Optimizer"
   },
   "types": "./types/index.d.ts"
 }

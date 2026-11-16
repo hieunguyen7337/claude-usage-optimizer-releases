@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
-export const description = 'Claude Usage Optimizer: records each turn and shows ETA, cost and meters in one status item'
+export const description = 'Coding Tool Optimizer: records each turn and shows ETA, cost and meters in one status item'
 
 // A thin adapter: Amp's agent.start and agent.end go to `turn-meter hook --platform amp`, and
 // `turn-meter statusline-text` feeds one status item. The kit_lane_run tool runs a lane run that

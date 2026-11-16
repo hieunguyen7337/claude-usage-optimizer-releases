@@ -1,4 +1,4 @@
-# Claude Usage Optimizer on Amp
+# Coding Tool Optimizer on Amp
 
 You are reading the kit's policy inside Amp (ampcode.com). The policy below was written for Claude Code; this page
 maps it. Where the two disagree, this page wins on Amp.

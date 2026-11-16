@@ -76,6 +76,8 @@ class CodexMeterTests(unittest.TestCase):
 
     def env(self, **overrides):
         result = os.environ.copy()
+        # Never read this machine's own /usage cache: its Fable bar would change the expected lines.
+        result["USAGE_OPTIMIZER_CLAUDE_JSON"] = "off"
         result.update({key: str(value) for key, value in overrides.items()})
         return result
 
@@ -591,6 +593,33 @@ class CodexMeterTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("Fable 7% resets Sun 02:00", result.stdout)
         self.assertIn("Codex 5h 3% resets 14:03 · wk 41% resets Mon 21:51", result.stdout)
+
+    def usage_cache(self, fetched_hours_ago, resets_at):
+        # Claude Code's /usage cache (cachedUsageUtilization), which it rewrites only when /usage is opened.
+        path = os.path.join(self.root, "claude.json")
+        fetched = (time.time() - fetched_hours_ago * 3600) * 1000
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump({"cachedUsageUtilization": {"fetchedAtMs": fetched, "utilization": {
+                "limits": [{"kind": "weekly_scoped", "percent": 14, "resets_at": resets_at,
+                            "scope": {"model": {"display_name": "Fable"}}}],
+                "weekly_scoped_shares": [{"limit_index": 0, "used_percent_of_weekly": 7,
+                                          "allowance_percent_of_weekly": 50}]}}}, handle)
+        return path
+
+    def test_layout_marks_an_old_usage_reading_with_its_age(self):
+        path = self.usage_cache(22.5, "2099-01-11T02:00:00Z")
+        result = self.sample_statusline(self.layout_env(USAGE_OPTIMIZER_CLAUDE_JSON=path), data=self.layout_data(codex=True))
+        self.assertIn("Fable 14% resets Sun 02:00 (22h old)", result.stdout)
+        fresh = self.usage_cache(0.5, "2099-01-11T02:00:00Z")
+        result = self.sample_statusline(self.layout_env(USAGE_OPTIMIZER_CLAUDE_JSON=fresh), data=self.layout_data(codex=True))
+        self.assertIn("Fable 14% resets Sun 02:00", result.stdout)
+        self.assertNotIn("old)", result.stdout)
+
+    def test_layout_asks_for_usage_once_the_cached_fable_window_has_reset(self):
+        path = self.usage_cache(53, "2020-01-01T02:00:00Z")
+        result = self.sample_statusline(self.layout_env(USAGE_OPTIMIZER_CLAUDE_JSON=path), data=self.layout_data(codex=True))
+        self.assertIn("Fable ? /usage", result.stdout)
+        self.assertNotIn("14%", result.stdout)
 
     def test_layout_omits_second_line_when_no_quotas_are_available(self):
         env = self.layout_env(USAGE_OPTIMIZER_CODEX_BIN=os.path.join(self.root, "missing-codex"),
