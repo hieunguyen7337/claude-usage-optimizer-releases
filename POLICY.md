@@ -1,6 +1,6 @@
 # Claude Usage Optimizer: usage policy
 
-Claude Usage Optimizer version: 2026-11-16.1. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Claude Usage Optimizer version: 2026-11-16.2. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
 Machine-specific rules (project dispatchers, locked lanes, local paths) belong in
 `~/.claude/CLAUDE.md` above the import line, and they win when the two conflict.
 On Amp or Codex CLI, read that platform's notes first (`~/.claude/usage-optimizer/platforms/<amp|codex>/PLATFORM.md`):
@@ -559,8 +559,8 @@ the other providers' lanes, the Fable advisor and publishing.
   Subagents and workflow agents default to Sonnet; pass `model: 'opus'` only for judge or verify
   stages.
 - **Typed prompts are spell-checked (from 2026-11-16.1).** The kit's `prompt-fix` mod sends each prompt the user
-  types through one Haiku call that fixes spelling and grammar slips only, passes the corrected text on, shows it in
-  the transcript (`✎ Corrected (…): …`) and lists the changes beside the prompt. Read the prompt as corrected; when a
+  types through one Haiku call that fixes spelling and grammar slips only, passes the corrected text on, draws it in
+  the prompt's own row (from 2026-11-16.2), adds a dim `✎ Corrected: …` line and lists the changes beside the prompt. Read the prompt as corrected; when a
   listed change alters the meaning, go by the original word. `USAGE_OPTIMIZER_PROMPT_FIX=off` turns it off.
 - **Context is the bill.** About 55% of Claude spend is re-reading context (53% measured over 7 days of main
   sessions, FINDINGS §17).

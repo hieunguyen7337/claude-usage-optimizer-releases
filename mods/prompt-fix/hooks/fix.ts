@@ -32,7 +32,7 @@ export function shouldTry(text: string): boolean {
 export function cleanReply(reply: string): string {
   let s = reply.trim()
   const tagged = /^<message>\s*([\s\S]*?)\s*<\/message>$/.exec(s)
-  if (tagged) s = tagged[1]
+  if (tagged) s = tagged[1] ?? s
   return s
 }
 
@@ -50,9 +50,10 @@ export function changes(before: string, after: string): Change[] {
   const m = b.length
   // Longest common subsequence table, from the end.
   const lcs: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0))
+  const at = (x: number, y: number): number => lcs[x]![y]!
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
-      lcs[i][j] = a[i] === b[j] ? lcs[i + 1][j + 1] + 1 : Math.max(lcs[i + 1][j], lcs[i][j + 1])
+      lcs[i]![j] = a[i] === b[j] ? at(i + 1, j + 1) + 1 : Math.max(at(i + 1, j), at(i, j + 1))
     }
   }
   const out: Change[] = []
@@ -70,10 +71,10 @@ export function changes(before: string, after: string): Change[] {
       flush()
       i++
       j++
-    } else if (j < m && (i === n || lcs[i][j + 1] >= lcs[i + 1][j])) {
-      to.push(b[j++])
+    } else if (j < m && (i === n || at(i, j + 1) >= at(i + 1, j))) {
+      to.push(b[j++]!)
     } else {
-      from.push(a[i++])
+      from.push(a[i++]!)
     }
   }
   flush()
