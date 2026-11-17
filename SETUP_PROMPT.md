@@ -1,3 +1,11 @@
+# Setup prompts
+
+Paste the prompt for the agent you use on the new machine: Claude Code, Codex CLI or Amp. Each one installs the
+same kit (policy, worker lanes, meters) and adds that agent's own adapter. The kit page shows them behind an agent
+switch. On a machine with several agents, install once per agent; each run keeps the platforms already there.
+
+## Claude Code
+
 Set up this machine's Claude Code with my Coding Tool Optimizer, from <ARTIFACT_URL>. It is a shared usage policy,
 a dispatcher for my worker lanes, and a usage meter.
 
@@ -72,43 +80,84 @@ Give me the exact commands, but don't install CLIs, log in, or change account se
   over: it re-points the CLAUDE.md import and the statusline, and moves `~/.claude/kit` into its backup
   folder. Tell me the old `~/claude-kit` folder can then be deleted; don't delete it yourself.
 
-**Without Claude Code.** The prompt above needs Claude Code's Artifact tool. For Amp or Codex CLI, paste one of
-these into that agent instead. Both use the public releases repository, not the artifact.
-
-Amp session:
-
-```
-Set up this machine's Amp with my Coding Tool Optimizer: a shared usage policy, a plugin that meters each turn,
-and a worker lane for Amp. Use https://github.com/hieunguyen7337/coding-tool-optimizer.
-
-1. Clone that repository. Check the release against its SHA256SUMS (from its latest GitHub Release) and say
-   which files you checked. If they do not match, stop and tell me.
-2. Run `bash install.sh --dry-run --platform amp` in the clone and summarise what it would change. Then wait
-   for my "go".
-3. On my "go", run `bash install.sh --platform amp`.
-4. Verify: restart Amp or run `plugins: reload`, and check that the status item shows. Then run
-   `amp -x "State the Coding Tool Optimizer version in your instructions"`.
-
-Don't log in to Amp, don't change its settings file, and don't run a worker lane for real. Report what does not
-behave as written.
-```
-
-Codex CLI session:
-
-```
-Set up this machine's Codex CLI with my Coding Tool Optimizer: a shared usage policy, hooks that meter each turn,
-and a worker lane. Use https://github.com/hieunguyen7337/coding-tool-optimizer.
-
-1. Clone that repository. Check the release against its SHA256SUMS (from its latest GitHub Release) and say
-   which files you checked. If they do not match, stop and tell me.
-2. Run `bash install.sh --dry-run --platform codex` in the clone and summarise what it would change. Then wait
-   for my "go".
-3. On my "go", run `bash install.sh --platform codex`.
-4. Verify: open `/hooks` in Codex and trust the kit's hooks once. Then send one prompt and check that the turn
-   is recorded with `~/.claude/usage-optimizer/bin/turn-meter report`.
-
-Don't log in to Codex, don't change `config.toml`, and don't run a worker lane for real. Codex support is not yet
-checked against a live Codex session, so report anything that does not behave as written.
-```
-
 Later updates use this same prompt. Re-running the bundle is safe.
+
+## Codex CLI
+
+Set up this machine's Codex CLI with my Coding Tool Optimizer: a shared usage policy for you as the main session,
+hooks that meter each turn, worker lanes on the plans I already pay for, and usage meters. Use
+https://github.com/hieunguyen7337/coding-tool-optimizer.
+
+**1. Get the release.** Clone that repository into a scratch folder (not `~/claude-usage-optimizer`). Download
+`SHA256SUMS` from its latest GitHub Release and check the files it lists. Say which files you checked; if any does
+not match, stop and tell me.
+
+**2. Dry run.** In the clone, run `bash install.sh --dry-run --platform codex` and summarise what it would change.
+Then wait for my "go". It touches only these:
+- `$CODEX_HOME/AGENTS.md` (`~/.codex/AGENTS.md` by default): one generated block between
+  `<!-- usage-optimizer:start -->` and `<!-- usage-optimizer:end -->`, the kit's policy for Codex, under Codex's
+  size limit. Anything else in that file stays;
+- `hooks.json` in the same folder, after a backup: the kit's turn-start, turn-end and compaction hooks;
+- `~/.claude/usage-optimizer/`: the kit's files (the path is historical; Claude Code is not needed);
+- `~/.local/bin` (on Windows, bash and `.cmd` wrappers) and `~/.config/lanes/`.
+
+**3. Install.** On my "go", run `bash install.sh --platform codex`. Then verify:
+- `$CODEX_HOME/AGENTS.md` holds the block once (`grep -c 'usage-optimizer:start'` prints 1);
+- `~/.claude/usage-optimizer/bin/usage-status --no-agy` runs and shows the ChatGPT window;
+- `~/.claude/usage-optimizer/bin/lane luna -C <a scratch git repo you create> -b <a one-line brief file> -e medium --dry-run`
+  prints the argv it would run.
+
+Then tell me to open `/hooks` in Codex, trust the kit's hooks once, and start a new Codex session. After my next
+prompt there, `~/.claude/usage-optimizer/bin/turn-meter report --last 1` should show a row for that turn.
+
+**4. Report the installer's checklist.** Which CLIs are missing or too old (codex ≥ 0.156.1; agy, claude, amp,
+grok and cursor-agent are optional worker lanes), and which logins I still need to do. Give me the exact commands,
+but don't install CLIs, log in, or change account settings yourself.
+
+**Ground rules**
+- Don't run any worker lane for real: no model calls through codex, agy, claude, amp, grok or cursor-agent.
+- Don't change `config.toml` or anything else on this machine. If `AGENTS.override.md` exists, tell me: Codex
+  reads it before `AGENTS.md`, so the installer leaves it alone.
+- Never read or print credential files (`~/.codex/auth.json` included).
+- If this machine needs its own rules, propose them for `$CODEX_HOME/AGENTS.md` outside the kit's block.
+- On Windows, run the installer from Git Bash (`bash` on PATH) with Python 3.8+ (`python3`, `python` or `py -3`).
+- Codex support is not yet checked against a live Codex session: report anything that does not behave as written.
+
+Later updates use this same prompt. Re-running the installer is safe.
+
+## Amp
+
+Set up this machine's Amp with my Coding Tool Optimizer: a shared usage policy for you as the main session, a
+plugin that meters each turn and shows a status item, worker lanes on the plans I already pay for, and usage
+meters. Use https://github.com/hieunguyen7337/coding-tool-optimizer.
+
+**1. Get the release.** Clone that repository into a scratch folder (not `~/claude-usage-optimizer`). Download
+`SHA256SUMS` from its latest GitHub Release and check the files it lists. Say which files you checked; if any does
+not match, stop and tell me.
+
+**2. Dry run.** In the clone, run `bash install.sh --dry-run --platform amp` and summarise what it would change.
+Then wait for my "go". It touches only these:
+- `~/.config/amp/AGENTS.md`, after a backup: a heading and two import lines for the kit's Amp notes and policy;
+- `~/.config/amp/plugins/usage-optimizer.ts` and `usage-optimizer.paths.json`: the plugin;
+- `~/.claude/usage-optimizer/`: the kit's files (the path is historical; Claude Code is not needed);
+- `~/.local/bin` (on Windows, bash and `.cmd` wrappers) and `~/.config/lanes/`.
+
+**3. Install.** On my "go", run `bash install.sh --platform amp`. Then verify:
+- `~/.claude/usage-optimizer/bin/usage-status --no-agy` runs and shows Amp's credits;
+- `~/.claude/usage-optimizer/bin/lane luna -C <a scratch git repo you create> -b <a one-line brief file> -e medium --dry-run`
+  prints the argv it would run;
+- tell me to restart Amp or run `plugins: reload`, and to check that the kit's status item shows. Then
+  `amp -x "State the Coding Tool Optimizer version in your instructions"` should name the version.
+
+**4. Report the installer's checklist.** Which CLIs are missing or too old (amp; codex, agy, claude, grok and
+cursor-agent are optional worker lanes), and which logins I still need to do. Give me the exact commands, but don't
+install CLIs, log in, or change account settings yourself.
+
+**Ground rules**
+- Don't run any worker lane for real: no model calls through codex, agy, claude, grok or cursor-agent.
+- Don't change `~/.config/amp/settings.json`, `~/.config/AGENTS.md` or anything else on this machine.
+- Never read or print credential files or Amp's secrets store.
+- If this machine needs its own rules, propose them for `~/.config/amp/AGENTS.md` above the kit's imports.
+- On Windows, run the installer from Git Bash (`bash` on PATH) with Python 3.8+ (`python3`, `python` or `py -3`).
+
+Later updates use this same prompt. Re-running the installer is safe.

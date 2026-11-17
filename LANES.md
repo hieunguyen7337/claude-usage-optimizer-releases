@@ -1286,6 +1286,10 @@ network call.
 - `lane-stats timeline [--since 24h|7d|ISO] [--repo DIR [--branch B]] [--json] [--limit N]` prints the merged events,
   oldest first (`--limit` keeps the newest N): `HH:MM  kind  lane  title` under a date header per day, or with
   `--json` one `{"schema": 1, "since", "until", "events"}` object.
+- `--html FILE` writes the same events as one self-contained page instead (newest first, grouped by day, important
+  events bold, light and dark themes, no scripts), atomically through a temporary file beside it, and prints
+  `timeline: wrote <path> (<n> events)`. `--refresh SECONDS` (at least 10, only with `--html`) makes the browser re-read
+  the file; rerun the command on a schedule to keep it current. `--html` and `--json` cannot be combined (exit 2).
 - Tags may appear anywhere in a line, as `[tag]` or `[tag: value]`: `start`, `result`, `fail`, `breakthrough`,
   `decision`, `review`, `blocked: what the owner must do`, `cleared`, `done: title`, `metric: Name = value unit`,
   `status: good|warn|bad|done text`, `progress: 3/6 label`, `end`. An untagged line is an `update`; an unknown tag

@@ -54,6 +54,7 @@ class ReleaseToolsTest(unittest.TestCase):
     def env(self):
         value = os.environ.copy()
         value["HOME"] = str(self.home)
+        value["USERPROFILE"] = str(self.home)  # Path.home() reads USERPROFILE on Windows
         return value
 
     def git(self, *args):

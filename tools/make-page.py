@@ -78,6 +78,22 @@ def opinions_html(readme):
     return "\n".join(parts)
 
 
+PROMPT_AGENTS = ("Claude Code", "Codex CLI", "Amp")
+
+
+def setup_prompts(text):
+    """SETUP_PROMPT.md's "## Claude Code", "## Codex CLI" and "## Amp" sections, each one agent's prompt."""
+    found = {}
+    parts = re.split(r"^## (.+)$", text, flags=re.M)
+    for index in range(1, len(parts) - 1, 2):
+        if parts[index].strip() in PROMPT_AGENTS:
+            found[parts[index].strip()] = parts[index + 1].strip() + "\n"
+    missing = [name for name in PROMPT_AGENTS if name not in found]
+    if missing:
+        sys.exit("make-page: SETUP_PROMPT.md has no '## {}' section".format(missing[0]))
+    return found
+
+
 def read(path):
     with open(path, "r", encoding="utf-8") as handle:
         return handle.read()
@@ -123,12 +139,17 @@ def main():
     if not os.path.exists(improving_path):
         sys.exit("make-page: {} is missing".format(improving_path))
     improving = read(improving_path)
-    prompt = read(os.path.join(KIT, "SETUP_PROMPT.md")).replace("<ARTIFACT_URL>", url).rstrip() + "\n"
+    prompts = setup_prompts(read(os.path.join(KIT, "SETUP_PROMPT.md")).replace("<ARTIFACT_URL>", url))
+    platform_notes = {name: read(os.path.join(KIT, "platforms", name, "PLATFORM.md")) for name in ("codex", "amp")}
 
     values = {
         "VERSION": match.group(1),
         "GENERATED": built.strftime("%Y-%m-%d %H:%M UTC"),
-        "PROMPT": html.escape(prompt, quote=False),
+        "PROMPT": html.escape(prompts["Claude Code"], quote=False),
+        "PROMPTCODEX": html.escape(prompts["Codex CLI"], quote=False),
+        "PROMPTAMP": html.escape(prompts["Amp"], quote=False),
+        "PLATFORMCODEX": html.escape(platform_notes["codex"], quote=False),
+        "PLATFORMAMP": html.escape(platform_notes["amp"], quote=False),
         "POLICY": html.escape(policy, quote=False),
         "FINDINGS": html.escape(findings, quote=False),
         "IMPROVING": html.escape(improving, quote=False),

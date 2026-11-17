@@ -7,6 +7,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -196,6 +197,80 @@ class TimelineTests(unittest.TestCase):
         self.assertEqual([event["id"] for event in again], [event["id"] for event in got])
         code, _, err = self.run_cli("timeline", "--repo", repo, "--branch", "missing")
         self.assertEqual(code, 2)
+
+
+    def test_html_escapes_script_in_title(self):
+        code, _, err = self.run_cli("note", "<script>alert(1)</script>")
+        self.assertEqual(code, 0, err)
+        path = os.path.join(self.root, "page.html")
+        code, _, err = self.run_cli("timeline", "--html", path, "--since", "1h")
+        self.assertEqual(code, 0, err)
+        with open(path, encoding="utf-8") as stream:
+            page = stream.read()
+        self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", page)
+        self.assertNotRegex(page, r"<script[\s>]")
+        self.assertIn("imp-dim", page)
+
+    def test_html_empty_window(self):
+        path = os.path.join(self.root, "empty.html")
+        code, out, err = self.run_cli("timeline", "--html", path, "--since", "1h")
+        self.assertEqual(code, 0, err)
+        self.assertIn("timeline: wrote {} (0 events)".format(path), out)
+        with open(path, encoding="utf-8") as stream:
+            page = stream.read()
+        self.assertIn("No events in this window.", page)
+        self.assertNotRegex(page, r'class="event\b')
+
+    def test_html_atomic_write_leaves_no_temp(self):
+        self.add_run("run-a")
+        path = os.path.join(self.root, "page.html")
+        code, _, err = self.run_cli("timeline", "--html", path, "--since", "24h")
+        self.assertEqual(code, 0, err)
+        names = os.listdir(self.root)
+        self.assertIn("page.html", names)
+        self.assertFalse(any(name.startswith(".timeline-") or ".tmp" in name for name in names))
+        with open(path, "rb") as stream:
+            raw = stream.read()
+        self.assertNotIn(b"\r", raw)
+        self.assertTrue(raw.endswith(b"\n"))
+
+    def test_refresh_below_10_is_refused(self):
+        path = os.path.join(self.root, "page.html")
+        code, out, err = self.run_cli("timeline", "--html", path, "--refresh", "5")
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertIn("10", err)
+        self.assertFalse(os.path.exists(path))
+
+    def test_html_with_json_exits_2(self):
+        path = os.path.join(self.root, "page.html")
+        code, out, err = self.run_cli("timeline", "--html", path, "--json", "--since", "1h")
+        self.assertEqual(code, 2)
+        self.assertEqual(out, "")
+        self.assertIn("--html", err)
+        self.assertFalse(os.path.exists(path))
+
+    def test_html_viewport_and_one_row_per_event(self):
+        self.add_run("run-a")
+        self.run_cli("note", "[blocked: approve deploy]", "--lane", "w1")
+        payload = self.events("--since", "24h")
+        path = os.path.join(self.root, "page.html")
+        code, out, err = self.run_cli("timeline", "--since", "24h", "--html", path, "--refresh", "15")
+        self.assertEqual(code, 0, err)
+        self.assertIn("({} events)".format(len(payload["events"])), out)
+        with open(path, encoding="utf-8") as stream:
+            page = stream.read()
+        self.assertIn('<meta name="viewport" content="width=device-width, initial-scale=1">', page)
+        self.assertIn('<meta http-equiv="refresh" content="15">', page)
+        self.assertIn("<title>Kit timeline</title>", page)
+        self.assertEqual(len(re.findall(r'class="event\b', page)), len(payload["events"]))
+        self.assertGreater(len(payload["events"]), 0)
+        newest = max(payload["events"], key=lambda event: event["at"])
+        when = datetime.datetime.fromisoformat(newest["at"].replace("Z", "+00:00")).astimezone()
+        first = re.search(r'class="when" datetime="[^"]*">([^<]+)', page)
+        self.assertIsNotNone(first)
+        self.assertEqual(first.group(1), when.strftime("%H:%M"))
+        self.assertIn("imp-high", page)
 
 
 if __name__ == "__main__":

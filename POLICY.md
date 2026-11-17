@@ -1,7 +1,7 @@
 # Coding Tool Optimizer: usage policy
 
-Coding Tool Optimizer version: 2026-11-16.4. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
-Claude Usage Optimizer version: 2026-11-16.4. (The kit's name until 2026-11-16.3; this line lets older installs find this release.)
+Coding Tool Optimizer version: 2026-11-17.1. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Claude Usage Optimizer version: 2026-11-17.1. (The kit's name until 2026-11-16.3; this line lets older installs find this release.)
 Machine-specific rules (project dispatchers, locked lanes, local paths) belong in
 `~/.claude/CLAUDE.md` above the import line, and they win when the two conflict.
 On Amp or Codex CLI, read that platform's notes first (`~/.claude/usage-optimizer/platforms/<amp|codex>/PLATFORM.md`):
@@ -617,7 +617,8 @@ the other providers' lanes, the Fable advisor and publishing.
 - **Timeline (from 2026-11-16.4).** `lane-stats timeline [--since 24h] [--repo <dir>] [--json]` merges the lead log,
   lane runs, reviews and a mirror's markers into one list of events, with no model call; `lane-stats note "[decision]
   …"` adds a tagged line to the lead log. Note decisions, blockers and breakthroughs as they happen; mirrors may start a
-  STATUS title with the same tags (`[blocked: …]`). Adapted from jkstack's live-timeline feed (MIT).
+  STATUS title with the same tags (`[blocked: …]`). From 2026-11-17.1 `--html FILE [--refresh 60]` writes the same events
+  as one self-contained page to keep open in a browser. Adapted from jkstack's live-timeline feed (MIT).
 - **Compaction window per model (from 2026-11-16.4).** Claude Code's `modelSettings.<model>.autoCompactWindow`
   overrides the kit's 250k for that model: from about 2026-11-07 one set Opus to 350k, so compactions landed near 320k.
   The statusline shows the window that applies, and `usage-status` and the installer warn about any override.

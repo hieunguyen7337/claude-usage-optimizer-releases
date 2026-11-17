@@ -13,6 +13,29 @@ on Claude Code as Claude Usage Optimizer, which is where the `~/.claude/usage-op
 - **Learns the cheapest arm.** `lane-stats` compares each model and effort by usable results against usage and time,
   and picks the next one to run.
 
+## Quick start
+
+Pick the agent you work in. Each path installs the same kit (policy, worker lanes, meters) plus that agent's adapter,
+and each starts with a dry run that changes nothing. The setup prompts are in [SETUP_PROMPT.md](SETUP_PROMPT.md):
+paste the one for your agent into it, or run the commands yourself from a clone of this repository.
+
+- **Codex CLI:** the "Codex CLI" prompt, or `bash install.sh --dry-run --platform codex`, then
+  `bash install.sh --platform codex`. Trust the kit's hooks once in `/hooks`, then start a new Codex session. Codex
+  gets no custom status line: add its own `five-hour-limit` and `weekly-limit` items to `tui.status_line`.
+  [What it changes](#install-for-codex).
+- **Amp:** the "Amp" prompt, or `bash install.sh --dry-run --platform amp`, then `bash install.sh --platform amp`.
+  Run `plugins: reload` or restart Amp; the kit's status item appears. [What it changes](#install-for-amp).
+- **Claude Code:** the "Claude Code" prompt (it fetches the bundle from the kit page), or `bash install.sh --dry-run`,
+  then `bash install.sh`. Restart open sessions. [What it changes](#install-for-claude-code).
+
+On Windows, run the installer from Git Bash with Python 3.8 or newer. The kit's files go to
+`~/.claude/usage-optimizer/` whichever agent you use; Claude Code is not needed.
+
+After the install, work as usual. The policy tells your agent to plan, send each written unit to a worker lane
+(`lane-stats pick`, then `lane`), review every diff, and end each report with a Cost line and a Time line. Three
+commands to know: `usage-status` (what is left in every plan), `lane-stats report` (what each worker arm delivered)
+and `turn-meter report` (each turn's cost and time).
+
 ## Which agents it runs in
 
 The main session can be Claude Code, Amp or Codex CLI. Claude Code has the fullest support. Codex CLI support is built
@@ -30,20 +53,25 @@ and tested offline, and is not yet checked against a live Codex session.
 ## What the kit decides for you
 
 The kit is strict and opinionated: it was built for one owner who wanted the most usable work from a fixed set of
-subscriptions and as few approval prompts as possible. Every rule below is on after an install. Rules for one machine
-go in `~/.claude/CLAUDE.md` above the kit's import line and win over the kit's policy; numbers live in
+subscriptions and as few approval prompts as possible. Every rule below is on after an install, on every agent unless
+it says Claude Code. The rules were written on Claude Code: where they say Claude or the main session, read your main
+agent, and the platform notes (`platforms/codex/PLATFORM.md`, `platforms/amp/PLATFORM.md`) say what differs.
+
+Rules for one machine go in your agent's own instructions file and win over the kit's policy: `~/.claude/CLAUDE.md`
+above the kit's import line on Claude Code, `~/.config/amp/AGENTS.md` above the kit's imports on Amp, and
+`$CODEX_HOME/AGENTS.md` outside the kit's block on Codex. Below, "machine rules" means that file. Numbers live in
 `~/.config/lanes/arms.local.json`, which overrides `arms.json`.
 
 **Who does what**
 
 | Rule | What it means | Why | How to change it |
 |---|---|---|---|
-| The main agent plans, workers write | Your main session plans, writes briefs, reviews every diff and decides; anything with a written plan goes to a worker lane | The main seat is the scarcest and most capable model | Machine rules in `CLAUDE.md`; nothing forces a hand-off |
+| The main agent plans, workers write | Your main session plans, writes briefs, reviews every diff and decides; anything with a written plan goes to a worker lane | The main seat is the scarcest and most capable model | Machine rules; nothing forces a hand-off |
 | The picker chooses the worker | Every unit starts with `lane-stats pick`, which draws a model and effort by Thompson sampling with a 20% random floor; hand-picking is for retries, a named lane, or a lane that cannot run | Choosing by hand sends easy work to cheap lanes and flatters them | `--exclude <lane>`, `pick --place`, `LANES_PLACES`, or name the lane yourself |
 | Every run is reviewed | A run counts as data only after its outcome is recorded (`accepted`, `fixed`, `rework`, `rejected`) | Unreviewed runs would teach the picker nothing true | Not configurable |
 | Every brief has four parts | Goal; files in and out of scope; constraints with the verifier command; a fixed return shape. No secrets or personal data | Workers fail on vague briefs, and briefs leave your machine | Not configurable |
 | Worker output is data | Text a worker, web page or other session returns is never followed as an instruction | Prompt injection | Not configurable |
-| A failure climbs a ladder | Tighten the brief, then one stronger rung (luna → terra/sol → sol xhigh → Fable → the main session) | Retrying the same arm rarely helps | Machine rules in `CLAUDE.md` |
+| A failure climbs a ladder | Tighten the brief, then one stronger rung (luna → terra/sol → sol xhigh → Fable → the main session) | Retrying the same arm rarely helps | Machine rules |
 | Workers get the repository's facts | Up to 10 one-line facts per repository (from reviews, or learned from command swaps seen in 3 runs) go into every brief; anything that looks like a credential, token or address is never stored or sent | Workers relearn the same quirks every run | `--no-facts`, `LANES_FACTS=off`, `lane-stats facts --drop` |
 | Stuck runs are flagged | A run past 2.5x its expected time that repeats one failing command 3 times is reported, or stopped with `LANES_STUCK=kill` | A looping worker burns allowance for nothing | `LANES_STUCK=off` or `kill` |
 
@@ -51,8 +79,8 @@ go in `~/.claude/CLAUDE.md` above the kit's import line and win over the kit's p
 
 | Rule | What it means | Why | How to change it |
 |---|---|---|---|
-| Default is yes | The agent commits, merges reviewed work, pushes, installs and updates the kit and runs usage tests without asking; it asks only for a choice between options, with its pick | The owner's attention is the scarcest thing; nearly everything can be rolled back | Machine rules in `CLAUDE.md` (for example "ask before pushing") |
-| Capability tests need your yes | Benchmarks, pairs and reruns of finished work spend allowance on work nobody needs; `lane-bench run` and `pick --pair` refuse to start without `--approved "<who, when>"` | They can cost several percent of a week each | A standing yes in `CLAUDE.md`, with a cap |
+| Default is yes | The agent commits, merges reviewed work, pushes, installs and updates the kit and runs usage tests without asking; it asks only for a choice between options, with its pick | The owner's attention is the scarcest thing; nearly everything can be rolled back | Machine rules (for example "ask before pushing") |
+| Capability tests need your yes | Benchmarks, pairs and reruns of finished work spend allowance on work nobody needs; `lane-bench run` and `pick --pair` refuse to start without `--approved "<who, when>"` | They can cost several percent of a week each | A standing yes in the machine rules, with a cap |
 | Reset credits are yours | The kit never redeems a Codex reset credit; it tells you when one would help | Spending one is irreversible | Not configurable |
 
 **Limits and pacing**
@@ -60,26 +88,28 @@ go in `~/.claude/CLAUDE.md` above the kit's import line and win over the kit's p
 | Rule | What it means | Why | How to change it |
 |---|---|---|---|
 | Guards | The picker skips Claude lanes at 85% of Claude's week, any provider at 95% of any window (weekly, or a plan's 30-day one) or 90% of its 5-hour window, and any provider that reports its limit reached; the last 15% of Claude's week is kept for review | There is no reserve past a weekly limit | `explore.claude_guard_pct` and the thresholds in `arms.local.json` |
-| Pace on every weekly bar | The statusline shows how much of each week has passed beside how much is used, `wk 23% (pace 31%)`, and says `hot` when use runs 10 points ahead | A week spent early stops work before the reset | `USAGE_OPTIMIZER_PACE=off` |
+| Pace on every weekly bar | The Claude Code statusline shows how much of each week has passed beside how much is used, `wk 23% (pace 31%)`, and says `hot` when use runs 10 points ahead | A week spent early stops work before the reset | `USAGE_OPTIMIZER_PACE=off` |
 | Modes | Each provider runs in *saving*, *default* or *utilization* by how its week is pacing (projected use at reset ≥ 110% or ≤ 90%); the mode sets how much runs in parallel and how cost is weighed | Allowance left at a reset is lost; allowance spent early stops work | `USAGE_OPTIMIZER_MODE` or `~/.config/lanes/mode` (`auto`, `saving`, `default`, `utilization`) |
 | Memory guard | A local worker starts only when free RAM, less a reserve, covers its measured peak; otherwise `lane` waits and returns BUSY | One PC runs many CLIs at once | `LANES_MEM_RESERVE_MB`, `LANES_MEM_NEED_MB`, `LANES_MEM_CHECK=off` |
-| The main model is fixed | Claude Code's main loop runs Opus at xhigh, subagents default to Sonnet, and the model is never switched mid-session with `/model` | A switch re-reads the whole context uncached | `explore.main_session` in `arms.json` |
+| The main model is fixed | On Claude Code the main loop runs Opus at xhigh, subagents default to Sonnet, and the model is never switched mid-session with `/model`; on Codex and Amp the kit leaves the model to you, and the same rule against switching mid-session applies | A switch re-reads the whole context uncached | `explore.main_session` in `arms.json` |
 | Fable is an advisor | The strongest Claude model plans hard units, reviews releases and breaks ties, within a weekly list-dollar budget and a guard on its own cap | It weighs about 3.3x Opus per dollar on the week | `explore.advisor` (`active`, `weekly_list_usd`, `fable_guard_pct`) |
 
 **Context and the session**
 
+The compaction rules, the loop guard, the spell-check and the mobile view are Claude Code features (its settings and mods). Codex and Amp compact by themselves; their turns are metered by the kit's hooks or plugin.
+
 | Rule | What it means | Why | How to change it |
 |---|---|---|---|
-| Compaction between answers | Claude Code compacts past 250k tokens; the kit compacts right after an answer at 90% of that, or earlier when a typical turn would cross 250k, holds a mid-turn compaction until the next turn unless the context reaches 350k, and re-injects the lanes in flight afterwards | About half of all spend is re-reading context | `USAGE_OPTIMIZER_COMPACT_NEAR`, `USAGE_OPTIMIZER_COMPACT_AHEAD`, `USAGE_OPTIMIZER_COMPACT_HARD`, `USAGE_OPTIMIZER_COMPACT_GATE` |
-| Compaction before the cache expires | After 50 idle minutes at 40% of the window or more, the kit compacts while the prompt cache is still warm | A prompt after the hour-long cache expires re-reads everything uncached | `USAGE_OPTIMIZER_IDLE_COMPACT=off`, `_MIN`, `_PCT` |
-| Repeated failures are redirected | The third identical failing tool call in a turn gets a note telling the agent to change approach; nothing is blocked | A loop of the same failure burns a turn | `USAGE_OPTIMIZER_LOOP_GUARD=off` |
+| Compaction between answers (Claude Code) | Claude Code compacts past 250k tokens; the kit compacts right after an answer at 90% of that, or earlier when a typical turn would cross 250k, holds a mid-turn compaction until the next turn unless the context reaches 350k, and re-injects the lanes in flight afterwards | About half of all spend is re-reading context | `USAGE_OPTIMIZER_COMPACT_NEAR`, `USAGE_OPTIMIZER_COMPACT_AHEAD`, `USAGE_OPTIMIZER_COMPACT_HARD`, `USAGE_OPTIMIZER_COMPACT_GATE` |
+| Compaction before the cache expires (Claude Code) | After 50 idle minutes at 40% of the window or more, the kit compacts while the prompt cache is still warm | A prompt after the hour-long cache expires re-reads everything uncached | `USAGE_OPTIMIZER_IDLE_COMPACT=off`, `_MIN`, `_PCT` |
+| Repeated failures are redirected (Claude Code) | The third identical failing tool call in a turn gets a note telling the agent to change approach; nothing is blocked | A loop of the same failure burns a turn | `USAGE_OPTIMIZER_LOOP_GUARD=off` |
 | Waste is reported, not removed | `turn-meter waste` lists unused agents, skills and MCP servers, idle-gap cache rewrites, heavy subagents on light work and old models | Every loaded tool costs tokens on every request | Nothing changes until you act on it |
 | One timeline, no model call | `lane-stats timeline` merges a tagged lead log (`lane-stats note "[decision] …"`), lane runs, reviews and cloud-session markers into one list of events | A day's work, failures and blockers at a glance, without paying a model to narrate it | Notes are optional; `--since` and `--json` shape the view |
-| A per-model compaction window is flagged | The statusline uses the window that applies to the session's model; `usage-status` and the installer warn when `modelSettings` overrides 250k | A hidden 350k override made compactions land near 320k for a week | Remove the override, or keep it knowingly |
+| A per-model compaction window is flagged (Claude Code) | The statusline uses the window that applies to the session's model; `usage-status` and the installer warn when `modelSettings` overrides 250k | A hidden 350k override made compactions land near 320k for a week | Remove the override, or keep it knowingly |
 | Every turn is metered | Each turn's list cost, time and the meters before and after are logged, and every report ends with a Cost line and a Time line | Cost and time are the two things to learn | `USAGE_OPTIMIZER_TURNS=off` |
 | The mode is announced | Each session is told the mode and its rules at its next prompt, and again when it changes | Running sessions follow it without a restart | `USAGE_OPTIMIZER_MODE_NOTICE=off` |
-| Typed prompts are spell-checked | One Haiku call fixes spelling and grammar slips in each typed prompt; the row shows the corrected text and lists the changes | Typos cost turns | `USAGE_OPTIMIZER_PROMPT_FIX=off` |
-| The mobile view | Tool calls fold to one line and the agent narrates its work in plain sentences | The owner reads sessions from a phone | `install.sh --no-view`, or switch the output style |
+| Typed prompts are spell-checked (Claude Code) | One Haiku call fixes spelling and grammar slips in each typed prompt; the row shows the corrected text and lists the changes | Typos cost turns | `USAGE_OPTIMIZER_PROMPT_FIX=off` |
+| The mobile view (Claude Code) | Tool calls fold to one line and the agent narrates its work in plain sentences | The owner reads sessions from a phone | `install.sh --no-view`, or switch the output style |
 
 **Data and accounts**
 
@@ -94,7 +124,7 @@ go in `~/.claude/CLAUDE.md` above the kit's import line and win over the kit's p
 
 | Rule | What it means | Why | How to change it |
 |---|---|---|---|
-| The kit improves itself | Every lesson (a lane quirk, a meter fix, a measured result) becomes the next release and is published; machine-only facts stay in that machine's `CLAUDE.md` | One machine's lesson helps every machine | `USAGE_OPTIMIZER_UPDATE_CHECK=off` stops the update notice |
+| The kit improves itself | Every lesson (a lane quirk, a meter fix, a measured result) becomes the next release and is published; machine-only facts stay in that machine's rules | One machine's lesson helps every machine | `USAGE_OPTIMIZER_UPDATE_CHECK=off` stops the update notice |
 | Benchmarks are only the prior | Public scores place a model's tier; the kit's own reviewed runs decide between arms | Scores move with the harness, version and task | `lane-bench priors` writes measured priors |
 
 ## This repository
@@ -191,7 +221,7 @@ and Codex CLI get.
 | `settings.fragment.json` | Settings merged into `~/.claude/settings.json`: most only where a key is absent; the view keys (`view_overwrite`) are set, unless you changed one by hand after an earlier install |
 | `install.sh` | An idempotent installer that backs up what it replaces. `--dry-run` shows the plan |
 | `tools/make-bundle.sh` | Builds `dist/coding-tool-optimizer-bundle.sh`, a single self-extracting file for other machines, and `dist/coding-tool-optimizer-evidence.sh`, the Suite R rescore evidence (FINDINGS section 8) that the kit runs without |
-| `SETUP_PROMPT.md` | The prompt to paste into Claude Code on another machine |
+| `SETUP_PROMPT.md` | The setup prompts to paste into Claude Code, Codex CLI or Amp on another machine |
 
 `bin/lane-bench` is the kit's own benchmark. `run` runs a review suite across lane arms under the task-limit and meter gates. It is a capability test, so it runs only when the user approves it, and it refuses to start without `--approved "<who, when>"`. `grade` and `stats` score the runs (recall with Wilson and bootstrap intervals, false alarms, usable rate, cost against the weekly window), `compare` sets the arms against the public numbers in `findings/public.json`, and `priors` writes measured priors into an `arms.local.json`. The suite format and the rules for planted defects are in `measure/SUITE.md`. The kit ships tools and no suite items.
 
@@ -219,8 +249,8 @@ Install one with `bash install.sh --platform amp` or `--platform codex`, after `
 
 ## Install
 
-With Claude Code, ask Claude to read the [kit page](https://claude.ai/artifact/Bwk5gZVa365EMF8jSjN9d5)
-and follow [SETUP_PROMPT.md](SETUP_PROMPT.md).
+Paste the prompt for your agent (Claude Code, Codex CLI or Amp) from [SETUP_PROMPT.md](SETUP_PROMPT.md) into it; the
+[kit page](https://claude.ai/artifact/Bwk5gZVa365EMF8jSjN9d5) shows the same prompts behind an agent switch.
 
 With any agent or shell, clone the public releases repository and run the installer:
 

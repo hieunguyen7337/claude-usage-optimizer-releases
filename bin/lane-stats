@@ -3524,7 +3524,186 @@ def since_time(value, now):
     return parsed.astimezone(datetime.timezone.utc)
 
 
+TIMELINE_LEGEND = tuple(sorted(KIND_IMPORTANCE, key=lambda kind: (-KIND_IMPORTANCE[kind], kind)))
+
+
+def timeline_html(payload, refresh=None):
+    """Self-contained HTML for the dict ``timeline --json`` prints. Event text is escaped; nothing from it runs."""
+    import html
+
+    def esc(value):
+        if value is None:
+            return ""
+        return html.escape(str(value), quote=True)
+
+    def utc_label(value):
+        parsed = parse_time(value)
+        if parsed is None:
+            return esc(value)
+        local = parsed.astimezone()  # the events below are in local time too
+        offset = local.strftime("%z")
+        return esc(local.strftime("%Y-%m-%d %H:%M") + " (UTC{}:{})".format(offset[:3], offset[3:]) if offset
+                   else local.strftime("%Y-%m-%d %H:%M"))
+
+    events = payload.get("events") if isinstance(payload, dict) else None
+    if not isinstance(events, list):
+        events = []
+    since = payload.get("since") if isinstance(payload, dict) else ""
+    until = payload.get("until") if isinstance(payload, dict) else ""
+    count = len(events)
+    count_text = "{} event{}".format(count, "" if count == 1 else "s")
+    refresh_tag = ""
+    if refresh is not None:
+        if isinstance(refresh, bool) or not isinstance(refresh, int) or refresh < 10:
+            raise ValueError("--refresh must be an integer number of seconds, at least 10")
+        refresh_tag = '<meta http-equiv="refresh" content="{}">\n'.format(refresh)
+
+    rows = []
+    day = None
+    # --json is oldest first; the page is newest first, still grouped by local day.
+    for event in reversed(events):
+        if not isinstance(event, dict):
+            continue
+        when = parse_time(event.get("at"))
+        local = when.astimezone() if when is not None else None
+        day_key = local.date().isoformat() if local is not None else "unknown"
+        if day_key != day:
+            if day is not None:
+                rows.append("</section>")
+            day = day_key
+            rows.append('<section class="day"><h2>{}</h2>'.format(esc(day_key)))
+        raw_importance = event.get("importance")
+        try:
+            importance = int(raw_importance)
+        except (TypeError, ValueError):
+            importance = 0
+        if isinstance(raw_importance, bool):
+            importance = 0
+        classes = "event"
+        if importance >= 3:
+            classes += " imp-high"
+        elif importance == 1:
+            classes += " imp-dim"
+        clock = local.strftime("%H:%M") if local is not None else ""
+        tags = event.get("tags") if isinstance(event.get("tags"), list) else []
+        tag_html = "".join('<span class="tag">{}</span>'.format(esc(tag)) for tag in tags)
+        rows.append(
+            '<article class="{classes}"><time class="when" datetime="{at}">{clock}</time>'
+            '<span class="kind">{kind}</span><span class="lane">{lane}</span>'
+            '<span class="title">{title}</span><span class="tags">{tags}</span></article>'.format(
+                classes=classes, at=esc(event.get("at")), clock=esc(clock), kind=esc(event.get("kind")),
+                lane=esc(event.get("lane")), title=esc(event.get("title")), tags=tag_html))
+    if day is not None:
+        rows.append("</section>")
+    if rows:
+        body = "\n".join(rows)
+    else:
+        body = '<p class="empty">No events in this window.</p>'
+    legend = " ".join('<span class="kind">{}</span>'.format(html.escape(kind)) for kind in TIMELINE_LEGEND)
+    return """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{refresh}<title>Kit timeline</title>
+<style>
+:root {{
+  --bg: #f6f3ee;
+  --fg: #1b1916;
+  --muted: #6e675f;
+  --line: #e0d9cf;
+  --badge-bg: #efe8dc;
+  --badge-fg: #6a2e12;
+}}
+@media (prefers-color-scheme: dark) {{
+  :root {{
+    --bg: #141311;
+    --fg: #f4f0e8;
+    --muted: #b1a89e;
+    --line: #3c362f;
+    --badge-bg: #2c2823;
+    --badge-fg: #f0b48f;
+  }}
+}}
+* {{ box-sizing: border-box; }}
+html {{ background: var(--bg); }}
+body {{
+  margin: 0;
+  padding: 16px;
+  width: 100%;
+  background: #f6f3ee;
+  background: var(--bg);
+  color: var(--fg);
+  font: 16px/1.45 sans-serif;
+  overflow-wrap: anywhere;
+}}
+h1 {{ font-size: 1.25rem; margin: 0 0 0.25rem; }}
+h2 {{ font-size: 0.95rem; margin: 1rem 0 0.25rem; }}
+.window, .legend {{ margin: 0.25rem 0; }}
+.legend {{ color: var(--muted); font-size: 0.85rem; }}
+.kind, .tag {{
+  display: inline-block;
+  margin: 0 0.35rem 0.15rem 0;
+  padding: 0 0.35rem;
+  border-radius: 0.25rem;
+  background: var(--badge-bg);
+  color: var(--badge-fg);
+}}
+.event {{
+  display: block;
+  padding: 0.45rem 0;
+  border-top: 1px solid var(--line);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}}
+.when, .lane {{ margin-right: 0.45rem; }}
+.title {{ display: block; overflow-wrap: anywhere; }}
+.tags {{ display: block; }}
+.imp-high {{ font-weight: 700; }}
+.imp-dim {{ color: var(--muted); }}
+.empty {{ margin: 1rem 0; }}
+</style>
+</head>
+<body>
+<header>
+<h1>Kit timeline</h1>
+<p class="window">{header} · {count}</p>
+</header>
+<p class="legend">Kinds: {legend}</p>
+{body}
+</body>
+</html>
+""".format(refresh=refresh_tag, header="{} \u2013 {}".format(utc_label(since), utc_label(until)),
+           count=count_text, legend=legend, body=body)
+
+
+def write_timeline_html(path, payload, refresh=None):
+    """Write timeline_html(payload) to path atomically (a temp file beside it, then os.replace)."""
+    page = timeline_html(payload, refresh)
+    path = os.path.abspath(os.path.expanduser(path))
+    folder = os.path.dirname(path) or "."
+    os.makedirs(folder, exist_ok=True)
+    handle, temp = tempfile.mkstemp(prefix=".timeline-", suffix=".html", dir=folder)
+    try:
+        with os.fdopen(handle, "w", encoding="utf-8", newline="\n") as stream:
+            stream.write(page)
+        os.replace(temp, path)
+    except BaseException:
+        try:
+            os.unlink(temp)
+        except OSError:
+            pass
+        raise
+    return path
+
+
 def timeline_command(args):
+    if args.html and args.json:
+        print("lane-stats: --html and --json cannot be used together", file=sys.stderr)
+        return 2
+    if args.refresh is not None and (not args.html or args.refresh < 10):
+        print("lane-stats: --refresh needs --html and at least 10 seconds", file=sys.stderr)
+        return 2
     now = datetime.datetime.now(datetime.timezone.utc)
     since = since_time(args.since, now)
     events = log_events(lead_log_path()) + run_events(state_dir(), since)
@@ -3544,9 +3723,13 @@ def timeline_command(args):
     merged.sort(key=lambda event: event["at"])  # stable: same-second events keep their source order
     if args.limit:
         merged = merged[-args.limit:]
-    if args.json:
+    if args.json or args.html:
         record = {"schema": 1, "since": since.isoformat(timespec="seconds").replace("+00:00", "Z"),
                   "until": now.isoformat(timespec="seconds").replace("+00:00", "Z"), "events": merged}
+        if args.html:
+            path = write_timeline_html(args.html, record, args.refresh)
+            print("timeline: wrote {} ({} events)".format(path, len(merged)))
+            return 0
         sys.stdout.write(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
         return 0
     day = None
@@ -3667,6 +3850,9 @@ def build_parser():
     timeline_parser.add_argument("--branch", help="the main session's branch on origin (default: the checkout's branch)")
     timeline_parser.add_argument("--json", action="store_true")
     timeline_parser.add_argument("--limit", type=positive_int, help="keep only the newest N events")
+    timeline_parser.add_argument("--html", metavar="FILE", help="write one self-contained HTML page of the same events")
+    timeline_parser.add_argument("--refresh", type=int, metavar="SECONDS",
+                                 help="with --html, the browser re-reads the file every N seconds (at least 10)")
     timeline_parser.set_defaults(func=timeline_command)
     return parser
 
