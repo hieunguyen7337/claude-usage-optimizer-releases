@@ -54,7 +54,19 @@ section > *, details > * { min-width: 0; }
 header { display: grid; gap: 16px; }
 .meta { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; color: var(--muted); font-size: 0.9rem; }
 .chip { font: 500 0.8rem/1 var(--font-mono); border: 1px solid var(--rule); border-radius: 999px; padding: 5px 10px; color: var(--ink); }
-.term { background: var(--term-bg); color: var(--term-ink); font: 400 0.84rem/1.5 var(--font-mono); border-radius: 6px; padding: 10px 14px; overflow-x: auto; white-space: pre; }
+.term { background: var(--term-bg); color: var(--term-ink); font: 400 0.84rem/1.5 var(--font-mono); border-radius: 6px; padding: 10px 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+pre.cmd { margin: 0; background: var(--term-bg); color: var(--term-ink); font: 400 0.84rem/1.5 var(--font-mono); border-radius: 6px; padding: 12px 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.route { margin: 1.1em 0 0.4em; font-weight: 600; }
+.route .where, summary .where { font-weight: 400; color: var(--muted); }
+.then { margin: 1em 0 0; }
+.then p { margin: 0.3em 0; }
+ol.next { margin: 0.3em 0 0; padding-left: 1.4em; }
+ol.next li { margin: 0.4em 0; }
+ol.next pre.cmd { margin: 0.5em 0; }
+details.agent-route { margin: 1.4em 0 0; border-top: 1px solid var(--rule); padding-top: 1em; }
+details.agent-route summary { cursor: pointer; font-weight: 600; }
+details.agent-route .steps, details.agent-route .btns { margin: 0.8em 0; }
+details.agent-route pre.prompt { max-height: none; }
 .term .dim { color: var(--term-dim); }
 
 .panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 20px; display: grid; gap: 14px; box-shadow: 0 1px 2px rgba(10, 30, 40, 0.06); }
@@ -140,8 +152,15 @@ footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--ru
       <span class="chip">v{{VERSION}}</span>
       <span>bundle built {{GENERATED}}</span>
     </div>
-    <div class="term" aria-label="Example of the status line it installs"><span class="dim">Claude Code statusline ›</span> Opus 5.5 · xhigh · ctx 189k/250k (76%) · ETA ~13m ≈0.07% wk · Coding Tool Optimizer {{VERSION}}
-             Claude 5h 12% resets 19:00 · wk 61% resets Sun 02:00 · Fable 7% resets Sun 02:00 │ Codex wk 37% resets Mon 21:51</div>
+    <div class="term" data-for="claude" aria-label="Example of the status line it installs"><span class="dim">Claude Code statusline ›</span> Opus 5.5 · xhigh · ctx 189k/250k (76%) · ETA ~13m ≈0.07% wk · Coding Tool Optimizer {{VERSION}}
+Claude 5h 12% resets 19:00 · wk 61% resets Sun 02:00 · Fable 7% resets Sun 02:00 │ Codex wk 37% resets Mon 21:51</div>
+    <div class="term" data-for="codex" hidden aria-label="Example of usage-status in a Codex setup"><span class="dim">$</span> usage-status
+Codex/luna: 5h 12%, resets 19:00; weekly 37%, resets Mon 21:51; live, read 0s ago (plan plus)
+Gemini/agy: gemini-weekly 3%, resets Tue 22:45; gemini-5h 1%, resets Wed 03:45</div>
+    <div class="term" data-for="amp" hidden aria-label="Example of usage-status in an Amp setup"><span class="dim">$</span> usage-status
+Amp: credits $9.95 remaining; last 7 days $4.10 recorded
+Claude: 5h 4%, resets 22:10; weekly 61%, resets Sun 02:00
+Codex/luna: 5h 12%, resets 19:00; weekly 37%, resets Mon 21:51</div>
     <div class="agent-pick">
       <span>Your main agent:</span>
       <div class="agents" role="group" aria-label="Show setup for">
@@ -156,46 +175,57 @@ footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--ru
   <section aria-labelledby="setup-h">
     <div class="panel">
       <div class="panel-head">
-        <h2 id="setup-h">Set up another machine</h2>
+        <h2 id="setup-h">Install and set up</h2>
         <div class="btns">
-          <button class="primary" id="copy-prompt" type="button">Copy prompt</button>
+          <button class="primary" id="copy-cmd" type="button">Copy command</button>
         </div>
       </div>
-      <ol class="steps" data-for="claude">
-        <li><b>1</b> Open Claude Code on that machine</li>
-        <li><b>2</b> Paste this prompt</li>
-        <li><b>3</b> Read its dry run, then say “go”</li>
-        <li><b>4</b> Restart Claude Code</li>
-      </ol>
-      <ol class="steps" data-for="codex" hidden>
-        <li><b>1</b> Open Codex CLI on that machine</li>
-        <li><b>2</b> Paste this prompt</li>
-        <li><b>3</b> Read its dry run, then say “go”</li>
-        <li><b>4</b> Trust the kit's hooks in <code>/hooks</code>, then start a new session</li>
-      </ol>
-      <ol class="steps" data-for="amp" hidden>
-        <li><b>1</b> Open Amp on that machine</li>
-        <li><b>2</b> Paste this prompt</li>
-        <li><b>3</b> Read its dry run, then say “go”</li>
-        <li><b>4</b> Run <code>plugins: reload</code> or restart Amp</li>
-      </ol>
-      <pre class="prompt" id="prompt-claude" data-for="claude">{{PROMPT}}</pre>
-      <pre class="prompt" id="prompt-codex" data-for="codex" hidden>{{PROMPTCODEX}}</pre>
-      <pre class="prompt" id="prompt-amp" data-for="amp" hidden>{{PROMPTAMP}}</pre>
-      <div class="status" id="prompt-status" role="status"></div>
+      <p class="route">From a terminal <span class="where">(bash: macOS, Linux, or Git Bash on Windows, not PowerShell; needs git and Python 3.8 or newer)</span></p>
+      <pre class="cmd" id="cmd-claude" data-for="claude">git clone https://github.com/hieunguyen7337/coding-tool-optimizer.git &amp;&amp; cd coding-tool-optimizer &amp;&amp; bash install.sh --platform claude-code</pre>
+      <pre class="cmd" id="cmd-codex" data-for="codex" hidden>git clone https://github.com/hieunguyen7337/coding-tool-optimizer.git &amp;&amp; cd coding-tool-optimizer &amp;&amp; bash install.sh --platform codex</pre>
+      <pre class="cmd" id="cmd-amp" data-for="amp" hidden>git clone https://github.com/hieunguyen7337/coding-tool-optimizer.git &amp;&amp; cd coding-tool-optimizer &amp;&amp; bash install.sh --platform amp</pre>
+      <div class="status" id="cmd-status" role="status"></div>
+      <p data-for="claude">Add <code>--dry-run</code> to see every change first. To update later, from the same folder: <code>cd coding-tool-optimizer &amp;&amp; git pull &amp;&amp; bash install.sh --platform claude-code</code></p>
+      <p data-for="codex" hidden>Add <code>--dry-run</code> to see every change first. To update later, from the same folder: <code>cd coding-tool-optimizer &amp;&amp; git pull &amp;&amp; bash install.sh --platform codex</code></p>
+      <p data-for="amp" hidden>Add <code>--dry-run</code> to see every change first. To update later, from the same folder: <code>cd coding-tool-optimizer &amp;&amp; git pull &amp;&amp; bash install.sh --platform amp</code></p>
+      <div class="then" data-for="claude"><p><b>Then</b> restart Claude Code.</p></div>
+      <div class="then" data-for="amp" hidden><p><b>Then</b> run <code>plugins: reload</code> in Amp, or restart it.</p></div>
+      <div class="then" data-for="codex" hidden>
+        <p><b>Then, in Codex:</b></p>
+        <ol class="next">
+          <li>Run <code>/hooks</code>, trust the kit's hooks once, and start a new session. Until then no turn is metered.</li>
+          <li>To see Codex's own limits in its status line, add this to <code>~/.codex/config.toml</code>:
+            <pre class="cmd" id="toml-codex">[tui]
+status_line = ["five-hour-limit", "weekly-limit"]</pre>
+            <div class="btns"><button class="quiet" id="copy-toml" type="button">Copy</button><span class="status" id="toml-status" role="status"></span></div></li>
+        </ol>
+      </div>
+      <details class="agent-route">
+        <summary>Or let your agent install it <span class="where">(it checks the release's SHA256SUMS and shows you a dry run first)</span></summary>
+        <ol class="steps">
+          <li><b>1</b> <span>Open <span data-for="claude">Claude Code</span><span data-for="codex" hidden>Codex CLI</span><span data-for="amp" hidden>Amp</span> on that machine</span></li>
+          <li><b>2</b> Paste this prompt</li>
+          <li><b>3</b> Read its dry run, then say “go”</li>
+          <li><b>4</b> Do the step under <b>Then</b> above</li>
+        </ol>
+        <div class="btns"><button class="quiet" id="copy-prompt" type="button">Copy prompt</button></div>
+        <pre class="prompt" id="prompt-claude" data-for="claude">{{PROMPT}}</pre>
+        <pre class="prompt" id="prompt-codex" data-for="codex" hidden>{{PROMPTCODEX}}</pre>
+        <pre class="prompt" id="prompt-amp" data-for="amp" hidden>{{PROMPTAMP}}</pre>
+        <div class="status" id="prompt-status" role="status"></div>
+      </details>
       <div class="after">
         <p><b>After the install</b>, work as usual. The policy tells your agent to plan, send each written unit to a worker lane (<code>lane-stats pick</code>, then <code>lane</code>), review every diff, and end each report with a Cost line and a Time line. Three commands to know: <code>usage-status</code> (what is left in every plan), <code>lane-stats report</code> (what each worker arm delivered) and <code>turn-meter report</code> (each turn's cost and time).</p>
         <p data-for="claude">The two-line status line shows the session, the running turn and every plan's window; the mobile view folds each tool call to one line.</p>
-        <p data-for="codex" hidden>Codex gets no custom status line: add Codex's own <code>five-hour-limit</code> and <code>weekly-limit</code> items to <code>tui.status_line</code> in <code>config.toml</code>. Codex compacts by itself, and its own subagents draw on the same ChatGPT window as the luna, terra, sol and astra lanes. Claude arms run as processes or with <code>--cloud</code>. The mobile view, sessions pane and other mods are Claude Code only.</p>
+        <p data-for="codex" hidden>Codex compacts by itself, and its own subagents draw on the same ChatGPT window as the luna, terra, sol and astra lanes. Claude arms run as processes or with <code>--cloud</code>.</p>
         <p data-for="amp" hidden>The kit's status item shows the turn's ETA and cost, the plan meters and the kit release. Claude arms and some <code>amp</code> arms run inside the Amp thread through the plugin. The mobile view, sessions pane and other mods are Claude Code only.</p>
       </div>
     </div>
   </section>
 
-  <section aria-labelledby="bundle-h">
+  <section aria-labelledby="bundle-h" data-for="claude">
     <h2 id="bundle-h">The bundle</h2>
-    <p>The Codex CLI and Amp prompts don't use this file: they install from <a href="https://github.com/hieunguyen7337/coding-tool-optimizer">the public releases repository</a>, checked against its release's <code>SHA256SUMS</code>. You can install that way from any agent or shell: clone it and run <code>bash install.sh --dry-run</code>, then <code>bash install.sh</code>.</p>
-    <p>The Claude Code prompt fetches this file with Claude's Artifact tool. A machine without that tool can take it from the clipboard, or by <code>scp</code> from the server that built it.</p>
+    <p>The Claude Code prompt installs from this single file, which it fetches with Claude's Artifact tool; the terminal command above installs the same release from <a href="https://github.com/hieunguyen7337/coding-tool-optimizer">the public releases repository</a> instead. A machine without that tool can take it from the clipboard, or by <code>scp</code> from the server that built it.</p>
     <dl class="facts">
       <dt>File</dt><dd>{{BUNDLE}}</dd>
       <dt>Size</dt><dd>{{SIZE}}</dd>
@@ -386,6 +416,14 @@ footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--ru
   try { stored = localStorage.getItem(AGENT_KEY); } catch (e) {}
   setAgent(AGENTS[fromHash] ? fromHash : (stored || "claude"), false);
 
+  document.getElementById("copy-cmd").addEventListener("click", function () {
+    var cmdEl = document.getElementById("cmd-" + agent);
+    copy(cmdEl.textContent, "cmd-status", "Copied. Run it in a terminal on the machine to set up.", cmdEl);
+  });
+  document.getElementById("copy-toml").addEventListener("click", function () {
+    var tomlEl = document.getElementById("toml-codex");
+    copy(tomlEl.textContent, "toml-status", "Copied. Paste it into ~/.codex/config.toml.", tomlEl);
+  });
   document.getElementById("copy-prompt").addEventListener("click", function () {
     var promptEl = document.getElementById("prompt-" + agent);
     copy(promptEl.textContent, "prompt-status", "Copied. Paste it into " + AGENTS[agent] + " on the other machine.", promptEl);

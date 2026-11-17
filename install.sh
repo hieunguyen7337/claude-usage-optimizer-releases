@@ -252,7 +252,19 @@ for dir in bin agents mods output-styles improve; do
 done
 platform_files=()
 if has_platform amp; then platform_files+=(platforms/amp/PLATFORM.md platforms/amp/usage-optimizer.ts); fi
-if has_platform codex; then platform_files+=(platforms/codex/PLATFORM.md platforms/codex/AGENTS.kit.md platforms/codex/hooks.fragment.json); fi
+if has_platform codex; then
+  platform_files+=(platforms/codex/PLATFORM.md platforms/codex/AGENTS.kit.md platforms/codex/hooks.fragment.json)
+  shopt -s nullglob
+  codex_role_sources=("$SOURCE_DIR"/platforms/codex/agents/*.toml)
+  shopt -u nullglob
+  if ((${#codex_role_sources[@]} == 0)); then
+    printf 'Error: required Codex agent roles are missing under %s\n' "$SOURCE_DIR/platforms/codex/agents" >&2
+    exit 1
+  fi
+  for role_source in ${codex_role_sources[@]+"${codex_role_sources[@]}"}; do
+    platform_files+=("platforms/codex/agents/${role_source##*/}")
+  done
+fi
 for file in ${platform_files[@]+"${platform_files[@]}"}; do
   if [[ ! -f "$SOURCE_DIR/$file" ]]; then
     printf 'Error: required file is missing for the platform list: %s\n' "$SOURCE_DIR/$file" >&2
@@ -332,6 +344,51 @@ copy_managed_file() {
     action mkdir -p "$(dirname "$destination")"
     action cp -p "$source" "$destination"
   fi
+}
+
+# skills/<name>/ only. kit-setup lives in the plugins and is not installed here.
+# A kit-* folder this checkout no longer ships is removed. Every other folder stays,
+# including kit-setup and anything the owner added (this machine keeps codex-delegation).
+retire_unshipped_kit_skills() {
+  local dest_root=$1 backup_prefix=$2
+  local installed_dir skill_name retired_file relative
+  [[ -d "$dest_root" ]] || return 0
+  shopt -s nullglob
+  local -a installed=("$dest_root"/kit-*/)
+  shopt -u nullglob
+  for installed_dir in ${installed[@]+"${installed[@]}"}; do
+    skill_name="${installed_dir%/}"
+    skill_name="${skill_name##*/}"
+    if [[ "$skill_name" == kit-setup || -d "$SOURCE_DIR/skills/$skill_name" ]]; then
+      continue
+    fi
+    printf 'Removing retired kit skill: %s\n' "$installed_dir"
+    if [[ -d "$installed_dir" && ! -L "$installed_dir" ]]; then
+      while IFS= read -r -d '' retired_file; do
+        relative="${retired_file#"$installed_dir/"}"
+        backup_file "$retired_file" "$backup_prefix/$skill_name/$relative"
+      done < <(find "$installed_dir" \( -type f -o -type l \) -print0)
+    fi
+    action rm -rf "$installed_dir"
+  done
+}
+
+install_shipped_kit_skills() {
+  local dest_root=$1 backup_prefix=$2
+  local source_skill_dir skill_name source_file relative
+  retire_unshipped_kit_skills "$dest_root" "$backup_prefix"
+  shopt -s nullglob
+  local -a kit_skill_dirs=("$SOURCE_DIR"/skills/*/)
+  shopt -u nullglob
+  for source_skill_dir in ${kit_skill_dirs[@]+"${kit_skill_dirs[@]}"}; do
+    skill_name="${source_skill_dir%/}"
+    skill_name="${skill_name##*/}"
+    while IFS= read -r -d '' source_file; do
+      relative="${source_file#"$source_skill_dir"}"
+      copy_managed_file "$source_file" "$dest_root/$skill_name/$relative" \
+        "$backup_prefix/$skill_name/$relative"
+    done < <(find "$source_skill_dir" -type f -print0)
+  done
 }
 
 printf '\nCopying Coding Tool Optimizer to %s\n' "$PREFIX"
@@ -502,6 +559,8 @@ for source_skill_dir in "${skill_dirs[@]}"; do
   prune_stale_skill_files "$CLAUDE_DIR" "$source_skill_dir" "$skill_name" records record 1
   prune_stale_skill_files "$PREFIX" "$source_skill_dir" "$skill_name" records record 0
 done
+retire_unshipped_kit_skills "$CLAUDE_DIR/skills" "skills"
+retire_unshipped_kit_skills "$PREFIX/skills" "skills"
 
 KIT_VERSION="$(sed -n -e 's/^Coding Tool Optimizer version: \([^ ]*\)\..*/\1/p' -e 's/^Claude Usage Optimizer version: \([^ ]*\)\..*/\1/p' "$SOURCE_DIR/POLICY.md" | head -n 1)"
 MOD_DIR="$CLAUDE_DIR/skills/mobile-view"
@@ -940,6 +999,11 @@ else
   printf '\nClaude Code is not in the platform list; its steps are skipped.\n'
 fi
 
+if has_platform codex || has_platform amp; then
+  printf '\nInstalling kit skills\n'
+  install_shipped_kit_skills "$HOME/.agents/skills" "agents/skills"
+fi
+
 if has_platform amp; then
   printf '\nInstalling the Amp adapter\n'
   AMP_DIR="$HOME/.config/amp"
@@ -1174,6 +1238,26 @@ PY
       fi
     fi
   fi
+  # Role files install only after AGENTS.md and hooks.json validated, so a bad Codex home changes nothing.
+  # There is no uninstall command. A kit-*.toml that this kit no longer ships is retired here; every other
+  # file in agents/ is left alone.
+  if [[ -d "$CODEX_DIR/agents" ]]; then
+    shopt -s nullglob
+    installed_roles=("$CODEX_DIR"/agents/kit-*.toml)
+    shopt -u nullglob
+    for installed_role in ${installed_roles[@]+"${installed_roles[@]}"}; do
+      role_base="${installed_role##*/}"
+      if [[ ! -f "$SOURCE_DIR/platforms/codex/agents/$role_base" ]]; then
+        printf 'Removing retired Codex role: %s\n' "$installed_role"
+        backup_file "$installed_role" "codex/agents/$role_base"
+        action rm -f "$installed_role"
+      fi
+    done
+  fi
+  for role_source in ${codex_role_sources[@]+"${codex_role_sources[@]}"}; do
+    role_base="${role_source##*/}"
+    copy_managed_file "$role_source" "$CODEX_DIR/agents/$role_base" "codex/agents/$role_base"
+  done
   rm -rf "$CODEX_MERGED"
 fi
 
@@ -1291,6 +1375,7 @@ if [[ "$OS_NAME" == Windows ]]; then
 fi
 if has_platform claude-code; then
   printf 'Restart Claude Code sessions to load the new settings.\n'
+  printf 'Optional: claude plugin marketplace add hieunguyen7337/coding-tool-optimizer && claude plugin install coding-tool-optimizer@coding-tool-optimizer\n'
 fi
 if has_platform amp; then
   printf 'Amp: restart Amp or run `plugins: reload` to load the usage-optimizer plugin.\n'

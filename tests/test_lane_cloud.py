@@ -797,10 +797,15 @@ class LaneCloudTests(unittest.TestCase):
         self.assertIn("Run the script and do not write a launch line of your own", flat)
         self.assertIn("their test counts add up to the whole suite", flat)
         self.assertIn("for each shard the list of files it ran", flat)
+        # From 2026-11-17.2 every mode shards a verify run; LANES_VERIFY_SHARDS=off keeps the serial step.
         for mode in ("default", "saving"):
             prompt = lane.claude_cloud_prompt("Brief.", "run-1", "sonnet", True, mode)
-            self.assertIn(lane.VERIFY_STEP.format("run-1", "run-1"), prompt)
-            self.assertNotIn("shard", prompt)
+            self.assertIn(lane.PARALLEL_VERIFY_STEP.format("run-1", "run-1"), prompt)
+            for value in ("off", "0", "serial"):
+                with mock.patch.dict(os.environ, {"LANES_VERIFY_SHARDS": value}):
+                    prompt = lane.claude_cloud_prompt("Brief.", "run-1", "sonnet", True, mode)
+                self.assertIn(lane.VERIFY_STEP.format("run-1", "run-1"), prompt)
+                self.assertNotIn("shard", prompt)
 
     def git_repo(self, files, commit=True):
         """Make a temporary git repository with the files (path to text) and commit them unless commit is False."""
@@ -885,11 +890,12 @@ class LaneCloudTests(unittest.TestCase):
         self.assertIn('SHARD_4="<fill>"', empty)
         self.assertNotIn("SHARD_5", empty)
         self.assertIn("placeholders", empty)
-        for mode in ("default", "saving"):
-            self.assertEqual(lane.claude_cloud_prompt("Brief.", "run-1", "sonnet", True, mode, shards=shards),
-                             lane.claude_cloud_prompt("Brief.", "run-1", "sonnet", True, mode))
+        with mock.patch.dict(os.environ, {"LANES_VERIFY_SHARDS": "off"}):
+            for mode in ("default", "saving", "utilization"):
+                self.assertEqual(lane.claude_cloud_prompt("Brief.", "run-1", "sonnet", True, mode, shards=shards),
+                                 lane.claude_cloud_prompt("Brief.", "run-1", "sonnet", True, mode))
 
-    def test_verify_shards_is_listed_only_for_utilization_verify_runs(self):
+    def test_verify_shards_is_listed_for_every_verify_run_unless_turned_off(self):
         lane = self.lane_module()
         path = self.git_repo({"tests/test_a.py": "x"})
         calls = []
@@ -899,10 +905,13 @@ class LaneCloudTests(unittest.TestCase):
             return [["tests.test_a"]]
 
         with mock.patch.object(lane, "verify_shards", side_effect=listing):
-            for verify, mode in ((True, "utilization"), (True, "default"), (False, "utilization")):
+            for verify, mode in ((True, "utilization"), (True, "saving"), (False, "utilization")):
                 lane.claude_cloud_command("claude", "term.py", path, os.path.join(path, "out"), "Brief.", "run-1",
                                           "claude-haiku-5-5", "high", verify=verify, mode=mode)
-        self.assertEqual(calls, [path])
+            with mock.patch.dict(os.environ, {"LANES_VERIFY_SHARDS": "off"}):
+                lane.claude_cloud_command("claude", "term.py", path, os.path.join(path, "out"), "Brief.", "run-1",
+                                          "claude-haiku-5-5", "high", verify=True, mode="utilization")
+        self.assertEqual(calls, [path, path])
 
     @unittest.skipUnless(shutil.which("sh"), "the shard script runs under a POSIX sh")
     @unittest.skipIf(os.name == "nt", "the shard script runs in the Linux VM; Git for Windows prints C:/ paths,"

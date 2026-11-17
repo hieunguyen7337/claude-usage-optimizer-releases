@@ -247,6 +247,22 @@ compaction and every lane. Amp and Codex CLI get the same policy and meter throu
 Install one with `bash install.sh --platform amp` or `--platform codex`, after `--dry-run` to see the plan. Without
 `--platform`, the installer keeps the platforms this machine already has, and Claude Code otherwise.
 
+### Plugins and skills
+
+Claude Code: `claude plugin marketplace add hieunguyen7337/coding-tool-optimizer`, then
+`claude plugin install coding-tool-optimizer@coding-tool-optimizer`. Codex CLI:
+`codex plugin marketplace add hieunguyen7337/coding-tool-optimizer`, then `/plugins`.
+
+The plugin carries the `kit-setup` skill. On Claude Code it also checks at session start that the core
+is installed and not older than the plugin. It does not install the core and it does not copy the core's
+hooks. `install.sh` still installs the tools, settings, hooks and policy, and these skills:
+
+- `kit-status` reads the meters and the mode before a fan-out or a long task.
+- `kit-dispatch` hands one briefed unit to a worker and records the review.
+- `kit-waste` lists unused agents, skills and MCP servers, and prunes only with the owner's yes.
+- `kit-review` weighs findings by reviewer tier.
+- `kit-hillclimb` runs a blind hill-climb after the owner approves that capability test.
+
 ## Install
 
 Paste the prompt for your agent (Claude Code, Codex CLI or Amp) from [SETUP_PROMPT.md](SETUP_PROMPT.md) into it; the

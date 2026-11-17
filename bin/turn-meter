@@ -2798,11 +2798,31 @@ def _waste_newest():
     return newest
 
 
-def _waste_heavy(model):
+def _waste_model_tokens(model):
     if not isinstance(model, str):
-        return False
-    tokens = re.split(r"[^a-z0-9]+", model.lower())
-    return "opus" in tokens or "fable" in tokens
+        return []
+    return [part for part in re.split(r"[^a-z0-9]+", model.lower()) if part]
+
+
+def _waste_heavy(model):
+    # Opus and Fable (Claude), and sol (Codex). Light work on these is an overpowered sub-agent.
+    # Astra is not included: a Codex sub-agent on astra is flagged even when the work is heavy.
+    tokens = _waste_model_tokens(model)
+    return "opus" in tokens or "fable" in tokens or "sol" in tokens
+
+
+def _waste_astra(model):
+    return "astra" in _waste_model_tokens(model)
+
+
+def _waste_subagent_action(model, tool_calls, output_tokens):
+    # None when the sub-agent is fine. Astra is never a sub-agent model. Opus, Fable and sol use the
+    # light-work gate: at most WASTE_SUBAGENT_TOOLS tool calls and under WASTE_SUBAGENT_OUTPUT output tokens.
+    if _waste_astra(model):
+        return "astra is never a sub-agent model"
+    if _waste_heavy(model) and tool_calls <= WASTE_SUBAGENT_TOOLS and output_tokens < WASTE_SUBAGENT_OUTPUT:
+        return "a smaller model probably fits"
+    return None
 
 
 def _waste_usage(usage):
@@ -3041,7 +3061,8 @@ def _waste_commit_bucket(scan, bucket, session, agent_file, is_sub, platform, pr
     if is_sub and requests:
         scan["subagent_files"] += 1
         model = max(output_by_model, key=output_by_model.get) if output_by_model else None
-        if _waste_heavy(model) and len(tools) <= WASTE_SUBAGENT_TOOLS and total_out < WASTE_SUBAGENT_OUTPUT:
+        action = _waste_subagent_action(model, len(tools), total_out)
+        if action:
             cost = None
             priced = True
             for item in requests:
@@ -3055,7 +3076,7 @@ def _waste_commit_bucket(scan, bucket, session, agent_file, is_sub, platform, pr
                 "session": session, "agent_id": agent_file, "model": model,
                 "agent_type": bucket["agent_type"], "tool_calls": len(tools), "output_tokens": total_out,
                 "list_usd": round(cost, 6) if priced and cost is not None else None,
-                "action": "a smaller model probably fits"})
+                "action": action})
 
 
 def _waste_read_claude_file(path, root, start, scan, prices):
@@ -3100,22 +3121,161 @@ def _waste_scan_claude(start, scan, prices):
             _waste_read_claude_file(path, root, start, scan, prices)
 
 
+def _waste_codex_spawn(payload):
+    # A sub-agent's session_meta payload.source is {"subagent": {"thread_spawn": {...}}}. A top-level session's
+    # source is a string ("cli", "exec", "vscode") and is not a sub-agent. Returns None, or the spawn fields.
+    source = payload.get("source") if isinstance(payload, dict) else None
+    if not isinstance(source, dict):
+        return None
+    sub = source.get("subagent")
+    spawn = sub.get("thread_spawn") if isinstance(sub, dict) else None
+    if not isinstance(spawn, dict):
+        return None
+    parent = spawn.get("parent_thread_id")
+    parent = parent.strip() if isinstance(parent, str) and parent.strip() else None
+    depth = spawn.get("depth")
+    depth = depth if isinstance(depth, int) and not isinstance(depth, bool) else None
+    nickname = spawn.get("agent_nickname")
+    if not isinstance(nickname, str) or not nickname.strip():
+        nickname = spawn.get("agent_role") if isinstance(spawn.get("agent_role"), str) else None
+    nickname = _waste_name(nickname) if isinstance(nickname, str) else None
+    thread_id = payload.get("id")
+    thread_id = thread_id.strip() if isinstance(thread_id, str) and thread_id.strip() else None
+    origin = payload.get("originator")
+    origin = origin if isinstance(origin, str) and origin else None
+    return {"parent": parent, "depth": depth, "nickname": nickname, "thread_id": thread_id, "origin": origin}
+
+
+def _waste_codex_tool_id(payload, fallback):
+    for key in ("call_id", "id"):
+        value = payload.get(key)
+        if isinstance(value, str) and value:
+            return value
+    return fallback
+
+
+def _waste_codex_subagent_model(output_by_model, context_models):
+    # Astra wins even when another model wrote more: a sub-agent that used astra at all is an astra sub-agent.
+    for name in list(output_by_model) + list(context_models):
+        if _waste_astra(name):
+            return name
+    if output_by_model:
+        return max(output_by_model, key=output_by_model.get)
+    return context_models[-1] if context_models else None
+
+
+def _waste_note_codex_subagent(scan, start, spawn, origin, times, turn_models, turns, chosen, context_models, tools, fallback_id):
+    # Count one in-window sub-agent rollout as agents.codex.subagent, and flag it the way a Claude sub-agent is flagged.
+    if not spawn or not any(stamp >= start for stamp in times):
+        return
+    origin = origin or "unknown"
+    seconds = _active_seconds(times, start)
+    place = scan.get("codex_subagent")
+    if place is None:
+        place = {"sessions": 0, "active_seconds": 0.0, "turns": 0, "models": {}, "max_depth": None, "parents": []}
+        scan["codex_subagent"] = place
+        scan["codex_subagent_origins"] = {}
+    _census_add(place, turn_models, seconds)
+    place["turns"] += turns
+    if spawn["depth"] is not None and (place["max_depth"] is None or spawn["depth"] > place["max_depth"]):
+        place["max_depth"] = spawn["depth"]
+    if spawn["parent"] and spawn["parent"] not in place["parents"]:
+        place["parents"].append(spawn["parent"])
+    deducted = scan["codex_subagent_origins"].setdefault(
+        origin, {"sessions": 0, "active_seconds": 0.0, "turns": 0, "models": {}})
+    _census_add(deducted, turn_models, seconds)
+    deducted["turns"] += turns
+    scan["subagent_seen"] += 1
+    output_by_model, total_out = {}, 0
+    for item in chosen:
+        total_out += item["output"]
+        if item.get("model"):
+            output_by_model[item["model"]] = output_by_model.get(item["model"], 0) + item["output"]
+    if chosen:
+        scan["subagent_files"] += 1
+    model = _waste_codex_subagent_model(output_by_model, context_models)
+    action = _waste_subagent_action(model, len(tools), total_out)
+    if not action:
+        return
+    cost, priced = None, True
+    for item in chosen:
+        part = _waste_codex_usd(item.get("model"), item.get("raw_usage"))
+        if part is None:
+            priced = False
+            break
+        cost = (cost or 0.0) + part
+    own_id = spawn["thread_id"] or fallback_id
+    scan["subagents"].append({
+        "session": spawn["parent"] or own_id, "agent_id": own_id, "model": model,
+        "agent_type": spawn["nickname"], "tool_calls": len(tools), "output_tokens": total_out,
+        "list_usd": round(cost, 6) if priced and cost is not None else None,
+        "action": action, "platform": "codex"})
+
+
+def _waste_move_codex_subagents(origins, place, deducted):
+    # Sub-agent rollouts are their own place. Take the sessions census grouped under the originator back out,
+    # so a sub-agent is not also a cli/exec/vscode session.
+    for origin, stats in (deducted or {}).items():
+        item = origins.get(origin)
+        if not isinstance(item, dict):
+            continue
+        item["sessions"] = max(0, item.get("sessions", 0) - stats.get("sessions", 0))
+        item["active_seconds"] = max(0.0, item.get("active_seconds", 0.0) - stats.get("active_seconds", 0.0))
+        item["turns"] = max(0, item.get("turns", 0) - stats.get("turns", 0))
+        models = item.get("models") if isinstance(item.get("models"), dict) else {}
+        for name, count in (stats.get("models") or {}).items():
+            left = models.get(name, 0) - count
+            if left > 0:
+                models[name] = left
+            else:
+                models.pop(name, None)
+        item["models"] = models
+        if item["sessions"] <= 0:
+            origins.pop(origin, None)
+    origins["subagent"] = {
+        "sessions": place.get("sessions", 0), "active_seconds": place.get("active_seconds", 0.0),
+        "turns": place.get("turns", 0), "models": dict(place.get("models") or {}),
+        "max_depth": place.get("max_depth"), "parents": sorted(place.get("parents") or [])}
+
+
 def _waste_scan_codex(start, scan):
     # One rollout is one session. last_token_usage.input_tokens already includes the cached part.
+    # A sub-agent rollout (payload.source.subagent.thread_spawn) is also agents.codex.subagent and may be overpowered.
+    scan["codex_scanned"] = True
     root = os.path.join(os.path.abspath(os.path.expanduser(os.environ.get("CODEX_HOME") or "~/.codex")), "sessions")
     for path in _census_files(root, "rollout-", start):
         if _waste_blocked(path):
             continue
         model, requests, any_dated, dated_in_window = None, [], False, False
         undated, context_models = [], []
+        times, turn_models, turns = [], {}, 0
+        spawn, origin, window_tools, undated_tools, tool_fallback = None, None, set(), set(), 0
         try:
             for entry in _census_lines(path):
                 stamp = _census_stamp(entry)
+                if stamp is not None:
+                    times.append(stamp)
                 payload = entry.get("payload") if isinstance(entry.get("payload"), dict) else {}
+                if entry.get("type") == "session_meta":
+                    if spawn is None:
+                        found = _waste_codex_spawn(payload)
+                        if found:
+                            spawn = found
+                    if isinstance(payload.get("originator"), str) and payload.get("originator"):
+                        origin = payload["originator"]
                 if entry.get("type") == "turn_context" or payload.get("type") == "turn_context":
                     if isinstance(payload.get("model"), str) and payload.get("model"):
                         model = payload["model"]
                         context_models.append(model)
+                        turn_models[model] = turn_models.get(model, 0) + 1
+                        turns += 1
+                if entry.get("type") == "response_item" and payload.get("type") in ("function_call", "custom_tool_call"):
+                    tool_fallback += 1
+                    ident = _waste_codex_tool_id(payload, "tool-{}".format(tool_fallback))
+                    if stamp is not None and stamp >= start:
+                        window_tools.add(ident)
+                    elif stamp is None:
+                        undated_tools.add(ident)
                 if not (entry.get("type") == "event_msg" and payload.get("type") == "token_count"):
                     if stamp is not None:
                         any_dated = True
@@ -3158,6 +3318,10 @@ def _waste_scan_codex(start, scan):
         if any_dated and not dated_in_window:
             continue
         chosen = requests if any_dated else undated
+        tools = window_tools if any_dated else undated_tools
+        fallback_id = os.path.splitext(os.path.basename(path))[0]
+        _waste_note_codex_subagent(scan, start, spawn, origin, times, turn_models, turns, chosen,
+                                   context_models, tools, fallback_id)
         if not chosen and not context_models:
             continue
         scan["codex_files"] += 1
@@ -3194,6 +3358,9 @@ def _waste_scan_codex(start, scan):
         elif context_models:
             for name in context_models:
                 scan["models"][name] = scan["models"].get(name, 0) + 1
+    place = scan.get("codex_subagent")
+    if place is not None and isinstance(place.get("parents"), list):
+        place["parents"] = sorted(place["parents"])
 
 
 def _waste_scan(start, platform):
@@ -3424,18 +3591,113 @@ def _waste_stamp_list(value, found):
         found.append(stamp)
 
 
+def _waste_amp_result(status, sessions, hours, note, models=None, output_tokens=None, saw_output=False):
+    # status/sessions/active_hours/note stay. skipped is set when the store could not be measured.
+    # output_tokens is null when the source has no token field, never a guessed 0.
+    return {"status": status, "sessions": sessions,
+            "active_hours": round(hours, 4) if status == "read" else 0.0, "note": note,
+            "skipped": None if status == "read" else note, "models": models or {},
+            "output_tokens": output_tokens if saw_output else None}
+
+
+def _waste_amp_explicit():
+    # An explicit store (tests, TURN_METER_AMP_THREADS) is the only source. Do not call the amp CLI for it.
+    return bool(os.environ.get("TURN_METER_AMP_THREADS") or os.environ.get("AMP_THREADS_DIR")
+                or os.environ.get("AMP_DATA_DIR"))
+
+
+def _waste_amp_message_model(message, data):
+    sources = [message, data]
+    meta = message.get("meta") if isinstance(message, dict) else None
+    if isinstance(meta, dict):
+        sources.insert(0, meta)
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        for key in ("model", "modelId", "model_id"):
+            value = source.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
+def _waste_amp_output(message):
+    usage = message.get("usage") if isinstance(message, dict) and isinstance(message.get("usage"), dict) else {}
+    for key in ("output_tokens", "outputTokens"):
+        if key in usage:
+            return _token_count(usage.get(key))
+    return None
+
+
+def _waste_amp_run(args):
+    # One amp CLI call, capped at 20s. The same tree-kill as _amp_thread_usage, for a process this call started.
+    configured = os.path.expanduser(os.environ.get("LANES_AMP_BIN", "").strip())
+    binary = configured or shutil.which("amp")
+    if not binary:
+        return None, "amp is not on PATH and no local thread store"
+    timeout = _number(os.environ.get("USAGE_OPTIMIZER_AMP_TIMEOUT"))
+    timeout = timeout if timeout is not None and 0 < timeout <= 20 else 20.0
+    try:
+        proc = subprocess.Popen([binary] + list(args), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None, "amp could not be started"
+    try:
+        stdout, _stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        if os.name == "nt":
+            try:
+                subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL, timeout=10, check=False)
+            except (OSError, subprocess.SubprocessError):
+                pass
+        try:
+            proc.kill()
+            proc.communicate(timeout=5)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass
+        return None, "amp threads list timed out"
+    except (OSError, ValueError, subprocess.SubprocessError):
+        return None, "amp threads list failed"
+    if proc.returncode != 0:
+        return None, "amp threads list failed"
+    return stdout or "", None
+
+
+def _waste_amp_list_ids(text):
+    if not isinstance(text, str):
+        return []
+    return sorted(set(re.findall(r"https://ampcode\.com/threads/(\S+)", text)))
+
+
+def _waste_amp_from_cli():
+    # `amp threads list` is not the per-thread usage call. It has no absolute timestamps, so a non-empty list is not
+    # a count of sessions in the window. An empty list (archived included) is zero threads.
+    text, error = _waste_amp_run(["threads", "list", "--include-archived"])
+    if error:
+        return _waste_amp_result("not read", 0, 0.0, error)
+    ids = _waste_amp_list_ids(text)
+    if not ids:
+        return _waste_amp_result("read", 0, 0.0, "amp threads list --include-archived returned no threads")
+    note = "amp threads list returned {} threads but no absolute timestamps, so none were counted in the window".format(
+        len(ids))
+    return _waste_amp_result("not read", 0, 0.0, note)
+
+
 def _waste_amp(start):
     root = _waste_amp_dir()
-    empty = {"status": "not present", "sessions": 0, "active_hours": 0.0, "note": "no Amp thread store"}
     if _waste_blocked(root):
-        return {"status": "not read", "sessions": 0, "active_hours": 0.0, "note": "Amp path is a credential location"}
+        return _waste_amp_result("not read", 0, 0.0, "Amp path is a credential location")
     if not os.path.isdir(root):
-        return empty
+        if _waste_amp_explicit():
+            return _waste_amp_result("not present", 0, 0.0, "no Amp thread store")
+        return _waste_amp_from_cli()
     parsed, failed, seconds, sessions = 0, 0, 0.0, 0
+    models, output_tokens, saw_output = {}, 0, False
     try:
         names = os.listdir(root)
     except OSError:
-        return {"status": "not read", "sessions": 0, "active_hours": 0.0, "note": "Amp thread store could not be listed"}
+        return _waste_amp_result("not read", 0, 0.0, "Amp thread store could not be listed")
     for name in names:
         if not name.endswith(".json"):
             continue
@@ -3456,8 +3718,11 @@ def _waste_amp(start):
         if not isinstance(data, dict) or not isinstance(data.get("messages"), list):
             continue
         parsed += 1
-        times = []
+        times, thread_models, thread_out, saw_thread = [], set(), 0, False
         _waste_stamp_list(data.get("created"), times)
+        top_model = _waste_amp_message_model({}, data)
+        if top_model:
+            thread_models.add(top_model)
         for message in data["messages"]:
             if not isinstance(message, dict):
                 continue
@@ -3465,14 +3730,25 @@ def _waste_amp(start):
             _waste_stamp_list(meta.get("sentAt"), times)
             usage = message.get("usage") if isinstance(message.get("usage"), dict) else {}
             _waste_stamp_list(usage.get("timestamp"), times)
+            message_model = _waste_amp_message_model(message, {})
+            if message_model:
+                thread_models.add(message_model)
+            count = _waste_amp_output(message)
+            if count is not None:
+                saw_thread = True
+                thread_out += count
         if any(stamp >= start for stamp in times) or (not times and os.path.getmtime(path) >= start.timestamp()):
             sessions += 1
             seconds += _active_seconds(times, start)
+            for message_model in thread_models:
+                models[message_model] = models.get(message_model, 0) + 1
+            if saw_thread:
+                saw_output = True
+                output_tokens += thread_out
     if parsed == 0 and failed:
-        return {"status": "not read", "sessions": 0, "active_hours": 0.0,
-                "note": "{} Amp thread file(s) could not be read".format(failed)}
+        return _waste_amp_result("not read", 0, 0.0, "{} Amp thread file(s) could not be read".format(failed))
     note = None if not failed else "{} Amp thread file(s) not read".format(failed)
-    return {"status": "read", "sessions": sessions, "active_hours": round(seconds / 3600.0, 4), "note": note}
+    return _waste_amp_result("read", sessions, seconds / 3600.0, note, models, output_tokens, saw_output)
 
 
 def _waste_agy_dir():
@@ -3482,25 +3758,61 @@ def _waste_agy_dir():
     return os.path.abspath(os.path.expanduser(os.path.join("~", ".gemini", "antigravity-cli")))
 
 
-def _waste_agy_times(path, times):
+def _waste_agy_transcript(path):
+    # One JSONL mirror: event times, output tokens (max per step_index, so a step written twice counts once) and any
+    # model field. This store's transcripts have created_at and output_tokens and no model field.
+    times, steps, models, saw, anon = [], {}, set(), False, 0
     try:
         for entry in _census_lines(path):
             for key in ("timestamp", "time", "created_at", "createdAt", "ts"):
                 if key in entry:
                     _waste_stamp_list(entry.get(key), times)
                     break
+            for key in ("model", "model_id", "modelId"):
+                value = entry.get(key)
+                if isinstance(value, str) and value.strip():
+                    models.add(value.strip())
+                    break
+            if "output_tokens" in entry:
+                count = _token_count(entry.get("output_tokens"))
+                if count is not None:
+                    saw = True
+                    step = entry.get("step_index")
+                    if isinstance(step, int) and not isinstance(step, bool):
+                        steps[step] = max(steps.get(step, 0), count)
+                    else:
+                        anon += count
     except OSError:
-        return False
-    return True
+        return False, [], None, set()
+    output = (sum(steps.values()) + anon) if saw else None
+    return True, times, output, models
+
+
+def _waste_agy_agent(legacy, sessions, seconds, models, output_tokens, saw_output, saw_db):
+    # agents.agy. A store that could not be read is {"skipped": reason} and nothing else, never a guessed count.
+    if legacy.get("status") != "read":
+        return {"skipped": legacy.get("note") or "Antigravity store was not read"}
+    agent = {"skipped": None, "sessions": sessions, "active_seconds": seconds, "models": models,
+             "output_tokens": output_tokens if saw_output else None}
+    if sessions and not models:
+        if saw_db:
+            agent["models_note"] = ("no model field in JSONL transcripts; "
+                                    "conversation sqlite was not parsed (protobuf)")
+        else:
+            agent["models_note"] = "no model field in JSONL transcripts"
+    return agent
 
 
 def _waste_agy(start):
-    # JSONL mirrors only. conversations/*.db is protobuf inside sqlite and is not parsed.
+    # (legacy antigravity row, agents.agy). JSONL mirrors only. conversations/*.db is protobuf and is not parsed.
     root = _waste_agy_dir()
     if _waste_blocked(root):
-        return {"status": "not read", "sessions": 0, "active_hours": 0.0, "note": "Antigravity path is a credential location"}
+        legacy = {"status": "not read", "sessions": 0, "active_hours": 0.0,
+                  "note": "Antigravity path is a credential location"}
+        return legacy, _waste_agy_agent(legacy, 0, 0.0, {}, 0, False, False)
     if not os.path.isdir(root):
-        return {"status": "not present", "sessions": 0, "active_hours": 0.0, "note": "no Antigravity store"}
+        legacy = {"status": "not present", "sessions": 0, "active_hours": 0.0, "note": "no Antigravity store"}
+        return legacy, _waste_agy_agent(legacy, 0, 0.0, {}, 0, False, False)
     db_names = None
     db_dir = os.path.join(root, "conversations")
     if os.path.isdir(db_dir):
@@ -3526,8 +3838,8 @@ def _waste_agy(start):
                     break
             if path is None:
                 continue
-            times = []
-            if not _waste_agy_times(path, times):
+            ok, times, output, conv_models = _waste_agy_transcript(path)
+            if not ok:
                 failed += 1
                 continue
             if not times:
@@ -3535,7 +3847,7 @@ def _waste_agy(start):
                     times.append(dt.datetime.fromtimestamp(os.path.getmtime(path), UTC))
                 except (OSError, OverflowError, ValueError):
                     pass
-            by_id[conv] = times
+            by_id[conv] = {"times": times, "output": output, "models": conv_models}
     history = os.path.join(root, "history.jsonl")
     if os.path.isfile(history) and not _waste_blocked(history):
         try:
@@ -3545,7 +3857,7 @@ def _waste_agy(start):
                     continue
                 times = []
                 _waste_stamp_list(entry.get("timestamp"), times)
-                by_id[identity] = times
+                by_id[identity] = {"times": times, "output": None, "models": set()}
         except OSError:
             failed += 1
     if not by_id and (db_names or failed):
@@ -3555,33 +3867,50 @@ def _waste_agy(start):
             note = "Antigravity store could not be read"
         else:
             note = "Antigravity transcripts could not be read"
-        return {"status": "not read", "sessions": 0, "active_hours": 0.0, "note": note}
+        legacy = {"status": "not read", "sessions": 0, "active_hours": 0.0, "note": note}
+        return legacy, _waste_agy_agent(legacy, 0, 0.0, {}, 0, False, bool(db_names))
     sessions, seconds = 0, 0.0
-    for times in by_id.values():
+    models, output_tokens, saw_output = {}, 0, False
+    for info in by_id.values():
+        times = info["times"]
         if times and not any(stamp >= start for stamp in times):
             continue
         if not times:
             continue
         sessions += 1
         seconds += _active_seconds(times, start)
+        for name in info["models"]:
+            models[name] = models.get(name, 0) + 1
+        if info["output"] is not None:
+            saw_output = True
+            output_tokens += info["output"]
     note = None
     if db_names:
         note = "sqlite store not parsed; counted from JSONL transcripts"
     elif failed:
         note = "{} Antigravity file(s) not read".format(failed)
-    return {"status": "read", "sessions": sessions, "active_hours": round(seconds / 3600.0, 4), "note": note}
+    legacy = {"status": "read", "sessions": sessions, "active_hours": round(seconds / 3600.0, 4), "note": note}
+    return legacy, _waste_agy_agent(legacy, sessions, seconds, models, output_tokens, saw_output, bool(db_names))
 
 
-def _waste_agents(start):
+def _waste_agents(start, scan=None):
     config = _waste_config_dir()
     codex_home = os.path.abspath(os.path.expanduser(os.environ.get("CODEX_HOME") or "~/.codex"))
     kinds, _folders, wall, claude_skipped = _census_claude(start, config)
     origins, codex_skipped = _census_codex(start, codex_home)
+    scan = scan or {}
+    if not scan.get("codex_scanned"):
+        scan = _waste_scan(start, "codex")
+    place = scan.get("codex_subagent")
+    if place and place.get("sessions"):
+        _waste_move_codex_subagents(origins, place, scan.get("codex_subagent_origins"))
     amp = _waste_amp(start)
-    agy = _waste_agy(start)
+    antigravity, agy = _waste_agy(start)
     value = {"skipped": None, "claude": kinds, "codex": origins, "claude_wall_hours": round(wall, 4),
-             "amp": amp, "antigravity": agy, "skipped_files": claude_skipped + codex_skipped}
-    nothing = (not kinds and not origins and amp["status"] == "not present" and agy["status"] == "not present")
+             "amp": amp, "antigravity": antigravity, "agy": agy,
+             "skipped_files": claude_skipped + codex_skipped}
+    nothing = (not kinds and not origins and amp["status"] == "not present"
+               and antigravity["status"] == "not present")
     if nothing:
         value["skipped"] = "no Claude, Codex, Amp or Antigravity session stores in the window"
     return value
@@ -3599,8 +3928,10 @@ def _waste_disabled(days, platform, reason, now=None):
         "skipped": reason, "field": None, "fast_list_usd": None, "total_list_usd": None, "share": None,
         "fast_requests": 0, "priced_requests": 0, "action": None}}
     report["agents"] = {"skipped": reason, "claude": {}, "codex": {}, "claude_wall_hours": 0.0,
-                        "amp": {"status": "not read", "sessions": 0, "active_hours": 0.0, "note": reason},
+                        "amp": {"status": "not read", "sessions": 0, "active_hours": 0.0, "note": reason,
+                                "skipped": reason, "models": {}, "output_tokens": None},
                         "antigravity": {"status": "not read", "sessions": 0, "active_hours": 0.0, "note": reason},
+                        "agy": {"skipped": reason},
                         "skipped_files": 0}
     return report
 
@@ -3683,10 +4014,15 @@ def _waste_report(days, platform, now=None):
       "agents": {
         "skipped": null | "<reason>",
         "claude": {"<kind>": {"sessions": 0, "active_seconds": 0.0, "output_tokens": 0, "models": {}}},
-        "codex": {"<origin>": {"sessions": 0, "active_seconds": 0.0, "turns": 0, "models": {}}},
+        "codex": {"<origin>": {"sessions": 0, "active_seconds": 0.0, "turns": 0, "models": {}},
+                  "subagent": {"sessions": 0, "active_seconds": 0.0, "turns": 0, "models": {},
+                               "max_depth": 0, "parents": ["<parent thread id>"]}},
         "claude_wall_hours": 0.0,
-        "amp": {"status": "read" | "not present" | "not read", "sessions": 0, "active_hours": 0.0, "note": null},
+        "amp": {"status": "read" | "not present" | "not read", "sessions": 0, "active_hours": 0.0, "note": null,
+                "skipped": null | "<reason>", "models": {}, "output_tokens": null | 0},
         "antigravity": {"status": "read" | "not present" | "not read", "sessions": 0, "active_hours": 0.0, "note": null},
+        "agy": {"skipped": null | "<reason>", "sessions": 0, "active_seconds": 0.0, "models": {},
+                "output_tokens": null | 0, "models_note": null | "<why models are empty>"},
         "skipped_files": 0
       }
     }
@@ -3698,13 +4034,20 @@ def _waste_report(days, platform, now=None):
     (input + cache read + cache creation). Codex uses uncached input (input_tokens - cached_input_tokens) as the
     write and input_tokens as the prompt. Cold turns follow a gap longer than 60 minutes, or 5 when a request
     shows ephemeral_5m, and rewrite more than 50000 cache tokens.
-    overpowered: a subagent transcript whose dominant model is Opus or Fable, with at most 5 tool calls and under
-    2000 output tokens. list_usd is this module's list price, or null when a model has no price.
+    overpowered: a subagent whose model is Astra (always: "astra is never a sub-agent model"), or whose dominant
+    model is Opus, Fable or sol with at most 5 tool calls and under 2000 output tokens. list_usd is this module's
+    list price (Codex: the credit rate card), or null when a model has no price. A Codex sub-agent's session is its
+    parent_thread_id. Codex tool calls are function_call and custom_tool_call response items, one per call id.
     old_models: a seen model whose family is in the catalog and whose version is older than the newest lanes.*.model
     or explore.main_session model of that family. fast_mode uses usage.speed / fast_mode (Codex: the same on the
     token_count payload). service_tier is not fast mode. When no request carries the field, fast_mode.skipped says so.
     agents extends the census kinds with Amp thread files and Antigravity JSONL. A sqlite/protobuf Antigravity
-    store with no JSONL mirror is status "not read".
+    store with no JSONL mirror is status "not read", and agents.agy is {"skipped": that reason}. Codex sub-agent
+    rollouts are the codex "subagent" place (max_depth, parents) and are not also counted under their originator.
+    Amp models and output tokens come from the local thread JSON. With no explicit thread dir and no store, one
+    `amp threads list --include-archived` runs (20s) and, because that list has no absolute timestamps, a non-empty
+    list is skipped rather than counted in the window. agy sessions and active time come from JSONL created_at
+    (file mtime when a transcript has none). The JSONL on this machine has output tokens and no model field.
     """
     now = now or dt.datetime.now(UTC)
     if now.tzinfo is None:
@@ -3722,7 +4065,7 @@ def _waste_report(days, platform, now=None):
         ("cache_rehydration", lambda: _waste_cache(scan)),
         ("overpowered_subagents", lambda: _waste_overpowered(scan, platform)),
         ("old_models", lambda: _waste_old_models(scan)),
-        ("agents", lambda: _waste_agents(start)),
+        ("agents", lambda: _waste_agents(start, scan)),
     )
     for key, builder in builders:
         try:
@@ -3742,6 +4085,37 @@ def _waste_lines(title, section, rows):
     if len(rows) > WASTE_TEXT_LIMIT:
         lines.append("  and {} more".format(len(rows) - WASTE_TEXT_LIMIT))
     return lines
+
+
+def _waste_store_line(label, row):
+    # One text line for amp, antigravity or agy. A skipped store is one line and is not counted as zero sessions.
+    if not isinstance(row, dict) or not row:
+        return None
+    if row.get("skipped"):
+        return "{}: skipped ({})".format(label, row["skipped"])
+    if row.get("status") == "read" or (row.get("status") is None and "sessions" in row):
+        if row.get("status") == "read" and "active_hours" in row:
+            hours = row.get("active_hours") or 0.0
+        elif "active_seconds" in row:
+            hours = (row.get("active_seconds") or 0.0) / 3600.0
+        else:
+            hours = row.get("active_hours") or 0.0
+        line = "{:<16} {:>4} sessions {:>7.1f} h".format(label, row.get("sessions", 0), hours)
+        if row.get("output_tokens") is not None:
+            line += "  out {}".format(row["output_tokens"])
+        models = row.get("models") or {}
+        if models:
+            shown = ", ".join("{} {}".format(name, count) for name, count in
+                              sorted(models.items(), key=lambda kv: (-kv[1], kv[0]))[:4])
+            line += "  models {}".format(shown)
+        elif row.get("models_note"):
+            line += "  ({})".format(row["models_note"])
+        if row.get("note"):
+            line += " ({})".format(row["note"])
+        return line
+    if row.get("status"):
+        return "{}: {} ({})".format(label, row.get("status") or "not read", row.get("note") or "")
+    return None
 
 
 def _waste_text(value):
@@ -3775,15 +4149,15 @@ def _waste_text(value):
             agent_rows.append("claude-code {:<12} {:>4} sessions {:>7.1f} h".format(
                 kind, row.get("sessions", 0), row.get("active_seconds", 0) / 3600.0))
         for origin, row in sorted((agent.get("codex") or {}).items(), key=lambda kv: -kv[1].get("active_seconds", 0)):
-            agent_rows.append("codex {:<16} {:>4} sessions {:>7.1f} h".format(
-                origin, row.get("sessions", 0), row.get("active_seconds", 0) / 3600.0))
-        for label, row in (("amp", agent.get("amp") or {}), ("antigravity", agent.get("antigravity") or {})):
-            if row.get("status") == "read":
-                note = " ({})".format(row["note"]) if row.get("note") else ""
-                agent_rows.append("{:<16} {:>4} sessions {:>7.1f} h{}".format(
-                    label, row.get("sessions", 0), row.get("active_hours", 0.0), note))
-            else:
-                agent_rows.append("{}: {} ({})".format(label, row.get("status") or "not read", row.get("note") or ""))
+            line = "codex {:<16} {:>4} sessions {:>7.1f} h".format(
+                origin, row.get("sessions", 0), row.get("active_seconds", 0) / 3600.0)
+            if origin == "subagent" and row.get("max_depth") is not None:
+                line += "  depth {}  parents {}".format(row["max_depth"], len(row.get("parents") or []))
+            agent_rows.append(line)
+        for label in ("amp", "antigravity", "agy"):
+            line = _waste_store_line(label, agent.get(label) or {})
+            if line:
+                agent_rows.append(line)
     lines = ["waste since {} platform {}".format(value.get("since", ""), value.get("platform", ""))]
     lines.extend(_waste_lines("UNUSED AGENTS, SKILLS AND MCP SERVERS", unused, unused_rows))
     lines.extend(_waste_lines("CACHE REHYDRATION", cache, cache_rows))
@@ -3815,6 +4189,277 @@ def _waste_command(days, platform, json_output, now=None):
     except Exception:
         print("waste: error: report could not be printed")
     return 0
+
+
+# ---- prune: apply and restore the waste report's unused-item proposals ------------------------------------------------
+
+PRUNE_IDLE_MINUTES = 60
+# Agents the kit ships and the lane arms; never pruned even when a user copy differs from the kit's file.
+PRUNE_KEEP_AGENTS = ("digest", "scout", "verifier", "researcher")
+
+
+def _prune_kit_agent_files():
+    folder = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "agents")
+    try:
+        return set(name.lower() for name in os.listdir(folder))
+    except OSError:
+        return set()
+
+
+def _prune_kit_skill_names():
+    # Skills and mods the kit ships (skills/, private/skills/, mods/ in the kit directory).
+    kit = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    names = set()
+    for sub in ("skills", os.path.join("private", "skills"), "mods"):
+        try:
+            names.update(name.lower() for name in os.listdir(os.path.join(kit, sub)))
+        except OSError:
+            pass
+    return names
+
+
+def _prune_exclusion(item, config, kit_files, kit_skills=()):
+    """The reason an item is never pruned, or None."""
+    kind, name, path = item["kind"], item["name"], item.get("path") or ""
+    if item.get("scope") != "user":
+        return "{} scope: only user-scope items are pruned".format(item.get("scope"))
+    if kind == "mcp":
+        return None
+    base = os.path.basename(path.rstrip("\\/"))
+    if name.startswith("lane-") or base.lower().startswith("lane-"):
+        return "installed by the kit (lane- name)"
+    if kind == "agent":
+        if base.lower() in kit_files or (name + ".md").lower() in kit_files:
+            return "installed by the kit (file in the kit's agents/ directory)"
+        if name in PRUNE_KEEP_AGENTS or base[:-3] in PRUNE_KEEP_AGENTS:
+            return "a kit agent that is never pruned"
+    if kind == "skill" and base.lower() in kit_skills:
+        return "installed by the kit (a skill or mod in the kit directory)"
+    if kind == "skill" and path and os.path.isdir(path) and not os.path.isfile(os.path.join(path, "SKILL.md")):
+        return "not a skill folder (no SKILL.md; e.g. Claude Code's synced skills)"
+    root = os.path.join(config, "agents" if kind == "agent" else "skills")
+    parent = os.path.normcase(os.path.abspath(os.path.dirname(path.rstrip("\\/")))) if path else ""
+    if parent != os.path.normcase(os.path.abspath(root)):
+        return "path is outside ~/.claude/{}".format("agents" if kind == "agent" else "skills")
+    return None
+
+
+def _prune_mcp_command(item):
+    return "claude mcp remove {} -s {}".format(item["name"], item["scope"])
+
+
+def _prune_candidates(days, now):
+    """(candidates, excluded, skipped reason) from the same scan as `waste`."""
+    if _switched_off("TURN_METER_WASTE"):
+        return [], [], "TURN_METER_WASTE=off"
+    report = _waste_report(days, "claude-code", now)
+    unused = report["unused"]
+    config, kit_files, kit_skills = _waste_config_dir(), _prune_kit_agent_files(), _prune_kit_skill_names()
+    candidates, excluded = [], []
+    for item in unused["items"]:
+        row = {"kind": item["kind"], "name": item["name"], "scope": item["scope"], "path": item["path"],
+               "project": item.get("project"), "tokens": item.get("description_tokens")}
+        reason = _prune_exclusion(item, config, kit_files, kit_skills)
+        if reason:
+            excluded.append(dict(row, reason=reason))
+        elif item["kind"] == "mcp":
+            candidates.append(dict(row, action="manual", command=_prune_mcp_command(item)))
+        else:
+            candidates.append(dict(row, action="move"))
+    return candidates, excluded, unused["skipped"]
+
+
+def _prune_last_turn(state):
+    last = None
+    for turn in _turns(state):
+        stamp = _time(turn.get("ended_at")) or _time(turn.get("started_at"))
+        if stamp and (last is None or stamp > last):
+            last = stamp
+    return last
+
+
+def _prune_idle_problem(state, now):
+    """A one-line reason when a session may be working, else None."""
+    last = _prune_last_turn(state)
+    if last is not None and now - last < dt.timedelta(minutes=PRUNE_IDLE_MINUTES):
+        minutes = max(0, int((now - last).total_seconds() // 60))
+        return "a turn ended {} min ago (need {} idle minutes); wait, or pass --now to apply anyway".format(
+            minutes, PRUNE_IDLE_MINUTES)
+    flights = _lanes_in_flight(_runs(state), None, now)
+    if flights:
+        return "{} lane run(s) in flight; wait for them, or pass --now to apply anyway".format(len(flights))
+    return None
+
+
+def _prune_manifests(state):
+    root = os.path.join(state, "pruned")
+    try:
+        names = sorted(os.listdir(root))
+    except OSError:
+        return []
+    found = []
+    for name in names:
+        manifest = _read_json(os.path.join(root, name, "manifest.json"))
+        if isinstance(manifest, dict):
+            found.append((name, os.path.join(root, name), manifest))
+    return found
+
+
+def _prune_move(source, target):
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    try:
+        os.replace(source, target)
+    except OSError:
+        shutil.move(source, target)
+
+
+def _prune_apply(state, candidates, names, apply_all, now):
+    wanted = set(names)
+    chosen = [c for c in candidates if apply_all or c["name"] in wanted]
+    not_found = [] if apply_all else sorted(wanted - set(c["name"] for c in chosen))
+    stamp = now.strftime("%Y%m%dT%H%M%SZ")
+    folder = os.path.join(state, "pruned", stamp)
+    suffix = 1
+    while os.path.exists(folder):
+        suffix += 1
+        folder = os.path.join(state, "pruned", "{}-{}".format(stamp, suffix))
+    stamp = os.path.basename(folder)
+    items, failed = [], []
+    for candidate in chosen:
+        entry = {"kind": candidate["kind"], "name": candidate["name"], "scope": candidate["scope"],
+                 "original_path": candidate["path"], "new_path": None, "tokens": candidate["tokens"],
+                 "time": _iso(now)}
+        if candidate["action"] == "manual":
+            entry.update(status="manual", command=candidate["command"])
+            items.append(entry)
+            continue
+        target = os.path.join(folder, candidate["kind"], os.path.basename(candidate["path"].rstrip("\\/")))
+        try:
+            _prune_move(candidate["path"], target)
+        except OSError as error:
+            failed.append({"kind": candidate["kind"], "name": candidate["name"], "error": str(error)})
+            continue
+        entry.update(status="moved", new_path=target)
+        items.append(entry)
+    manifest = {"schema": 1, "stamp": stamp, "created_at": _iso(now), "restored_at": None, "items": items}
+    if items:
+        _atomic_json(os.path.join(folder, "manifest.json"), manifest)
+    return manifest, (folder if items else None), not_found, failed
+
+
+def _prune_restore(state, which, now):
+    manifests = _prune_manifests(state)
+    if which in (None, "last"):
+        open_ones = [m for m in manifests if not m[2].get("restored_at")]
+        picked = (open_ones or manifests)[-1] if manifests else None
+    else:
+        picked = next((m for m in manifests if m[0] == which), None)
+    if picked is None:
+        return None
+    stamp, folder, manifest = picked
+    restored, conflicts, missing = [], [], []
+    for entry in manifest.get("items", []):
+        if entry.get("status") != "moved" or entry.get("restored_at"):
+            continue
+        original, current = entry.get("original_path"), entry.get("new_path")
+        row = {"kind": entry.get("kind"), "name": entry.get("name"), "path": original}
+        if not original or not current:
+            missing.append(row)
+        elif os.path.lexists(original):
+            conflicts.append(row)
+        elif not os.path.lexists(current):
+            missing.append(row)
+        else:
+            try:
+                _prune_move(current, original)
+            except OSError as error:
+                conflicts.append(dict(row, error=str(error)))
+                continue
+            entry["restored_at"] = _iso(now)
+            restored.append(row)
+    if all(e.get("status") != "moved" or e.get("restored_at") for e in manifest.get("items", [])):
+        manifest["restored_at"] = manifest.get("restored_at") or _iso(now)
+    if restored or manifest.get("restored_at"):
+        _atomic_json(os.path.join(folder, "manifest.json"), manifest)
+    return {"stamp": stamp, "manifest": os.path.join(folder, "manifest.json"), "restored": restored,
+            "conflicts": conflicts, "missing": missing, "fully_restored": bool(manifest.get("restored_at"))}
+
+
+def _prune_print(value, json_output, lines):
+    if json_output:
+        print(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
+    else:
+        for line in lines:
+            print(line)
+
+
+def _prune_command(args, now=None):
+    now = now or dt.datetime.now(UTC)
+    state = _state_dir()
+    as_json = args.json
+    if args.list:
+        rows = []
+        for stamp, _folder, manifest in _prune_manifests(state):
+            items = manifest.get("items", [])
+            rows.append({"stamp": stamp, "created_at": manifest.get("created_at"),
+                         "restored_at": manifest.get("restored_at"),
+                         "moved": sum(1 for i in items if i.get("status") == "moved"),
+                         "manual": sum(1 for i in items if i.get("status") == "manual")})
+        _prune_print({"mode": "list", "manifests": rows}, as_json, [
+            "{} {} moved={} manual={}{}".format(r["stamp"], r["created_at"], r["moved"], r["manual"],
+                                                 " restored " + r["restored_at"] if r["restored_at"] else "")
+            for r in rows] or ["no prune manifests"])
+        return 0
+    if args.restore is not None:
+        value = _prune_restore(state, args.restore, now)
+        if value is None:
+            _prune_print({"mode": "restore", "error": "no such manifest"}, as_json,
+                         ["prune: no manifest {}".format(args.restore)])
+            return 1
+        value = dict(value, mode="restore")
+        lines = ["restored {} {} -> {}".format(r["kind"], r["name"], r["path"]) for r in value["restored"]]
+        lines += ["not restored {} {}: {} exists now (both left in place)".format(r["kind"], r["name"], r["path"])
+                  for r in value["conflicts"]]
+        lines += ["not restored {} {}: the moved copy is gone".format(r["kind"], r["name"]) for r in value["missing"]]
+        _prune_print(value, as_json, lines or ["nothing to restore in {}".format(value["stamp"])])
+        return 1 if value["conflicts"] or value["missing"] else 0
+    candidates, excluded, skipped = _prune_candidates(args.days, now)
+    if not args.apply and not args.apply_all:
+        lines = []
+        for c in candidates:
+            tokens = "~{} tok/request".format(c["tokens"]) if c["tokens"] is not None else "tokens not measured"
+            where = ("would move {}".format(c["path"]) if c["action"] == "move"
+                     else "manual, run: {}".format(c["command"]))
+            lines.append("{} {} ({}) {} -> {}".format(c["kind"], c["name"], c["scope"], tokens, where))
+        lines += ["excluded {} {} ({}): {}".format(e["kind"], e["name"], e["scope"], e["reason"]) for e in excluded]
+        if not lines:
+            lines = ["nothing to prune" + (": {}".format(skipped) if skipped else "")]
+        _prune_print({"mode": "dry-run", "days": args.days, "skipped": skipped, "candidates": candidates,
+                      "excluded": excluded}, as_json, lines)
+        return 0
+    if not args.now:
+        problem = _prune_idle_problem(state, now)
+        if problem:
+            _prune_print({"mode": "apply", "refused": problem}, as_json, ["prune: refused: " + problem])
+            return 3
+    manifest, folder, not_found, failed = _prune_apply(state, candidates, args.apply or [], args.apply_all, now)
+    asked = set(args.apply or [])
+    excluded_asked = [e for e in excluded if e["name"] in asked]
+    not_found = [n for n in not_found if n not in set(e["name"] for e in excluded_asked)]
+    applied = [i for i in manifest["items"] if i["status"] == "moved"]
+    manual = [i for i in manifest["items"] if i["status"] == "manual"]
+    value = {"mode": "apply", "stamp": manifest["stamp"] if folder else None,
+             "manifest": os.path.join(folder, "manifest.json") if folder else None, "applied": applied,
+             "manual": manual, "excluded": excluded_asked, "not_found": not_found, "failed": failed}
+    lines = ["moved {} {} -> {}".format(i["kind"], i["name"], i["new_path"]) for i in applied]
+    lines += ["manual {} {}: run: {}".format(i["kind"], i["name"], i["command"]) for i in manual]
+    lines += ["excluded {} {}: {}".format(e["kind"], e["name"], e["reason"]) for e in excluded_asked]
+    lines += ["not a candidate (not unused in this scan): {}".format(n) for n in not_found]
+    lines += ["failed {} {}: {}".format(f["kind"], f["name"], f["error"]) for f in failed]
+    if folder:
+        lines.append("undo: turn-meter prune --restore {}".format(manifest["stamp"]))
+    _prune_print(value, as_json, lines or ["nothing applied"])
+    return 1 if failed or not_found or excluded_asked or not (applied or manual) else 0
 
 
 def _use_utf8_streams():
@@ -3868,6 +4513,19 @@ def _main(argv=None):
     waste.add_argument("--days", type=int, default=14)
     waste.add_argument("--json", action="store_true")
     waste.add_argument("--platform", choices=("claude-code", "codex", "all"), default="all")
+    prune = commands.add_parser("prune", description=(
+        "Dry run by default: lists the waste report's unused agents, skills and MCP servers. --apply NAME... or "
+        "--apply-all moves user-scope agent files and skill folders into <state>/pruned/<UTC stamp>/ with a "
+        "manifest (never deletes) and prints the `claude mcp remove` command for MCP servers (never edits "
+        "settings). Refused (exit 3) while any turn ended in the last 60 minutes or a lane run is in flight, "
+        "unless --now. Running sessions pick the change up at their next start. --restore [STAMP|last] undoes it."))
+    prune.add_argument("--days", type=int, default=14)
+    prune.add_argument("--apply", nargs="+", metavar="NAME")
+    prune.add_argument("--apply-all", action="store_true")
+    prune.add_argument("--now", action="store_true", help="skip the idle gate")
+    prune.add_argument("--restore", nargs="?", const="last", metavar="STAMP")
+    prune.add_argument("--list", action="store_true")
+    prune.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
     if args.command == "hook":
         _hook(args.platform, args.json)
@@ -3927,6 +4585,13 @@ def _main(argv=None):
             print(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
         else:
             print(_census_text(value, folders))
+    elif args.command == "prune":
+        if args.days < 1:
+            parser.error("--days must be a positive integer")
+        modes = sum(bool(x) for x in (args.apply, args.apply_all, args.restore is not None, args.list))
+        if modes > 1:
+            parser.error("choose one of --apply, --apply-all, --restore, --list")
+        return _prune_command(args)
     elif args.command == "waste":
         if args.days < 1:
             parser.error("--days must be a positive integer")

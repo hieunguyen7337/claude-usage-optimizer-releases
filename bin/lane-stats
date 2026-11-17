@@ -23,6 +23,19 @@ FIELDS = ("lane", "model", "effort", "class", "tag", "provider", "place")
 # What report can group by: the exported fields plus the advisor role a fable run records ("-" when it has none).
 GROUP_FIELDS = FIELDS + ("role",)
 OUTCOMES = ("accepted", "fixed", "rework", "rejected")
+# Reviewer signal. Live precision replaces Suite R once an arm has this many recorded findings.
+REVIEWER_MIN_FINDINGS = 10
+# At or above this precision an arm is higher-signal; below it, lower-signal. No precision is unknown.
+REVIEWER_PRECISION_BAR = 0.85
+REVIEWER_TIER_ORDER = ("higher-signal", "lower-signal", "unknown")
+# One line per tier. A higher-signal finding is applied once verified; a lower-signal finding is not.
+REVIEWER_STANCE = {
+    "higher-signal": "apply a verified finding by default; decline only for explicit direction, repo convention "
+                     "or a pattern it did not see",
+    "lower-signal": "start sceptical: act only on a concrete correctness, contract or security flaw with a "
+                    "path that fires",
+    "unknown": "no data: treat as lower-signal; record --findings on its reviews",
+}
 # A run that did no finished work. STUCK is a worker the stuck-run guard stopped; lane-stats counts it like FAILED.
 INCOMPLETE_VERDICTS = ("QUOTA", "BUSY", "NOOP", "FAILED", "STUCK", "SANDBOX", "UNKNOWN", "TIMEOUT")
 FACT_HEADER = "Known facts about this repository (from the kit's run records):"
@@ -1055,15 +1068,46 @@ def facts_command(args):
     return 0
 
 
+def whole_count(value):
+    """A non-negative integer count. True is an int in Python, and it is not a count."""
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def parse_findings(value):
+    """APPLIED/TOTAL. 0/0 is a real record (the run reported no findings), not a missing count."""
+    text = value.strip() if isinstance(value, str) else ""
+    match = re.fullmatch(r"([0-9]+)/([0-9]+)", text)
+    if match is None:
+        raise ValueError("--findings must be APPLIED/TOTAL, non-negative integers with APPLIED <= TOTAL "
+                         "(0/0 is allowed)")
+    applied, total = int(match.group(1)), int(match.group(2))
+    if applied > total:
+        raise ValueError("--findings must be APPLIED/TOTAL, non-negative integers with APPLIED <= TOTAL "
+                         "(0/0 is allowed)")
+    return applied, total
+
+
 def review(args):
+    findings = None
+    if getattr(args, "findings", None) is not None:
+        try:
+            findings = parse_findings(args.findings)
+        except ValueError as exc:
+            print("lane-stats: {}".format(exc), file=sys.stderr)
+            return 2
     texts = [check_fact_text(text) for text in (getattr(args, "facts", None) or [])]
     state = state_dir()
     key, run_dir = locate_run(args.run, state)
     if run_dir is None:
         print("lane-stats: unknown RUN: {}".format(args.run), file=sys.stderr)
         return 2
-    review_data = {"outcome": args.outcome, "note": args.note or "", "fix_minutes": args.fix_minutes,
-                   "reviewed_at": iso_now()}
+    review_data = {"outcome": args.outcome}
+    if findings is not None:
+        review_data["findings_applied"] = findings[0]
+        review_data["findings_total"] = findings[1]
+    review_data["note"] = args.note or ""
+    review_data["fix_minutes"] = args.fix_minutes
+    review_data["reviewed_at"] = iso_now()
     review_path = os.path.join(run_dir, "review.json")
     os.makedirs(run_dir, exist_ok=True)
     with open(review_path, "w", encoding="utf-8", newline="\n") as stream:
@@ -1081,6 +1125,235 @@ def review(args):
             print("lane-stats: review saved; repository fact not recorded: {}".format(exc), file=sys.stderr)
             return 2
     print("reviewed {}: {}".format(os.path.basename(os.path.normpath(run_dir)), args.outcome))
+    return 0
+
+
+def finding_counts(review):
+    """(applied, total) when the review recorded both, else None. A partial or backwards pair is ignored."""
+    if not isinstance(review, dict) or "findings_total" not in review or "findings_applied" not in review:
+        return None
+    applied, total = review.get("findings_applied"), review.get("findings_total")
+    if not whole_count(applied) or not whole_count(total) or applied > total:
+        return None
+    return applied, total
+
+
+def reviewer_arm_name(lane, effort):
+    """The arm name report groups as lane and effort, joined the way Suite R's `arm` field is (`astra-high`)."""
+    if not isinstance(lane, str) or not lane or not isinstance(effort, str) or not effort:
+        return None
+    return "{}-{}".format(lane, effort)
+
+
+def suite_r_path():
+    return os.path.join(kit_dir(), "findings", "suite-r", "rescore-per-run.jsonl")
+
+
+def suite_row_kept(row):
+    """Suite R rows that failed, were skipped, or never ran are not signal."""
+    if not isinstance(row, dict):
+        return False
+    if row.get("infra_failure") is True or row.get("skipped") is True or row.get("run_present") is False:
+        return False
+    return isinstance(row.get("arm"), str) and row["arm"] != ""
+
+
+def mean_or_none(values):
+    """Mean of the finite numbers. Nulls and non-numbers are left out; no numbers is None, not zero."""
+    numbers = []
+    for value in values:
+        parsed = number(value)
+        if parsed is not None:
+            numbers.append(parsed)
+    return statistics.mean(numbers) if numbers else None
+
+
+def suite_r_by_arm(rows):
+    """Per-arm Suite R means. `n` counts kept rows, including rows whose precision is null."""
+    grouped = {}
+    for row in rows:
+        if not suite_row_kept(row):
+            continue
+        # A replicate (`astra-high-r2`) is the same arm run again: its rows join the arm's.
+        arm = re.sub(r"-r[0-9]+$", "", row["arm"])
+        # Fable 5.1 ran through the opus lane in Suite R (`opus-max-claude-fable-5-1`): name it by its model.
+        arm = re.sub(r"^[a-z]+-([a-z]+)-claude-fable-([0-9]+)-([0-9]+)$", r"fable-\2.\3-\1", arm)
+        bucket = grouped.setdefault(arm, {"lane": None, "effort": None, "rows": []})
+        bucket["rows"].append(row)
+        if bucket["lane"] is None and isinstance(row.get("lane"), str) and row["lane"]:
+            bucket["lane"] = row["lane"]
+        if bucket["effort"] is None and isinstance(row.get("effort"), str) and row["effort"]:
+            bucket["effort"] = row["effort"]
+    stats_by_arm = {}
+    for arm, bucket in grouped.items():
+        kept = bucket["rows"]
+        planted = [row.get("recall_planted_v1_item") for row in kept if row.get("is_planted_item") is True]
+        real = []
+        for row in kept:
+            total = number(row.get("real_issue_total"))
+            if total is not None and total > 0:
+                real.append(row.get("recall_real_item"))
+        stats_by_arm[arm] = {
+            "lane": bucket["lane"], "effort": bucket["effort"], "suite_n": len(kept),
+            "precision_v2_nodup_item": mean_or_none(row.get("precision_v2_nodup_item") for row in kept),
+            "recall_planted_v1_item": mean_or_none(planted),
+            "recall_real_item": mean_or_none(real),
+        }
+    return stats_by_arm
+
+
+def live_findings_by_arm(runs, reviews):
+    """Sum applied/total for every reviewed run of an arm. Plans and classes are not split."""
+    totals = {}
+    for key, review in reviews.items():
+        counts = finding_counts(review)
+        if counts is None:
+            continue
+        run = runs.get(key)
+        if run is None:
+            continue
+        name = reviewer_arm_name(run.get("lane"), run.get("effort"))
+        if name is None:
+            continue
+        bucket = totals.setdefault(name, {"lane": run.get("lane"), "effort": run.get("effort"),
+                                           "findings_applied": 0, "findings_total": 0})
+        bucket["findings_applied"] += counts[0]
+        bucket["findings_total"] += counts[1]
+    return totals
+
+
+def runs_and_reviews(state):
+    """Local runs and imported ones, with the review that won. Attribution is not needed here."""
+    runs, _, _ = load_runs(state)
+    reviews, _ = latest_reviews(state, runs)
+    imported_dir = os.path.join(state, "imported")
+    if not os.path.isdir(imported_dir):
+        return runs, reviews
+    for name in sorted(os.listdir(imported_dir)):
+        if not name.endswith(".jsonl"):
+            continue
+        rows, _ = read_jsonl(os.path.join(imported_dir, name))
+        for row in rows:
+            if not valid_import(row):
+                continue
+            key = "imported:" + json.dumps([row["machine"], row["run_id"]])
+            runs[key] = normalize_record(row, key)
+            review = row.get("review")
+            if isinstance(review, dict):
+                reviews[key] = review
+    return runs, reviews
+
+
+def arm_lane_effort(name, suite_arm, live_arm):
+    for source in (live_arm, suite_arm):
+        if source is None:
+            continue
+        lane, effort = source.get("lane"), source.get("effort")
+        if isinstance(lane, str) and lane and isinstance(effort, str) and effort:
+            return lane, effort
+    if "-" in name:
+        lane, effort = name.rsplit("-", 1)
+        if lane and effort:
+            return lane, effort
+    return None, None
+
+
+def reviewer_tier(precision):
+    if precision is None:
+        return "unknown"
+    if precision >= REVIEWER_PRECISION_BAR:
+        return "higher-signal"
+    return "lower-signal"
+
+
+def reviewer_sort_key(arm):
+    precision = arm["precision"]
+    # None sorts after every measured precision; equal precision breaks ties by arm name.
+    return (REVIEWER_TIER_ORDER.index(arm["tier"]), precision is None,
+            -(precision if precision is not None else 0.0), arm["arm"])
+
+
+def build_reviewer_arms(runs, reviews, suite_rows, min_findings):
+    """One record per arm that has kept Suite R rows or a review with findings_total.
+
+    The precision that sets the tier is the live ratio of sums when that arm's live total reaches
+    min_findings. Otherwise it is Suite R's mean precision. A missing live total is not zero, so an arm
+    with no recorded findings stays on Suite R even when min_findings is 0.
+    """
+    suite = suite_r_by_arm(suite_rows or [])
+    live = live_findings_by_arm(runs, reviews)
+    empty_suite = {"suite_n": None, "precision_v2_nodup_item": None,
+                   "recall_planted_v1_item": None, "recall_real_item": None}
+    arms = []
+    for name in set(suite) | set(live):
+        suite_arm = suite.get(name)
+        live_arm = live.get(name)
+        suite_stats = suite_arm or empty_suite
+        applied = live_arm["findings_applied"] if live_arm else None
+        total = live_arm["findings_total"] if live_arm else None
+        # 0/0 has a total of 0: there is nothing to divide, so the live precision is unknown.
+        live_precision = (applied / total) if total else None
+        if live_arm is not None and total >= min_findings:
+            precision, source = live_precision, "live"
+        else:
+            precision, source = suite_stats["precision_v2_nodup_item"], "suite-r"
+        tier = reviewer_tier(precision)
+        lane, effort = arm_lane_effort(name, suite_arm, live_arm)
+        arms.append({
+            "arm": name,
+            "lane": lane,
+            "effort": effort,
+            "tier": tier,
+            "precision": precision,
+            "precision_source": source,
+            "stance": REVIEWER_STANCE[tier],
+            "suite_n": suite_stats["suite_n"],
+            "precision_v2_nodup_item": suite_stats["precision_v2_nodup_item"],
+            "recall_planted_v1_item": suite_stats["recall_planted_v1_item"],
+            "recall_real_item": suite_stats["recall_real_item"],
+            "findings_applied": applied,
+            "findings_total": total,
+            "live_precision": live_precision,
+        })
+    arms.sort(key=reviewer_sort_key)
+    return arms
+
+
+def print_reviewer_table(arms):
+    columns = ["arm", "tier", "precision", "source", "n", "precision_v2", "recall_planted", "recall_real", "live"]
+    rows = []
+    for arm in arms:
+        live = ""
+        if arm["findings_total"] is not None:
+            live = "{}/{}".format(arm["findings_applied"], arm["findings_total"])
+        rows.append([
+            arm["arm"], arm["tier"], display_number(arm["precision"], 3), arm["precision_source"],
+            "" if arm["suite_n"] is None else str(arm["suite_n"]),
+            display_number(arm["precision_v2_nodup_item"], 3),
+            display_number(arm["recall_planted_v1_item"], 3),
+            display_number(arm["recall_real_item"], 3),
+            live,
+        ])
+    print_table(columns, rows)
+    print("")
+    for tier in REVIEWER_TIER_ORDER:
+        print("{}: {}".format(tier, REVIEWER_STANCE[tier]))
+
+
+def reviewers_command(args):
+    path = suite_r_path()
+    missing = not os.path.isfile(path)
+    # A missing file is not an error: Suite R columns stay null and a note says so.
+    suite_rows = None if missing else read_jsonl(path)[0]
+    runs, reviews = runs_and_reviews(state_dir())
+    arms = build_reviewer_arms(runs, reviews, suite_rows, args.min_findings)
+    if args.json:
+        payload = {"schema": 1, "min_findings": args.min_findings, "arms": arms}
+        print(json.dumps(payload, ensure_ascii=False, allow_nan=False))
+    else:
+        print_reviewer_table(arms)
+    if missing:
+        print("lane-stats: no Suite R file ({}); Suite R columns are empty".format(path), file=sys.stderr)
     return 0
 
 
@@ -1426,9 +1699,19 @@ def validate_time(block):
         raise CatalogError("invalid explore.time")
 
 
-def load_catalog():
-    path = os.path.expanduser(os.environ.get("LANES_ARMS", os.path.join(
+def catalog_path():
+    """arms.json: LANES_ARMS, else the catalog shipped beside this script."""
+    return os.path.expanduser(os.environ.get("LANES_ARMS", os.path.join(
         os.path.dirname(os.path.realpath(__file__)), "..", "arms.json")))
+
+
+def kit_dir():
+    """Directory of the arms catalog. findings/ ships beside it, including Suite R."""
+    return os.path.dirname(os.path.abspath(catalog_path()))
+
+
+def load_catalog():
+    path = catalog_path()
     local_path = os.path.expanduser(os.environ.get("LANES_ARMS_LOCAL", "~/.config/lanes/arms.local.json"))
     try:
         with open(path, "r", encoding="utf-8") as stream:
@@ -1496,6 +1779,11 @@ def valid_import(row):
         minutes = review_data.get("fix_minutes")
         if minutes is not None and (number(minutes) is None or number(minutes) < 0):
             return False
+        # Absent on reviews recorded before --findings. Present only as a pair of counts.
+        if "findings_applied" in review_data or "findings_total" in review_data:
+            applied, total = review_data.get("findings_applied"), review_data.get("findings_total")
+            if not whole_count(applied) or not whole_count(total) or applied > total:
+                return False
     return True
 
 
@@ -1689,6 +1977,9 @@ def export_record(run, review_data, attributed):
                 "attributed_pct": attributed.get("weekly"), "brief_bytes": run_brief_bytes(run), "review": None})
     if review_data is not None:
         row["review"] = {key: review_data.get(key) for key in ("outcome", "fix_minutes", "note", "reviewed_at")}
+        if "findings_applied" in review_data or "findings_total" in review_data:
+            row["review"]["findings_applied"] = review_data.get("findings_applied")
+            row["review"]["findings_total"] = review_data.get("findings_total")
     return row
 
 
@@ -3750,9 +4041,17 @@ def build_parser():
     review_parser.add_argument("--outcome", required=True, choices=OUTCOMES)
     review_parser.add_argument("--note", default="")
     review_parser.add_argument("--fix-minutes", type=nonnegative_int)
+    review_parser.add_argument("--findings",
+                               help="findings applied, as APPLIED/TOTAL (0/0 is allowed)")
     review_parser.add_argument("--fact", dest="facts", action="append", default=None,
                                help="record a repository fact confirmed by this run; repeatable")
     review_parser.set_defaults(func=review)
+    reviewers_parser = commands.add_parser(
+        "reviewers", help="signal and stance for each review arm, from Suite R and recorded findings")
+    reviewers_parser.add_argument("--json", action="store_true")
+    reviewers_parser.add_argument("--min-findings", type=nonnegative_int, default=REVIEWER_MIN_FINDINGS,
+                                  help="use live precision once an arm has at least this many findings (default 10)")
+    reviewers_parser.set_defaults(func=reviewers_command)
     facts_parser = commands.add_parser("facts", help="list or remove repository facts learned from runs")
     facts_parser.add_argument("--repo", help="only facts for this directory's repository")
     facts_parser.add_argument("--json", action="store_true")

@@ -1359,7 +1359,7 @@ def verify_shard_script(run_id, shards):
     return "\n".join(lines) + "\n"
 
 
-# Step 2 of a utilization-mode --verify run: the same report, with independent commands and test shards in parallel.
+# Step 2 of a sharded --verify run (every mode unless LANES_VERIFY_SHARDS=off): the same report, with independent commands and test shards in parallel.
 PARALLEL_VERIFY_STEP = (
     '2. Run each command the brief lists, from the repository root, with the brief\'s timeouts. Run independent\n'
     '   commands at the same time as background processes, and split a command that runs the whole test suite into\n'
@@ -1456,10 +1456,21 @@ def codex_cloud_stdin(sent_bytes, title):
     return title.encode("ascii") + b"\n\n" + sent_bytes
 
 
+def verify_sharded():
+    """Whether a --verify run splits its suite into parallel shards: yes in every mode (from 2026-11-17.2).
+
+    Why: the shards run in the same VM at the same time, so they cost no more allowance than one serial run, and
+    the kit's suite took about 4 minutes in shards against about 15 serially. Until 2026-11-17.2 only
+    utilization mode sharded. LANES_VERIFY_SHARDS=off (or 0, no, serial, false) keeps one serial run.
+    """
+    return os.environ.get("LANES_VERIFY_SHARDS", "").strip().lower() not in ("off", "0", "no", "serial", "false")
+
+
 def claude_cloud_prompt(sent_text, run_id, alias, verify=False, mode="default", shards=None, title=None):
     if verify:
-        step2 = (PARALLEL_VERIFY_STEP if mode == "utilization" else VERIFY_STEP).format(run_id, run_id)
-        if mode == "utilization":
+        sharded = verify_sharded()
+        step2 = (PARALLEL_VERIFY_STEP if sharded else VERIFY_STEP).format(run_id, run_id)
+        if sharded:
             # The session runs this script instead of writing its own launch line; shards=None means no list.
             script = verify_shard_script(run_id, shards or [])
             placeholder_note = "" if shards else (
@@ -1506,7 +1517,7 @@ def claude_cloud_command(executable, term, path, prefix, sent_text, run_id, mode
     # `lane main` passes its own prompt (MAIN_HEAD and the policy), not a worker's.
     if prompt is None:
         prompt = claude_cloud_prompt(sent_text, run_id, alias, verify, mode,
-                                     shards=verify_shards(path) if verify and mode == "utilization" else None,
+                                     shards=verify_shards(path) if verify and verify_sharded() else None,
                                      title=title)
     claude_argv = launch_prefix(executable or "claude")
     return [sys.executable, term, "--out", prefix, "--cwd", path, "--max", "180",

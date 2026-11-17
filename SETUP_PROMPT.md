@@ -28,7 +28,7 @@ The installer touches only these:
   are set unless I changed one by hand after an earlier install. `--no-view` skips them and the mod. It also adds
   two hooks, `turn-meter hook` as `UserPromptSubmit` and as `Stop`;
 - `~/.claude/agents/`, `~/.claude/skills/mobile-view/` (the
-  mobile-view mod) and `~/.claude/output-styles/Mobile.md`: existing files are backed up before
+  mobile-view mod), the kit's `kit-*` skills in `~/.claude/skills/` and `~/.claude/output-styles/Mobile.md`: existing files are backed up before
   they're replaced;
 - `~/.claude/usage-optimizer/`;
 - symlinks in `~/.local/bin` (on Windows, bash and `.cmd` wrappers instead);
@@ -98,6 +98,9 @@ Then wait for my "go". It touches only these:
   `<!-- usage-optimizer:start -->` and `<!-- usage-optimizer:end -->`, the kit's policy for Codex, under Codex's
   size limit. Anything else in that file stays;
 - `hooks.json` in the same folder, after a backup: the kit's turn-start, turn-end and compaction hooks;
+- `agents/kit-*.toml` in the same folder: the kit's sub-agent roles (a retired `kit-*` role is backed up, then
+  removed; other roles stay);
+- `~/.agents/skills/kit-*`: the kit's skills (other skills there stay);
 - `~/.claude/usage-optimizer/`: the kit's files (the path is historical; Claude Code is not needed);
 - `~/.local/bin` (on Windows, bash and `.cmd` wrappers) and `~/.config/lanes/`.
 
@@ -139,6 +142,7 @@ not match, stop and tell me.
 Then wait for my "go". It touches only these:
 - `~/.config/amp/AGENTS.md`, after a backup: a heading and two import lines for the kit's Amp notes and policy;
 - `~/.config/amp/plugins/usage-optimizer.ts` and `usage-optimizer.paths.json`: the plugin;
+- `~/.agents/skills/kit-*`: the kit's skills (other skills there stay);
 - `~/.claude/usage-optimizer/`: the kit's files (the path is historical; Claude Code is not needed);
 - `~/.local/bin` (on Windows, bash and `.cmd` wrappers) and `~/.config/lanes/`.
 

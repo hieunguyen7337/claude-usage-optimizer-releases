@@ -15,7 +15,8 @@ until kit 2026-10-16.1. muse was retired on 2026-10-17.)
 ~/.claude/usage-optimizer/bin/lane <haiku|sonnet|opus> --cloud -C <abs dir> -b <brief file> -e <effort> --class <class> [--pick <id>]
 ~/.claude/usage-optimizer/bin/lane codex-cloud -C <abs dir> -b <brief file> --class <class>
 lane-stats pick --class <class> [--pair] [--exclude <lanes>] [--place <process|subagent|cloud>] [--dir <abs dir>] [--brief <file>] [--seed N] [--no-usage] [--json]
-lane-stats review <run|last> --outcome accepted|fixed|rework|rejected [--fix-minutes N] [--note <text>]
+lane-stats review <run|last> --outcome accepted|fixed|rework|rejected [--fix-minutes N] [--note <text>] [--findings APPLIED/TOTAL]
+lane-stats reviewers [--json] [--min-findings N]
 lane-stats report [--by lane,effort,class] [--since YYYY-MM-DD] [--json]
 lane-stats recommend [--class C] [--since YYYY-MM-DD] [--json]
 lane-stats arms [--discover]
@@ -26,6 +27,21 @@ lane-stats import FILE
 `lane-stats pick` prints the `lane` line to run; `lane-stats explore` is an alias of it. Run that line
 with its `--pick` id, so the run is recorded as a pick. `recommend` shows which classes are `exploring`,
 `leaning` or `locked` and writes `routing.json`. `export` and `import` pool reviewed runs between machines.
+
+`lane-stats review --findings APPLIED/TOTAL` stores `findings_applied` and `findings_total` on the review,
+beside the outcome (and in an export of that review). Both are non-negative integers, APPLIED may not exceed
+TOTAL, and `0/0` is kept. Any other value exits 2.
+
+`lane-stats reviewers` prints one row per arm (`lane-effort`, the lane and effort `report` groups by) that has
+Suite R rows or a review with `findings_total`. Suite R is `findings/suite-r/rescore-per-run.jsonl` beside the
+catalog: n, mean `precision_v2_nodup_item` (nulls ignored), mean planted recall on planted items, and mean real
+recall where `real_issue_total` is above zero. Infra failures, skips and rows with `run_present` false are left
+out. Live columns sum applied/total across that arm's reviewed runs, on every plan. The tier uses the live ratio
+when that total is at least `--min-findings` (default 10), otherwise Suite R precision: `higher-signal` at 0.85
+or above, `lower-signal` below that, `unknown` with no precision. Higher-signal: apply a verified finding by
+default. Lower-signal: act only on a concrete correctness, contract or security flaw with a path that fires.
+A missing Suite R file leaves those columns empty and prints a note. `--json` prints
+`{"schema": 1, "min_findings": N, "arms": [...]}`.
 
 Places. Each lane in `arms.json` has a `places` list: `process` (a local `lane` process), `subagent` (`--subagent`)
 and `cloud` (`--cloud`). Claude lanes run in all three; luna, terra, sol, astra, gemini and glm run in `process`
@@ -184,9 +200,10 @@ reading it takes before the run. `lane` prints `lane: mode <mode> (setting <mode
 step above; `utilization` splits the task into as many independent parts as it has, all started at once on the
 arm's model, with a test suite split by module, for the shortest time to a usable result; `saving` uses haiku
 subagents only to read and search, makes the edits in the session and runs the suite once, at the end. Every mode
-keeps the `Subagents:` line. A verify run in `utilization` runs independent commands at the same time and splits a
-whole-suite command into up to 4 shards by test module, each reported (and counted in the PARTIAL subject) as its
-own command; `default` and `saving` keep the step above. The shards replace the whole-suite run (from 2026-10-31.11):
+keeps the `Subagents:` line. A verify run, in every mode from 2026-11-17.2 (before that only in `utilization`), runs
+independent commands at the same time and splits a whole-suite command into up to 4 shards by test module, each
+reported (and counted in the PARTIAL subject) as its own command: shards cost no more allowance than one serial run
+and finish about 4x sooner. `LANES_VERIFY_SHARDS=off` keeps one serial run. The shards replace the whole-suite run (from 2026-10-31.11):
 on 2026-10-31 a session ran both at once in one checkout, and two runs removing the same temporary test file gave a
 false PARTIAL (the suite passed alone, 473 tests). The shards must not overlap (from 2026-10-31.15): the release
 .14 verify split by glob patterns, `test_[i-m]*.py` and `test_l*.py`, so the `test_l` modules ran twice and the shard
@@ -721,6 +738,29 @@ of its own in a kit release.
 
 Run every real unit as a backgrounded Bash call (`run_in_background: true`), several in one tool
 block for a wave; each completion arrives as a notification. Never poll, never tail.
+
+## Hill-climb (`lane-bench hillclimb`)
+
+Improves an artifact (screens, a prompt, a brief, a doc) round by round; fresh blind reviewers from another model family
+than the builder's judge each round. Adapted from jkstack's design-hill-climb (MIT, credited). The builder edits the
+artifact between rounds, outside the tool.
+
+- `init WORKDIR --feedback TEXT --dimension NAME (2 to 5) --before FILE [--ref FILE ...] [--rounds 4] [--bar 9]
+  [--budget-usd 5] [--builder-family claude] --approved "<who, when>"`: refuses without `--approved` (a capability test).
+- `snapshot WORKDIR FILE ...`: starts the next round; refuses past the round cap.
+- `review WORKDIR --lane L -e EFFORT [--lane-arg=ARG] [--family F] [--allow-same-family] [--timeout SEC]`: one fresh review
+  of the latest round. Refused at the budget, and for a same-family lane unless `--allow-same-family`, which makes it non-gating.
+- `status WORKDIR [--json]`: scores per round and reviewer, the stop rule and the spend; exit 0, verdict in the output.
+
+Blind by construction: the candidate, before and reference screens are copied to `screen-A/`, `screen-B/`, ... in a temp
+folder outside the workdir, under neutral file names (`1.png`, `2.png`), and the reviewer runs there. Letters are random per review and kept in that review's record.
+The brief holds the feedback, the dimensions, the screens' absolute paths and the previous review's fixes as a checklist;
+never the bar, an earlier score, the round number or which screen is new.
+
+Stop rule: met when the latest round has a gating review and every gating review scores the candidate at or above the bar
+on every dimension and at or above the before set and each reference. Stops at the round cap or the budget. Spend is `usage.list_usd` from each
+run's `meta.json`, so a Codex review adds nothing. A failed, timed-out or malformed review is `failed` (`pending` while it
+runs) and never counts as agreement. One review at a time per workdir.
 
 ## Window epochs and plan dollars
 
@@ -1274,6 +1314,23 @@ cline -P cline -m z-ai/glm-5.3-flash -c <dir> --auto-approve true -t 900 "$(cat 
   (POLICY.md, Default is yes).
 - **An MCP server at local scope reaches every worktree (2026-10-31).** It applies to every worktree of that
   repository folder; a worktree that must not reach it needs its own deny in its `settings.local.json`.
+
+## Waste report and prune (`turn-meter waste`, `turn-meter prune`)
+
+- `turn-meter waste [--days 14] [--json]` proposes; it changes nothing. It lists agents, skills and MCP servers
+  unused across recent sessions, cache rewrites, overpowered subagents, old models and fast mode. From 2026-11-17.2
+  it counts Codex sub-agents as their own place (`agents.codex.subagent`: sessions, turns per model, deepest
+  nesting), flags any on astra or on sol for light work, and reads Amp (`amp threads list`, 20 s cap) and agy
+  transcripts where their stores allow; a store it cannot read is listed under `skipped` with the reason.
+- `turn-meter prune [--days 14]` is a dry run of the same scan: each candidate with its tokens per request and
+  `would move <path>`, and each excluded item with the reason. `--apply NAME…` or `--apply-all` moves user-scope
+  agents and skills into `~/.local/state/lanes/pruned/<stamp>/` and writes `manifest.json` there. It never moves the
+  kit's own items (`lane-*`, anything in the kit's `agents/`, `skills/` or `mods/`), project-scope items, paths outside
+  `~/.claude/agents` and `~/.claude/skills`, or a skill folder without `SKILL.md` (Claude Code's `synced/`).
+- MCP servers are never edited: prune prints the `claude mcp remove <name> -s user` line to run yourself.
+- It applies only when no turn ended in the last 60 minutes and no lane run is in flight (exit 3 otherwise; `--now`
+  overrides). `--restore [<stamp>|last]` moves a manifest's items back and refuses to overwrite a path that exists
+  again; `--list` lists manifests; `--json` prints one object. Running sessions see the change at their next start.
 
 ## Timeline (`lane-stats note`, `lane-stats timeline`)
 

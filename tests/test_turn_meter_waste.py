@@ -13,6 +13,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -117,6 +118,35 @@ class WasteTest(unittest.TestCase):
         with mock.patch.dict(os.environ, env, clear=True), contextlib.redirect_stdout(out):
             code = meter._main(argv)
         return code, out.getvalue()
+
+    def _write(self, path, text):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(self._fill(text))
+
+    def _rollout(self, name, events):
+        text = "\n".join(json.dumps(event, separators=(",", ":")) for event in events) + "\n"
+        self._write(os.path.join(self.codex, "sessions", "2026", "11", "rollout-" + name + ".jsonl"), text)
+
+    def _spawn(self, parent, depth, nickname=None, role=None):
+        return {"subagent": {"thread_spawn": {
+            "parent_thread_id": parent, "depth": depth, "agent_path": "agents/x.md",
+            "agent_nickname": nickname, "agent_role": role}}}
+
+    def _meta(self, source, thread_id, origin="codex_exec", ts="__TS0__"):
+        return {"timestamp": ts, "type": "session_meta",
+                "payload": {"id": thread_id, "originator": origin, "source": source}}
+
+    def _turn(self, model, ts="__TS0__"):
+        return {"timestamp": ts, "type": "turn_context", "payload": {"model": model}}
+
+    def _tokens(self, output, ts="__TS1__"):
+        return {"timestamp": ts, "type": "event_msg", "payload": {"type": "token_count", "info": {"last_token_usage": {
+            "input_tokens": 0, "cached_input_tokens": 0, "output_tokens": output, "reasoning_output_tokens": 0}}}}
+
+    def _call(self, kind, call_id, ts="__TS0__", ident_key="call_id"):
+        return {"timestamp": ts, "type": "response_item",
+                "payload": {"type": kind, ident_key: call_id, "name": "tool"}}
 
     # ---- unused ------------------------------------------------------------------------------------------------
 
@@ -279,6 +309,334 @@ class WasteTest(unittest.TestCase):
             code, text = self._command(["waste", "--json"])
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(text)["unused"]["skipped"], "error: inventory")
+
+    # ---- codex sub-agents, amp, agy ---------------------------------------------------------------------------
+
+    def test_subagent_action_flags_astra_always_and_sol_only_when_light(self):
+        self.assertEqual(meter._waste_subagent_action("gpt-6-astra", 8, 5000), "astra is never a sub-agent model")
+        self.assertEqual(meter._waste_subagent_action("gpt-6.1-sol", 5, 1999), "a smaller model probably fits")
+        self.assertEqual(meter._waste_subagent_action("claude-opus-4-6", 5, 1999), "a smaller model probably fits")
+        self.assertIsNone(meter._waste_subagent_action("gpt-6.1-sol", 6, 100))
+        self.assertIsNone(meter._waste_subagent_action("gpt-6.1-sol", 2, 2000))
+        self.assertIsNone(meter._waste_subagent_action("claude-haiku-4-5", 1, 100))
+        self.assertIsNone(meter._waste_subagent_action("gpt-6-luna", 1, 10))
+        spawn = meter._waste_codex_spawn({"id": "t", "originator": "codex_exec", "source": "exec"})
+        self.assertIsNone(spawn)
+        spawn = meter._waste_codex_spawn({"id": " child ", "originator": "codex_exec", "source": {"subagent": {
+            "thread_spawn": {"parent_thread_id": " P1 ", "depth": True, "agent_nickname": "", "agent_role": "helper"}}}})
+        self.assertEqual(spawn["parent"], "P1")
+        self.assertIsNone(spawn["depth"])
+        self.assertEqual(spawn["nickname"], "helper")
+        self.assertEqual(spawn["thread_id"], "child")
+
+    def test_codex_subagents_are_their_own_place_and_astra_is_always_overpowered(self):
+        parent = [self._meta("exec", "parent-thread"), self._turn("gpt-6-astra"), self._tokens(10),
+                  self._call("function_call", "parent-tool")]
+        astra = [self._meta(self._spawn("P1", 1, "scout"), "child-astra"), self._turn("gpt-6-astra"),
+                 self._tokens(5000)]
+        for index in range(6):
+            astra.append(self._call("function_call", "c{}".format(index)))
+        astra.append(self._call("function_call", "c-id", ident_key="id"))
+        astra.append(self._call("custom_tool_call", "custom-1"))
+        astra.append(self._call("function_call", "c0"))
+        astra.append(self._call("function_call_output", "c0"))
+        sol = [self._meta(self._spawn("P1", 2, None, "helper"), "child-sol"), self._turn("gpt-6.1-sol"),
+               self._tokens(100), self._call("function_call", "s0"), self._call("function_call", "s1")]
+        heavy = [self._meta(self._spawn("P2", 3, "builder"), "child-heavy"), self._turn("gpt-6.1-sol"),
+                 self._tokens(100)]
+        heavy.extend(self._call("function_call", "h{}".format(index)) for index in range(6))
+        bound = [self._meta(self._spawn("P2", 1, "edge"), "child-bound"), self._turn("gpt-6.1-sol"),
+                 self._tokens(2000), self._call("function_call", "b0"), self._call("function_call", "b1")]
+        luna = [self._meta(self._spawn("P2", True, None, "lookup"), "child-luna"), self._turn("gpt-6-luna"),
+                self._tokens(10), self._call("function_call", "l0")]
+        bare = [self._meta(self._spawn("P1", 1, "bare"), "child-bare"), self._turn("gpt-6-astra"),
+                {"timestamp": "__TS1__", "type": "event_msg", "payload": {"type": "other"}}]
+        old = [self._meta(self._spawn("P9", 9, "stale"), "child-old", ts="__OLD__"),
+               self._turn("gpt-6-astra", "__OLD__"), self._tokens(5000, "__OLD__")]
+        for name, events in (("parent", parent), ("astra", astra), ("sol", sol), ("heavy", heavy),
+                             ("bound", bound), ("luna", luna), ("bare", bare), ("old", old)):
+            self._rollout(name, events)
+        report = self._report()
+        codex = report["agents"]["codex"]
+        self.assertEqual(codex["codex_exec"]["sessions"], 1)
+        self.assertEqual(codex["codex_exec"]["turns"], 1)
+        self.assertEqual(codex["codex_exec"]["models"], {"gpt-6-astra": 1})
+        self.assertAlmostEqual(codex["codex_exec"]["active_seconds"], 60.0)
+        place = codex["subagent"]
+        self.assertEqual(place["sessions"], 6)
+        self.assertEqual(place["turns"], 6)
+        self.assertEqual(place["max_depth"], 3)
+        self.assertEqual(place["parents"], ["P1", "P2"])
+        self.assertAlmostEqual(place["active_seconds"], 360.0)
+        self.assertEqual(place["models"], {"gpt-6-astra": 2, "gpt-6.1-sol": 3, "gpt-6-luna": 1})
+        self.assertNotIn("child-old", json.dumps(codex))
+        items = {item["agent_id"]: item for item in report["overpowered_subagents"]["items"]}
+        self.assertEqual(set(items), {"child-bare", "child-astra", "child-sol"})
+        self.assertEqual(items["child-astra"]["action"], "astra is never a sub-agent model")
+        self.assertEqual(items["child-astra"]["session"], "P1")
+        self.assertEqual(items["child-astra"]["model"], "gpt-6-astra")
+        self.assertEqual(items["child-astra"]["agent_type"], "scout")
+        self.assertEqual(items["child-astra"]["tool_calls"], 8)
+        self.assertEqual(items["child-astra"]["output_tokens"], 5000)
+        self.assertAlmostEqual(items["child-astra"]["list_usd"], 0.25, places=6)
+        self.assertEqual(items["child-astra"]["platform"], "codex")
+        self.assertEqual(items["child-bare"]["action"], "astra is never a sub-agent model")
+        self.assertIsNone(items["child-bare"]["list_usd"])
+        self.assertEqual(items["child-bare"]["tool_calls"], 0)
+        self.assertEqual(items["child-sol"]["action"], "a smaller model probably fits")
+        self.assertEqual(items["child-sol"]["agent_type"], "helper")
+        self.assertEqual(items["child-sol"]["tool_calls"], 2)
+        self.assertEqual(items["child-sol"]["output_tokens"], 100)
+        self.assertAlmostEqual(items["child-sol"]["list_usd"], 0.001, places=6)
+        self.assertIsNone(report["overpowered_subagents"]["skipped"])
+        text = meter._waste_text(report)
+        self.assertIn("codex subagent", text)
+        self.assertIn("depth 3  parents 2", text)
+        self.assertIn("astra is never a sub-agent model", text)
+        self.assertIn("amp: skipped (no Amp thread store)", text)
+        self.assertIn("agy: skipped (no Antigravity store)", text)
+        code, command_text = self._command(["waste", "--days", "7"])
+        self.assertEqual(code, 0)
+        self.assertIn("depth 3  parents 2", command_text)
+        claude_only = self._report(platform="claude-code")
+        self.assertEqual(claude_only["agents"]["codex"]["subagent"]["sessions"], 6)
+        self.assertEqual(claude_only["overpowered_subagents"]["items"], [])
+        self.assertIn("no transcripts in the window", claude_only["overpowered_subagents"]["skipped"])
+
+    def test_claude_opus_subagent_still_flags_only_light_work(self):
+        def line(model, output, tools, name):
+            content = [{"type": "tool_use", "name": "Read", "id": "t{}".format(index), "input": {}}
+                       for index in range(tools)]
+            return {"timestamp": "__TS0__", "type": "assistant", "subagent_type": "explore", "message": {
+                "id": name, "model": model, "usage": {
+                    "input_tokens": 10, "output_tokens": output, "cache_read_input_tokens": 0,
+                    "cache_creation_input_tokens": 0}, "content": content}}
+        folder = os.path.join(self.projects, "sess", "subagents")
+        for name, model, output, tools in (
+                ("agent-opus", "claude-opus-4-6", 1999, 5),
+                ("agent-six", "claude-opus-4-6", 100, 6),
+                ("agent-big", "claude-opus-4-6", 2000, 1),
+                ("agent-haiku", "claude-haiku-4-5", 100, 1)):
+            self._write(os.path.join(folder, name + ".jsonl"), json.dumps(line(model, output, tools, name)) + "\n")
+        items = self._report(platform="claude-code")["overpowered_subagents"]["items"]
+        self.assertEqual([item["agent_id"] for item in items], ["agent-opus"])
+        self.assertEqual(items[0]["tool_calls"], 5)
+        self.assertEqual(items[0]["output_tokens"], 1999)
+        self.assertEqual(items[0]["action"], "a smaller model probably fits")
+        self.assertEqual(items[0]["agent_type"], "explore")
+        self.assertNotIn("platform", items[0])
+
+    def test_amp_local_threads_count_models_and_output_and_do_not_call_the_cli(self):
+        root = self.env["TURN_METER_AMP_THREADS"]
+        os.makedirs(root)
+        log = os.path.join(self.tmp, "amp-should-not-run.log")
+        self.env["LANES_AMP_BIN"] = os.path.join(self.tmp, "no-such-amp")
+        self.env["WASTE_AMP_LOG"] = log
+        threads = {
+            "in-a.json": {"created": "__TS0__", "model": "amp-a", "messages": [
+                {"meta": {"sentAt": "__TS1__"}, "usage": {"timestamp": "__TS1__", "output_tokens": 15}},
+                {"usage": {"outputTokens": 0, "timestamp": "__TS1__"}}]},
+            "in-b.json": {"created": "__TS0__", "messages": [
+                {"meta": {"sentAt": "__TS1__", "modelId": "amp-b"}, "usage": {"output_tokens": 0}}]},
+            "old.json": {"created": "__OLD__", "model": "amp-old", "messages": [
+                {"usage": {"output_tokens": 999, "timestamp": "__OLD__"}}]},
+        }
+        for name, body in threads.items():
+            self._write(os.path.join(root, name), json.dumps(body))
+        amp = self._report()["agents"]["amp"]
+        self.assertEqual(amp["status"], "read")
+        self.assertIsNone(amp["skipped"])
+        self.assertEqual(amp["sessions"], 2)
+        self.assertEqual(amp["models"], {"amp-a": 1, "amp-b": 1})
+        self.assertEqual(amp["output_tokens"], 15)
+        self.assertAlmostEqual(amp["active_hours"], round(120 / 3600.0, 4))
+        self.assertFalse(os.path.exists(log))
+        text = meter._waste_text(self._report())
+        self.assertIn("amp", text)
+        self.assertIn("out 15", text)
+        self.assertIn("amp-a 1", text)
+        bare = os.path.join(self.tmp, "amp-no-tokens")
+        os.makedirs(bare)
+        self._write(os.path.join(bare, "t.json"), json.dumps(
+            {"created": "__TS0__", "model": "amp-a", "messages": [{"meta": {"sentAt": "__TS1__"}}]}))
+        self.env["TURN_METER_AMP_THREADS"] = bare
+        amp = self._report()["agents"]["amp"]
+        self.assertEqual(amp["sessions"], 1)
+        self.assertEqual(amp["models"], {"amp-a": 1})
+        self.assertIsNone(amp["output_tokens"])
+
+    def _amp_cli_env(self, mode):
+        script = os.path.join(self.tmp, "fake-amp-list.py")
+        with open(script, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write("\n".join([
+                "import os, sys, time",
+                "log = os.environ.get('WASTE_AMP_LOG')",
+                "mode = os.environ.get('WASTE_AMP_MODE', '')",
+                "open(log, 'a', encoding='utf-8').write(' '.join(sys.argv[1:]) + '\\n')",
+                "if mode == 'fail':",
+                "    sys.exit(2)",
+                "if mode == 'hang':",
+                "    time.sleep(30)",
+                "if mode == 'urls':",
+                "    print('one  1mo ago  https://ampcode.com/threads/T-abc')",
+                "    print('two  2d ago   https://ampcode.com/threads/T-def extra')",
+                "    print('dup  1mo ago  https://ampcode.com/threads/T-abc')",
+                ""]))
+        if os.name == "nt":
+            wrapper = os.path.join(self.tmp, "amp.cmd")
+            body = '@echo off\r\n"{}" "{}" %*\r\n'.format(sys.executable, script)
+        else:
+            wrapper = os.path.join(self.tmp, "amp")
+            body = '#!/bin/sh\nexec "{}" "{}" "$@"\n'.format(sys.executable, script)
+        with open(wrapper, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(body)
+        os.chmod(wrapper, 0o700)
+        env = {key: value for key, value in self.env.items()
+               if key not in ("TURN_METER_AMP_THREADS", "AMP_THREADS_DIR", "AMP_DATA_DIR")}
+        env["LANES_AMP_BIN"] = wrapper
+        env["WASTE_AMP_LOG"] = os.path.join(self.tmp, "amp-cli.log")
+        env["WASTE_AMP_MODE"] = mode
+        if os.path.exists(env["WASTE_AMP_LOG"]):
+            os.remove(env["WASTE_AMP_LOG"])
+        return env
+
+    def _amp_cli_report(self, mode, timeout=None):
+        env = self._amp_cli_env(mode)
+        if timeout is not None:
+            env["USAGE_OPTIMIZER_AMP_TIMEOUT"] = timeout
+        with mock.patch.dict(os.environ, env, clear=True):
+            report = meter._waste_report(7, "all", self.now)
+        try:
+            with open(env["WASTE_AMP_LOG"], encoding="utf-8") as handle:
+                calls = [line.strip() for line in handle if line.strip()]
+        except OSError:
+            calls = []
+        return report["agents"]["amp"], calls
+
+    def test_amp_cli_list_is_used_only_without_a_local_store_and_is_not_guessed(self):
+        amp, calls = self._amp_cli_report("urls")
+        self.assertEqual(calls, ["threads list --include-archived"])
+        self.assertEqual(amp["status"], "not read")
+        self.assertEqual(amp["sessions"], 0)
+        self.assertIn("returned 2 threads", amp["skipped"])
+        self.assertIn("no absolute timestamps", amp["skipped"])
+        self.assertIsNone(amp["output_tokens"])
+        text = "amp: skipped ({})".format(amp["skipped"])
+        self.assertIn(text, meter._waste_text(self._report_with_amp("urls")))
+        amp, calls = self._amp_cli_report("empty")
+        self.assertEqual(calls, ["threads list --include-archived"])
+        self.assertEqual(amp["status"], "read")
+        self.assertIsNone(amp["skipped"])
+        self.assertEqual(amp["sessions"], 0)
+        self.assertIn("returned no threads", amp["note"])
+        amp, _calls = self._amp_cli_report("fail")
+        self.assertEqual(amp["skipped"], "amp threads list failed")
+        missing = dict(self._amp_cli_env("urls"), LANES_AMP_BIN=os.path.join(self.tmp, "missing-amp"))
+        with mock.patch.dict(os.environ, missing, clear=True):
+            amp = meter._waste_report(7, "all", self.now)["agents"]["amp"]
+        self.assertEqual(amp["skipped"], "amp could not be started")
+        amp, _calls = self._amp_cli_report("hang", timeout="1")
+        self.assertEqual(amp["skipped"], "amp threads list timed out")
+
+    def _report_with_amp(self, mode):
+        env = self._amp_cli_env(mode)
+        with mock.patch.dict(os.environ, env, clear=True):
+            return meter._waste_report(7, "all", self.now)
+
+    def test_agy_jsonl_counts_sessions_and_does_not_invent_models(self):
+        root = self.env["TURN_METER_AGY_HOME"]
+        logs = os.path.join(root, "brain", "conv-full", ".system_generated", "logs")
+        full = [
+            {"created_at": "__TS0__", "type": "PLANNER_RESPONSE", "step_index": 1, "output_tokens": 10,
+             "model": "gemini-test"},
+            {"created_at": "__TS0__", "type": "GENERIC", "step_index": 1, "output_tokens": 30},
+            {"created_at": "__TS1__", "type": "GENERIC", "step_index": 2, "output_tokens": 7},
+            {"created_at": "__TS1__", "type": "GENERIC", "output_tokens": 5},
+            {"created_at": "__TS1__", "type": "GENERIC", "output_tokens": 1.5},
+        ]
+        decoy = [{"created_at": "__TS0__", "model": "wrong-model", "output_tokens": 999, "step_index": 1}]
+        self._write(os.path.join(logs, "transcript_full.jsonl"),
+                    "\n".join(json.dumps(line) for line in full) + "\n")
+        self._write(os.path.join(logs, "transcript.jsonl"),
+                    "\n".join(json.dumps(line) for line in decoy) + "\n")
+        self._write(os.path.join(root, "history.jsonl"), "\n".join([
+            json.dumps({"timestamp": "__OLD__", "conversationId": "conv-full"}),
+            json.dumps({"timestamp": "__TS0__", "conversationId": "from-history"}),
+        ]) + "\n")
+        os.makedirs(os.path.join(root, "conversations"))
+        with open(os.path.join(root, "conversations", "conv.db"), "wb") as handle:
+            handle.write(b"not-sqlite")
+        agents = self._report()["agents"]
+        agy = agents["agy"]
+        self.assertIsNone(agy["skipped"])
+        self.assertEqual(agy["sessions"], 2)
+        self.assertAlmostEqual(agy["active_seconds"], 60.0)
+        self.assertEqual(agy["models"], {"gemini-test": 1})
+        self.assertEqual(agy["output_tokens"], 42)
+        self.assertNotIn("models_note", agy)
+        self.assertNotIn("note", agy)
+        self.assertIn("sqlite store not parsed", agents["antigravity"]["note"])
+        text = meter._waste_text(self._report())
+        self.assertIn("agy", text)
+        self.assertIn("gemini-test 1", text)
+        self.assertIn("out 42", text)
+
+    def test_agy_without_a_model_field_says_so_and_a_protobuf_store_is_skipped(self):
+        root = os.path.join(self.tmp, "agy-nomodel")
+        logs = os.path.join(root, "brain", "conv-a", ".system_generated", "logs")
+        lines = [
+            {"created_at": "__TS0__", "type": "USER_INPUT", "step_index": 1, "output_tokens": 8},
+            {"created_at": "__TS1__", "type": "PLANNER_RESPONSE", "step_index": 1, "output_tokens": 3},
+        ]
+        self._write(os.path.join(logs, "transcript.jsonl"), "\n".join(json.dumps(line) for line in lines) + "\n")
+        mtime_logs = os.path.join(root, "brain", "conv-b", ".system_generated", "logs")
+        self._write(os.path.join(mtime_logs, "transcript.jsonl"), json.dumps({"type": "GENERIC"}) + "\n")
+        os.makedirs(os.path.join(root, "conversations"))
+        with open(os.path.join(root, "conversations", "x.db"), "wb") as handle:
+            handle.write(b"pb")
+        self.env["TURN_METER_AGY_HOME"] = root
+        agy = self._report()["agents"]["agy"]
+        self.assertIsNone(agy["skipped"])
+        self.assertEqual(agy["sessions"], 2)
+        self.assertEqual(agy["models"], {})
+        self.assertEqual(agy["output_tokens"], 8)
+        self.assertAlmostEqual(agy["active_seconds"], 60.0)
+        self.assertIn("no model field in JSONL transcripts", agy["models_note"])
+        self.assertIn("protobuf", agy["models_note"])
+        text = meter._waste_text(self._report())
+        self.assertIn("no model field in JSONL transcripts", text)
+
+        protobuf = os.path.join(self.tmp, "agy-db")
+        os.makedirs(os.path.join(protobuf, "conversations"))
+        with open(os.path.join(protobuf, "conversations", "only.db"), "wb") as handle:
+            handle.write(b"pb")
+        self.env["TURN_METER_AGY_HOME"] = protobuf
+        agents = self._report()["agents"]
+        self.assertNotIn("sessions", agents["agy"])
+        self.assertIn("protobuf", agents["agy"]["skipped"])
+        self.assertEqual(agents["antigravity"]["status"], "not read")
+        self.assertIn("agy: skipped (", meter._waste_text(self._report()))
+
+        self.env["TURN_METER_AGY_HOME"] = os.path.join(self.tmp, "agy-missing")
+        self.assertEqual(self._report()["agents"]["agy"], {"skipped": "no Antigravity store"})
+        present = os.path.join(self.tmp, "agy-empty")
+        os.makedirs(present)
+        self.env["TURN_METER_AGY_HOME"] = present
+        agy = self._report()["agents"]["agy"]
+        self.assertIsNone(agy["skipped"])
+        self.assertEqual(agy["sessions"], 0)
+        self.assertEqual(agy["models"], {})
+        self.assertIsNone(agy["output_tokens"])
+        self.assertNotIn("models_note", agy)
+
+    def test_off_report_keeps_the_waste_keys_and_skips_agy(self):
+        _code, text = self._command(["waste", "--json"], {"TURN_METER_WASTE": "off"})
+        value = json.loads(text)
+        self.assertEqual(meter.WASTE_KEYS, (
+            "unused", "cache_rehydration", "overpowered_subagents", "old_models", "agents"))
+        self.assertEqual(value["agents"]["agy"], {"skipped": "TURN_METER_WASTE=off"})
+        self.assertEqual(value["agents"]["amp"]["skipped"], "TURN_METER_WASTE=off")
+        self.assertIn("antigravity", value["agents"])
 
 
 if __name__ == "__main__":

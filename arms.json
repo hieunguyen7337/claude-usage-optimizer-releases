@@ -1,5 +1,5 @@
 {
-  "catalog_version": "2026-11-17.1",
+  "catalog_version": "2026-11-17.2",
   "about": "Exploration arms: one arm is one lane, model and effort. lane refuses an arm that is absent or retired unless --off-catalog; lane-stats pick samples only active arms. Add or override arms (same lane, model, effort) in ~/.config/lanes/arms.local.json. prior_pct is a guess at the share of the provider's weekly window one run takes on prior_plan's base window (before window_epochs), prior_usable a guess at its usable rate (Artificial Analysis coding-agent index v1.5 / 80); both give way to measured runs. lane-stats turns every weekly % into a share of today's window on today's plan (plan_scale, then window_epochs) and prices it in plan dollars (plan_prices; see explore.points_basis). weight scales how often exploration samples the arm.",
   "lanes": {
     "luna": {
@@ -350,6 +350,29 @@
         "env_markers": []
       }
     },
+    "codex_subagents": [
+      {
+        "name": "kit-reader",
+        "lane": "terra",
+        "effort": "low",
+        "description": "read-only research and review",
+        "may_spawn": []
+      },
+      {
+        "name": "kit-editor",
+        "lane": "terra",
+        "effort": "high",
+        "description": "routine edits named in a brief",
+        "may_spawn": ["kit-reader"]
+      },
+      {
+        "name": "kit-hard",
+        "lane": "sol",
+        "effort": "medium",
+        "description": "hard or open-ended code and work that will itself fan out",
+        "may_spawn": ["kit-reader", "kit-editor"]
+      }
+    ],
     "points_basis": "Cost points are plan dollars. A run's cost is its share of the provider's weekly window, as a % of today's window on today's plan (plan_scale, then window_epochs), / 100 x the plan's usd_per_month / weeks_per_month, times the usage mode's pace factor. A provider or plan without a price (cline; Codex 'pro') pays share x scarcity x Claude's plan dollars per 1% of its week (200 / 4.345 / 100 = $0.46). review_points and fix_points_per_minute stay in Claude-% (1 = 1% of Claude's week) and convert at that rate: a review costs about $0.0046 and a fix minute about $0.0014; pace does not apply to them. Without a Claude price every term stays in Claude-%.",
     "targets": {
       "mechanical": 0.8,

@@ -1,0 +1,6 @@
+{
+  "name": "coding-tool-optimizer",
+  "version": "2026.1117.2",
+  "description": "Kit-setup skill for the Coding Tool Optimizer. install.sh installs the core; this plugin does not copy its hooks.",
+  "skills": "./skills/"
+}

@@ -1,0 +1,20 @@
+{
+  "name": "coding-tool-optimizer",
+  "interface": {
+    "displayName": "Coding Tool Optimizer"
+  },
+  "plugins": [
+    {
+      "name": "coding-tool-optimizer",
+      "source": {
+        "source": "local",
+        "path": "./plugins/codex"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

@@ -71,7 +71,8 @@ Verify: claude plugin list shows sessions@skills-dir (the Sessions pane: /sessio
 Verify: claude plugin validate <HOME>/.claude/skills/mobile-view; claude plugin list shows mobile-view@skills-dir
 Mobile view: restart Claude Code. Tool calls show one line each (click one to expand it), long code
   blocks fold, > in an empty prompt lists your questions (Esc goes back), /mobile-view off shows the stock view.
-Restart Claude Code sessions to load the new settings."""
+Restart Claude Code sessions to load the new settings.
+Optional: claude plugin marketplace add hieunguyen7337/coding-tool-optimizer && claude plugin install coding-tool-optimizer@coding-tool-optimizer"""
 
 # Files a flagless run writes that do not come from a copy of the kit tree: the Claude Code files, the bookkeeping
 # files, ~/.config/lanes and the PATH links. platforms.installed is the one new file the platform list adds.

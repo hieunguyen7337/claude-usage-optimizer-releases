@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a review suite across lane arms, grade it, compare the arms with public numbers, and emit priors."""
+"""Run a review suite across lane arms, grade it, compare the arms with public numbers, emit priors, and hill-climb an artifact with blind reviewers (hillclimb)."""
 
 import argparse
 import collections
@@ -3795,6 +3795,558 @@ def cmd_summary(args):
     return 0
 
 
+# ---------------------------------------------------------------- hill-climb: blind reviewers, round by round
+# Adapted from jkstack's design-hill-climb (MIT). An artifact (screens, a prompt, a brief, a doc) improves round by
+# round, and each round is judged by fresh reviewers from another model family than the builder's. A reviewer sees
+# only the labelled screens and the brief: never the bar, earlier scores, the round number or which screen is new.
+# The building (editing the artifact) stays outside this tool: Claude or a worker lane does it between rounds.
+
+HILL_FAMILIES = ("claude", "openai", "google", "xai")
+HILL_LANE_FAMILY = {"haiku": "claude", "sonnet": "claude", "opus": "claude", "fable": "claude",
+                    "luna": "openai", "terra": "openai", "sol": "openai", "astra": "openai", "codex-cloud": "openai",
+                    "gemini": "google", "grok": "xai", "cursor": "xai"}
+HILL_DIMENSION_RANGE = (2, 5)
+HILL_DEFAULT_ROUNDS = 4
+HILL_DEFAULT_BAR = 9
+HILL_DEFAULT_BUDGET_USD = 5
+HILL_MAX_REFS = 24  # 26 letters: the candidate and the before set take two
+HILL_CHECK_STATUSES = ("fixed", "partly", "not")
+HILL_REVIEW_TIMEOUT_S = 1800
+HILL_APPROVAL_REFUSAL = ("lane-bench hillclimb is a capability test: it spends window on blind reviews nobody "
+                         "asked for. Run it only after the user approves it, and pass --approved \"<who, when>\".")
+HILL_ANSWER_RE = re.compile(r"```json[ \t]*\r?\n(.*?)\r?\n[ \t]*```", re.DOTALL)
+# lane prints "lane=... out=<dir> class=... [web] [| took ...] [role=...]"; the run directory ends where these start.
+HILL_OUT_END_RE = re.compile(r" (?:class=|role=|web\b|\| took)")
+HILL_ROUNDS_HEADER = ("# Hill-climb rounds\n\n"
+                      "Each block is one blind review, unblinded here after it came back. A review that failed or is "
+                      "pending counts for nothing.\n")
+
+
+def hill_num(value):
+    return "{:g}".format(float(value))
+
+
+def hill_quote(text):
+    return "\n".join("> " + line if line else ">" for line in text.splitlines())
+
+
+def hill_state_path(workdir):
+    return os.path.join(workdir, "state.json")
+
+
+def hill_load(workdir):
+    if not os.path.isfile(hill_state_path(workdir)):
+        raise BenchError(f"{workdir} is not a hill-climb workdir (no state.json); start one with hillclimb init")
+    return read_json(hill_state_path(workdir))
+
+
+def hill_spend(state):
+    """Recorded list dollars over every review; a lane that reports none (Codex credits) adds nothing."""
+    total = 0.0
+    for rnd in state["rounds"]:
+        for review in rnd["reviews"]:
+            usd = number(review.get("usd"))
+            if usd is not None:
+                total += usd
+    return round(total, 6)
+
+
+def hill_save(workdir, state):
+    state["spend_usd"] = hill_spend(state)
+    write_json(hill_state_path(workdir), state)
+
+
+def hill_names(paths, label):
+    """Basenames of the files given; names are kept, so two files with one name are refused."""
+    names = []
+    for path in paths:
+        if not os.path.isfile(path):
+            raise BenchError(f"{label} file not found: {path}")
+        name = os.path.basename(path)
+        if name in names:
+            raise BenchError(f"two {label} files are named {name}; names are kept, so rename one")
+        names.append(name)
+    return names
+
+
+def hill_copy(paths, names, folder):
+    os.makedirs(folder, exist_ok=True)
+    for path, name in zip(paths, names):
+        shutil.copyfile(path, os.path.join(folder, name))
+
+
+def hill_plan(state):
+    refs = ["- {} (in refs/)".format(name) for name in state["refs"]] or ["- none"]
+    lines = ["# Plan", "", "## The owner's feedback", "", hill_quote(state["feedback"]), "",
+             "## Rubric", "", "Each dimension is scored 0 to 10 on every labelled screen:", ""]
+    lines += ["- " + dim for dim in state["dimensions"]]
+    lines += ["", "Reviews are blind: each is a fresh lane run that sees only the labelled screens and the brief, "
+              "never this plan, the bar, earlier scores or which screen is new.", "",
+              "## References", ""] + refs
+    lines += ["", "## Bar and caps", "",
+              "- Bar: {} on every dimension, in every gating review of the latest round.".format(
+                  hill_num(state["bar"])),
+              "- Reference rule: the candidate scores at least each reference on every dimension, in those reviews.",
+              "- Round cap: {} rounds.".format(state["rounds_cap"]),
+              "- Budget: ${} of list dollars, recorded in state.json.".format(hill_num(state["budget_usd"])),
+              "- Builder family: {}. A review from that family needs --allow-same-family and is non-gating.".format(
+                  state["builder_family"]),
+              "", "Approved: " + state["approved"], ""]
+    return "\n".join(lines)
+
+
+def cmd_hill_init(args):
+    # Checked first: a refused init must not create the workdir.
+    approved = (args.approved or "").strip()
+    if not approved:
+        print(HILL_APPROVAL_REFUSAL, file=sys.stderr)
+        return 2
+    feedback = (args.feedback or "").strip()
+    if not feedback:
+        raise BenchError("--feedback is empty: quote the owner's words")
+    dimensions = list(args.dimension or [])
+    low, high = HILL_DIMENSION_RANGE
+    if not low <= len(dimensions) <= high:
+        raise BenchError(f"pass {low} to {high} --dimension NAME values, got {len(dimensions)}")
+    for name in dimensions:
+        if not NAME_RE.match(name):
+            raise BenchError(f"dimension {name!r}: use letters, digits, dots, underscores or dashes")
+    if len(set(dimensions)) != len(dimensions):
+        raise BenchError("a --dimension is given twice")
+    before = list(args.before or [])
+    if not before:
+        raise BenchError("pass --before FILE at least once: the artifact as it was")
+    before_names = hill_names(before, "--before")
+    refs = list(args.ref or [])
+    if len(refs) > HILL_MAX_REFS:
+        raise BenchError(f"at most {HILL_MAX_REFS} --ref files: each gets a letter")
+    ref_names = hill_names(refs, "--ref")
+    if not math.isfinite(args.bar) or not 0 < args.bar <= 10:
+        raise BenchError("--bar must be above 0 and at most 10")
+    if not math.isfinite(args.budget_usd) or args.budget_usd < 0:
+        raise BenchError("--budget-usd must be a finite amount, 0 or more")
+    workdir = os.path.abspath(args.workdir)
+    if os.path.lexists(workdir):
+        raise BenchError(f"{workdir} already exists; choose a new workdir")
+    state = {"version": 1, "created": utc_iso(), "feedback": feedback, "dimensions": dimensions,
+             "bar": float(args.bar), "rounds_cap": args.rounds, "budget_usd": float(args.budget_usd),
+             "builder_family": args.builder_family, "approved": approved, "before": before_names,
+             "refs": ref_names, "rounds": [], "spend_usd": 0.0}
+    os.makedirs(workdir)
+    hill_copy(before, before_names, os.path.join(workdir, "before"))
+    hill_copy(refs, ref_names, os.path.join(workdir, "refs"))
+    hill_save(workdir, state)
+    write_atomic(os.path.join(workdir, "PLAN.md"), hill_plan(state))
+    write_atomic(os.path.join(workdir, "ROUNDS.md"), HILL_ROUNDS_HEADER)
+    print(f"hillclimb: {workdir}: {len(before_names)} before file(s), {len(ref_names)} reference(s), "
+          f"{len(dimensions)} dimension(s), bar {hill_num(args.bar)}, up to {args.rounds} rounds, "
+          f"budget ${hill_num(args.budget_usd)}")
+    return 0
+
+
+def cmd_hill_snapshot(args):
+    workdir = os.path.abspath(args.workdir)
+    state = hill_load(workdir)
+    rounds = state["rounds"]
+    if len(rounds) >= state["rounds_cap"]:
+        raise BenchError(f"round cap reached ({state['rounds_cap']}); no more rounds: see hillclimb status")
+    names = hill_names(args.files, "snapshot")
+    round_no = len(rounds) + 1
+    folder = os.path.join(workdir, f"round-{round_no}")
+    if os.path.lexists(folder):
+        raise BenchError(f"{folder} already exists")
+    hill_copy(args.files, names, folder)
+    rounds.append({"round": round_no, "dir": f"round-{round_no}", "files": names, "reviews": []})
+    hill_save(workdir, state)
+    print(f"hillclimb: round {round_no} snapshot: {', '.join(names)}")
+    return 0
+
+
+def hill_family(lane, explicit):
+    """The lane's model family: from the table, or --family for a lane the table does not know (amp, glm)."""
+    family = HILL_LANE_FAMILY.get(lane)
+    if explicit is not None:
+        if family is not None and family != explicit:
+            raise BenchError(f"lane {lane} is {family}; --family {explicit} contradicts it")
+        family = explicit
+    if family is None:
+        raise BenchError(f"lane {lane} has no known model family: pass --family {'|'.join(HILL_FAMILIES)} "
+                         "(amp takes its model's family)")
+    return family
+
+
+def hill_sources(workdir, state, current, role):
+    if role == "candidate":
+        folder, names = os.path.join(workdir, current["dir"]), current["files"]
+    elif role == "before":
+        folder, names = os.path.join(workdir, "before"), state["before"]
+    else:
+        folder, names = os.path.join(workdir, "refs"), [role[len("ref:"):]]
+    return [os.path.join(folder, name) for name in names]
+
+
+def hill_stage(staging, labels, workdir, state, current):
+    """Copy every labelled screen into staging/screen-<letter>/, so the reviewer sees no round, role or folder name."""
+    screens = {}
+    for letter in sorted(labels):
+        folder = os.path.join(staging, "screen-" + letter)
+        os.makedirs(folder)
+        screens[letter] = []
+        # Files take neutral names (1.png, 2.png, ...): a name such as "v3-candidate.png" would say which screen is new.
+        for index, source in enumerate(hill_sources(workdir, state, current, labels[letter]), 1):
+            target = os.path.join(folder, str(index) + os.path.splitext(source)[1].lower())
+            shutil.copyfile(source, target)
+            screens[letter].append(os.path.abspath(target))
+    return screens
+
+
+def hill_previous_asks(state):
+    """The fixes of the latest review that came back: the asks the next review checks off."""
+    for rnd in reversed(state["rounds"]):
+        for review in reversed(rnd["reviews"]):
+            if review["status"] == "ok":
+                return list(review["fixes"])
+    return []
+
+
+def hill_brief(state, screens, candidate, asks):
+    letters = sorted(screens)
+    dims = state["dimensions"]
+    row = ", ".join('"{}": n'.format(dim) for dim in dims)
+    example = ", ".join('"{}": {{{}}}'.format(letter, row) for letter in letters)
+    lines = ["# Blind review", "", "## The owner's feedback", "", hill_quote(state["feedback"]), "",
+             "## Dimensions", "",
+             "Score every labelled screen from 0 to 10 on each dimension. 0 means the screen fails that dimension; "
+             "10 means nothing about it could be better.", ""]
+    lines += ["- " + dim for dim in dims] + [""]
+    lines += ["## Screens", "",
+              "Each screen is the set of files listed under its letter. Read every file of every screen.", ""]
+    for letter in letters:
+        lines += ["### Screen " + letter, ""] + ["- " + path for path in screens[letter]] + [""]
+    lines += ["## Checklist from the previous review", ""]
+    if asks:
+        lines += ["Check each ask on screen {} and answer fixed, partly or not.".format(candidate), ""]
+        lines += ["- [ ] " + " ".join(ask.split()) for ask in asks] + [""]
+    else:
+        lines += ["There is no previous review, so the checklist is empty.", ""]
+    lines += ["## Answer", "",
+              "1. Score every labelled screen from 0 to 10 on every dimension.",
+              "2. Suggest fixes for screen {}: a ranked, concrete list, most important first.".format(candidate),
+              "3. List regressions and correctness bugs on any screen: anything that got worse or is wrong.",
+              "4. Answer the checklist above for screen {}.".format(candidate), "",
+              "Change no file. Reply with one JSON object in a fenced json block, terse:", "",
+              "```json",
+              '{"scores": {' + example + '}, "fixes": ["..."], "regressions": ["..."],',
+              ' "checklist": [{"ask": "...", "status": "fixed|partly|not"}]}',
+              "```", ""]
+    return "\n".join(lines)
+
+
+def hill_run_lane(argv, lane, cwd, timeout, log_path):
+    """One lane run in cwd, through the launcher lane-bench uses. Returns (exit code, stdout text, error or None)."""
+    with open(log_path, "wb") as log_stream:
+        def start():
+            return subprocess.Popen(launch_argv(argv), cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+                                    stderr=log_stream, start_new_session=True)
+        try:
+            process = Launcher().launch(lane, start)
+        except OSError as exc:
+            return MISSING_BINARY_EXIT, "", str(exc)
+        try:
+            output, _ = process.communicate(timeout=timeout + TIMEOUT_GRACE_S)
+        except subprocess.TimeoutExpired:
+            kill_group(process)
+            output, _ = process.communicate()
+            return TIMEOUT_EXIT, output.decode("utf-8", "replace"), f"timed out after {timeout} s"
+    return process.returncode, output.decode("utf-8", "replace"), None
+
+
+def hill_run_dir(text):
+    """The run directory from lane's summary line. Warnings can follow it, so the last lane= line wins."""
+    found = None
+    for line in text.splitlines():
+        if line.startswith("lane=") and " out=" in line:
+            found = line.split(" out=", 1)[1]
+    if found is None:
+        return None
+    return HILL_OUT_END_RE.split(found, 1)[0].strip()
+
+
+def hill_list_usd(run_dir):
+    """The run's list dollars, read as lane-stats reads them: meta.json usage.list_usd, or None when absent."""
+    if not run_dir:
+        return None
+    meta = read_optional_json(os.path.join(run_dir, "meta.json"))
+    usage = meta.get("usage") if isinstance(meta, dict) else None
+    return number(usage.get("list_usd")) if isinstance(usage, dict) else None
+
+
+def hill_strings(answer, key):
+    value = answer.get(key)
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise ValueError(f"{key} must be a list of strings")
+    return value
+
+
+def hill_parse_answer(text, letters, dimensions):
+    """The last fenced json block of a review, checked. Raises ValueError on anything malformed."""
+    blocks = HILL_ANSWER_RE.findall(text)
+    if not blocks:
+        raise ValueError("final.md has no fenced json block")
+    try:
+        answer = json.loads(blocks[-1])
+    except ValueError as exc:
+        raise ValueError(f"the last json block does not parse: {exc}")
+    if not isinstance(answer, dict):
+        raise ValueError("the json block is not an object")
+    scores = answer.get("scores")
+    if not isinstance(scores, dict) or sorted(scores) != sorted(letters):
+        raise ValueError("scores must hold exactly the labels " + ", ".join(letters))
+    clean = {}
+    for letter in letters:
+        row = scores[letter]
+        if not isinstance(row, dict) or sorted(row) != sorted(dimensions):
+            raise ValueError(f"screen {letter} must score exactly the dimensions " + ", ".join(dimensions))
+        clean[letter] = {}
+        for dim in dimensions:
+            value = row[dim]
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) \
+                    or not 0 <= value <= 10:
+                raise ValueError(f"screen {letter} {dim} is not a number from 0 to 10: {value!r}")
+            clean[letter][dim] = float(value)
+    checklist = answer.get("checklist")
+    if not isinstance(checklist, list):
+        raise ValueError("checklist must be a list")
+    rows = []
+    for item in checklist:
+        if not isinstance(item, dict) or not isinstance(item.get("ask"), str) \
+                or item.get("status") not in HILL_CHECK_STATUSES:
+            raise ValueError("each checklist item needs an ask and a status of fixed, partly or not")
+        rows.append({"ask": item["ask"], "status": item["status"]})
+    return {"scores": clean, "fixes": hill_strings(answer, "fixes"),
+            "regressions": hill_strings(answer, "regressions"), "checklist": rows}
+
+
+def hill_judge(code, error, run_dir, letters, dimensions):
+    """(status, reason, answer). Only a parsed answer is ok; anything else is failed and counts for nothing."""
+    if error:
+        return "failed", error, None
+    if code != 0:
+        return "failed", f"lane exited {code}", None
+    if not run_dir or not os.path.isdir(run_dir):
+        return "failed", "lane named no run directory", None
+    final = os.path.join(run_dir, "final.md")
+    if not os.path.isfile(final):
+        return "failed", "the run wrote no final.md", None
+    with open(final, "r", encoding="utf-8", errors="replace") as stream:
+        text = stream.read()
+    try:
+        return "ok", None, hill_parse_answer(text, letters, dimensions)
+    except ValueError as exc:
+        return "failed", str(exc), None
+
+
+def hill_rounds_block(round_no, record, dimensions):
+    gating = "gating" if record["gating"] else "non-gating"
+    lines = ["## Round {}, review {}: {} effort {}, {}, {}".format(
+        round_no, record["review"], record["lane"], record["effort"], gating, record["status"]), ""]
+    if record["status"] != "ok":
+        lines += ["Not counted: {}.".format(record["reason"]), ""]
+    else:
+        roles = ["candidate", "before"] + sorted(role for role in record["scores"] if role.startswith("ref:"))
+        lines.append("| dimension | " + " | ".join(roles) + " |")
+        lines.append("|---|" + "---|" * len(roles))
+        for dim in dimensions:
+            lines.append("| {} | {} |".format(dim, " | ".join(hill_num(record["scores"][role][dim]) for role in roles)))
+        lines += ["", "Fixes for the candidate: " + ("; ".join(record["fixes"]) or "none."),
+                  "Regressions: " + ("; ".join(record["regressions"]) or "none."),
+                  "Checklist: " + ("; ".join("{} ({})".format(item["ask"], item["status"])
+                                            for item in record["checklist"]) or "no asks."), ""]
+    if record["usd"] is None:
+        lines.append("List dollars: not recorded for this lane.")
+    else:
+        lines.append("List dollars: ${:.2f}.".format(record["usd"]))
+    lines += ["Run: " + (record["run_dir"] or "none"), ""]
+    return "\n".join(lines)
+
+
+def hill_append_rounds(workdir, round_no, record, dimensions):
+    path = os.path.join(workdir, "ROUNDS.md")
+    try:
+        with open(path, "r", encoding="utf-8") as stream:
+            existing = stream.read()
+    except OSError:
+        existing = HILL_ROUNDS_HEADER
+    write_atomic(path, existing.rstrip("\n") + "\n\n" + hill_rounds_block(round_no, record, dimensions))
+
+
+def cmd_hill_review(args):
+    workdir = os.path.abspath(args.workdir)
+    state = hill_load(workdir)
+    if not state["rounds"]:
+        raise BenchError("no round to review yet: run hillclimb snapshot first")
+    spend = hill_spend(state)
+    if spend >= state["budget_usd"]:
+        raise BenchError(f"recorded spend ${spend:.2f} is at or over the budget ${hill_num(state['budget_usd'])}; "
+                         "no review started")
+    lane = args.lane or ""
+    if not NAME_RE.match(lane):
+        raise BenchError("--lane takes a lane name such as haiku or luna")
+    family = hill_family(lane, args.family)
+    gating = True
+    if family == state["builder_family"]:
+        if not args.allow_same_family:
+            raise BenchError(f"lane {lane} is {family}, the builder's family: pick a lane from another family, or "
+                             "pass --allow-same-family for a non-gating review")
+        gating = False
+    current = state["rounds"][-1]
+    review_no = len(current["reviews"]) + 1
+    # Random letters per review: the mapping is kept in this review's record and nowhere else.
+    roles = ["candidate", "before"] + ["ref:" + name for name in state["refs"]]
+    random.SystemRandom().shuffle(roles)
+    letters = [chr(ord("A") + index) for index in range(len(roles))]
+    labels = dict(zip(letters, roles))
+    candidate = letters[roles.index("candidate")]
+    dimensions = state["dimensions"]
+    round_dir = os.path.join(workdir, current["dir"])
+    brief_path = os.path.join(round_dir, f"review-{review_no}.brief.md")
+    log_path = os.path.join(round_dir, f"review-{review_no}.lane.log")
+    record = {"review": review_no, "lane": lane, "effort": args.effort, "family": family, "gating": gating,
+              "status": "pending", "reason": "lane run started", "labels": labels,
+              "brief": os.path.relpath(brief_path, workdir), "lane_args": list(args.lane_arg or []),
+              "run_dir": None, "usd": None, "scores": None, "fixes": [], "regressions": [], "checklist": [],
+              "started_at": utc_iso(), "ended_at": None}
+    asks = hill_previous_asks(state)
+    staging = tempfile.mkdtemp(prefix="hillclimb-screens-")
+    try:
+        screens = hill_stage(staging, labels, workdir, state, current)
+        write_atomic(brief_path, hill_brief(state, screens, candidate, asks))
+        # Pending before the launch: if this process dies mid-review, the state shows it and it counts for nothing.
+        current["reviews"].append(record)
+        hill_save(workdir, state)
+        argv = [lane_binary(), lane, "-C", staging, "-b", brief_path, "-e", args.effort, "--class", "review",
+                "--timeout", str(args.timeout)] + record["lane_args"]
+        code, text, error = hill_run_lane(argv, lane, staging, args.timeout, log_path)
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    run_dir = hill_run_dir(text)
+    status, reason, answer = hill_judge(code, error, run_dir, letters, dimensions)
+    record.update(status=status, reason=reason, run_dir=run_dir, usd=hill_list_usd(run_dir), ended_at=utc_iso())
+    if answer is not None:
+        record.update(scores={labels[letter]: answer["scores"][letter] for letter in letters},
+                      fixes=answer["fixes"], regressions=answer["regressions"], checklist=answer["checklist"])
+    hill_save(workdir, state)
+    hill_append_rounds(workdir, current["round"], record, dimensions)
+    detail = "" if status == "ok" else f" ({reason})"
+    print("hillclimb: round {} review {}: {} effort {}, {}, {}{}".format(
+        current["round"], review_no, lane, args.effort, "gating" if gating else "non-gating", status, detail))
+    return 0 if status == "ok" else 1
+
+
+def hill_verdict(state):
+    """The stop rule. met: the latest round has a gating review, every gating review scores the candidate at or above
+    the bar on every dimension and at or above each reference on every dimension. stop: not met, and the round cap or
+    the budget is reached. continue: not met, and room is left."""
+    bar, dimensions, rounds = state["bar"], state["dimensions"], state["rounds"]
+    shortfalls, notes, gating = [], [], []
+    if not rounds:
+        shortfalls.append("no round yet: snapshot the first candidate")
+    else:
+        current = rounds[-1]
+        reviews = current["reviews"]
+        gating = [review for review in reviews if review["status"] == "ok" and review["gating"]]
+        if not gating:
+            shortfalls.append("round {}: no gating review has come back".format(current["round"]))
+        for status in ("failed", "pending"):
+            count = sum(1 for review in reviews if review["status"] == status)
+            if count:
+                notes.append("round {}: {} {} review(s) not counted".format(current["round"], count, status))
+        for review in gating:
+            label = "review {} ({})".format(review["review"], review["lane"])
+            candidate = review["scores"]["candidate"]
+            for dim in dimensions:
+                if candidate[dim] < bar:
+                    shortfalls.append("{} scores the candidate {} on {}, under the bar {}".format(
+                        label, hill_num(candidate[dim]), dim, hill_num(bar)))
+            # A candidate worse than where it started is not an improvement, whatever the bar says.
+            before = review["scores"].get("before")
+            for dim in dimensions if before else ():
+                if candidate[dim] < before[dim]:
+                    shortfalls.append("{} scores the candidate {} on {}, under the before set at {}".format(
+                        label, hill_num(candidate[dim]), dim, hill_num(before[dim])))
+            for role in sorted(role for role in review["scores"] if role.startswith("ref:")):
+                for dim in dimensions:
+                    if candidate[dim] < review["scores"][role][dim]:
+                        shortfalls.append("{} scores the candidate {} on {}, under {} at {}".format(
+                            label, hill_num(candidate[dim]), dim, role, hill_num(review["scores"][role][dim])))
+    met = bool(gating) and not shortfalls
+    cap_reached = len(rounds) >= state["rounds_cap"]
+    spend = hill_spend(state)
+    if met:
+        verdict = "met"
+    elif cap_reached or spend >= state["budget_usd"]:
+        verdict = "stop"
+        if cap_reached:
+            notes.append("round cap reached: {} of {}".format(len(rounds), state["rounds_cap"]))
+        if spend >= state["budget_usd"]:
+            notes.append("budget reached: ${:.2f} of ${}".format(spend, hill_num(state["budget_usd"])))
+    else:
+        verdict = "continue"
+    return {"verdict": verdict, "reasons": shortfalls + notes}
+
+
+def hill_status_lines(workdir, state, result):
+    dimensions = ", ".join(state["dimensions"])
+    lines = ["hillclimb status: " + workdir,
+             "bar {} on every dimension ({}); builder family {}; rounds {} of {}; spend ${:.2f} of ${}".format(
+                 hill_num(state["bar"]), dimensions, state["builder_family"], len(state["rounds"]),
+                 state["rounds_cap"], hill_spend(state), hill_num(state["budget_usd"]))]
+    for rnd in state["rounds"]:
+        lines.append("round {}: {}".format(rnd["round"], ", ".join(rnd["files"])))
+        for review in rnd["reviews"]:
+            head = "  review {}: {} effort {}, {}, {}".format(
+                review["review"], review["lane"], review["effort"],
+                "gating" if review["gating"] else "non-gating", review["status"])
+            if review["status"] != "ok":
+                lines.append(head + " ({})".format(review["reason"]))
+                continue
+            if review["usd"] is not None:
+                head += ", list ${:.2f}".format(review["usd"])
+            lines.append(head)
+            roles = ["candidate", "before"] + sorted(role for role in review["scores"] if role.startswith("ref:"))
+            for role in roles:
+                lines.append("    {}: ".format(role) + ", ".join(
+                    "{} {}".format(dim, hill_num(review["scores"][role][dim])) for dim in state["dimensions"]))
+            if review["fixes"]:
+                lines.append("    fixes: " + "; ".join(review["fixes"]))
+    lines.append("verdict: " + result["verdict"])
+    lines += ["  - " + reason for reason in result["reasons"]]
+    return lines
+
+
+def hill_status_json(workdir, state, result):
+    keys = ("review", "lane", "effort", "family", "gating", "status", "reason", "usd", "run_dir", "scores",
+            "fixes", "regressions", "checklist")
+    return {"workdir": workdir, "verdict": result["verdict"], "reasons": result["reasons"], "bar": state["bar"],
+            "dimensions": state["dimensions"], "rounds_cap": state["rounds_cap"],
+            "rounds_used": len(state["rounds"]), "budget_usd": state["budget_usd"], "spend_usd": hill_spend(state),
+            "builder_family": state["builder_family"], "before": state["before"], "refs": state["refs"],
+            "rounds": [{"round": rnd["round"], "files": rnd["files"],
+                        "reviews": [{key: review.get(key) for key in keys} for review in rnd["reviews"]]}
+                       for rnd in state["rounds"]]}
+
+
+def cmd_hill_status(args):
+    workdir = os.path.abspath(args.workdir)
+    state = hill_load(workdir)
+    result = hill_verdict(state)
+    if args.json:
+        print(json.dumps(hill_status_json(workdir, state, result), indent=2))
+    else:
+        print("\n".join(hill_status_lines(workdir, state, result)))
+    return 0
+
+
 # ---------------------------------------------------------------- CLI
 
 def positive_int(value):
@@ -3942,6 +4494,49 @@ def build_parser():
     priors.add_argument("--arms-json", metavar="PATH", help="catalog (default ~/.claude/usage-optimizer/arms.json)")
     priors.add_argument("--codex-home", metavar="DIR")
     priors.set_defaults(func=cmd_priors)
+
+    hill = sub.add_parser("hillclimb", help="blind-reviewer hill-climb of an artifact: init, snapshot, review, status")
+    hill_sub = hill.add_subparsers(dest="hill_action", required=True, metavar="ACTION")
+    hill_init = hill_sub.add_parser("init", help="start a workdir: the owner's feedback, the dimensions, the artifact as it was")
+    hill_init.add_argument("workdir", metavar="WORKDIR")
+    hill_init.add_argument("--feedback", required=True, metavar="TEXT", help="the owner's words, quoted into the plan and the briefs")
+    hill_init.add_argument("--dimension", action="append", metavar="NAME",
+                           help="2 to 5 dimensions to score each screen on; repeatable")
+    hill_init.add_argument("--before", action="append", metavar="FILE", help="the artifact as it was; repeatable")
+    hill_init.add_argument("--ref", action="append", metavar="FILE", help="a reference screen; repeatable")
+    hill_init.add_argument("--rounds", type=positive_int, default=HILL_DEFAULT_ROUNDS, metavar="N",
+                           help="round cap (default 4)")
+    hill_init.add_argument("--bar", type=float, default=HILL_DEFAULT_BAR, metavar="N",
+                           help="score the candidate must reach on every dimension (default 9)")
+    hill_init.add_argument("--budget-usd", type=float, default=HILL_DEFAULT_BUDGET_USD, metavar="USD",
+                           help="stop reviewing at this recorded list spend (default 5)")
+    hill_init.add_argument("--builder-family", choices=HILL_FAMILIES, default="claude",
+                           help="the family that edits the artifact; its reviews are non-gating")
+    hill_init.add_argument("--approved", metavar="NOTE", help="who approved this capability test, and when (required)")
+    hill_init.set_defaults(func=cmd_hill_init)
+
+    hill_snapshot = hill_sub.add_parser("snapshot", help="start the next round from the current candidate files")
+    hill_snapshot.add_argument("workdir", metavar="WORKDIR")
+    hill_snapshot.add_argument("files", nargs="+", metavar="FILE")
+    hill_snapshot.set_defaults(func=cmd_hill_snapshot)
+
+    hill_review = hill_sub.add_parser("review", help="one fresh blind review of the latest round")
+    hill_review.add_argument("workdir", metavar="WORKDIR")
+    hill_review.add_argument("--lane", required=True, metavar="LANE", help="the reviewing lane, such as sol or gemini")
+    hill_review.add_argument("-e", "--effort", required=True, choices=EFFORTS)
+    hill_review.add_argument("--lane-arg", action="append", metavar="ARG",
+                             help="one more argument for lane; repeatable; write it as --lane-arg=-m")
+    hill_review.add_argument("--family", choices=HILL_FAMILIES,
+                             help="the reviewer's family, for a lane the kit does not know (amp: its model's family)")
+    hill_review.add_argument("--allow-same-family", action="store_true",
+                             help="allow a reviewer from the builder's family; the review is non-gating")
+    hill_review.add_argument("--timeout", type=positive_int, default=HILL_REVIEW_TIMEOUT_S, metavar="SEC")
+    hill_review.set_defaults(func=cmd_hill_review)
+
+    hill_status = hill_sub.add_parser("status", help="scores per round and reviewer, the stop rule and the spend")
+    hill_status.add_argument("workdir", metavar="WORKDIR")
+    hill_status.add_argument("--json", action="store_true", help="print the status as one JSON object")
+    hill_status.set_defaults(func=cmd_hill_status)
     return parser
 
 
