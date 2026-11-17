@@ -35,6 +35,8 @@ def _strip_sgr(value):
 class CodexMeterTests(unittest.TestCase):
     def setUp(self):
         self.old_env = os.environ.copy()
+        # These tests pin the layout without the weekly pace marker; tests/test_statusline_pace.py covers the marker.
+        os.environ["USAGE_OPTIMIZER_PACE"] = "off"
         self.temp = tempfile.TemporaryDirectory()
         self.root = self.temp.name
         self.state = os.path.join(self.root, "usage")

@@ -1,0 +1,15 @@
+{
+  "created": "__TS__",
+  "messages": [
+    {
+      "role": "user",
+      "content": "SECRET-PROMPT-TEXT",
+      "meta": {
+        "sentAt": "__TS4__"
+      },
+      "usage": {
+        "timestamp": "__TS4__"
+      }
+    }
+  ]
+}

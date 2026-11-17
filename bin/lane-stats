@@ -23,6 +23,13 @@ FIELDS = ("lane", "model", "effort", "class", "tag", "provider", "place")
 # What report can group by: the exported fields plus the advisor role a fable run records ("-" when it has none).
 GROUP_FIELDS = FIELDS + ("role",)
 OUTCOMES = ("accepted", "fixed", "rework", "rejected")
+# A run that did no finished work. STUCK is a worker the stuck-run guard stopped; lane-stats counts it like FAILED.
+INCOMPLETE_VERDICTS = ("QUOTA", "BUSY", "NOOP", "FAILED", "STUCK", "SANDBOX", "UNKNOWN", "TIMEOUT")
+FACT_HEADER = "Known facts about this repository (from the kit's run records):"
+FACT_LIMIT = 10
+FACT_BYTES = 1500
+FACT_TEXT_LIMIT = 200
+_SWAP_TEXT = re.compile(r'^Use "([^"\r\n]+)" instead of "([^"\r\n]+)" in this repository\Z')
 PROVIDERS = {
     "luna": "codex", "terra": "codex", "sol": "codex", "astra": "codex",
     "haiku": "claude", "sonnet": "claude", "opus": "claude", "fable": "claude", "gemini": "gemini",
@@ -647,7 +654,409 @@ def locate_run(run_arg, state):
     return None, None
 
 
+def normalize_repo_path(path):
+    """Absolute path with forward slashes and a lower-case drive letter."""
+    text = os.path.abspath(os.path.expanduser(path)).replace("\\", "/")
+    if len(text) >= 2 and text[1] == ":" and text[0].isalpha():
+        text = text[0].lower() + text[1:]
+    if len(text) > 3 and text.endswith("/"):
+        text = text.rstrip("/")
+    return text
+
+
+def repo_key(path):
+    """The git toplevel of `path`, or `path` itself when it is not a checkout. Errors fall back to `path`."""
+    try:
+        result = subprocess.run(["git", "-C", path, "rev-parse", "--show-toplevel"],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15, check=False)
+        if result.returncode == 0:
+            text = result.stdout.decode("utf-8", "replace").strip()
+            if text:
+                return normalize_repo_path(text)
+    except (OSError, subprocess.TimeoutExpired, UnicodeError):
+        pass
+    return normalize_repo_path(path)
+
+
+def facts_path():
+    return os.path.join(state_dir(), "facts.json")
+
+
+def load_facts_store():
+    """The facts file, an empty store when it is missing, or None when it is unreadable.
+
+    None means "do not write": a corrupt file is left as it is.
+    """
+    path = facts_path()
+    try:
+        with open(path, "r", encoding="utf-8") as stream:
+            data = json.load(stream)
+    except FileNotFoundError:
+        return {"repos": {}}
+    except (OSError, ValueError, UnicodeError):
+        return None
+    if not isinstance(data, dict) or not isinstance(data.get("repos"), dict):
+        return None
+    return data
+
+
+def save_facts_store(data):
+    path = facts_path()
+    directory = os.path.dirname(path)
+    os.makedirs(directory, exist_ok=True)
+    descriptor, temp = tempfile.mkstemp(prefix="facts.json.", suffix=".tmp", dir=directory)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
+            json.dump(data, stream, indent=2, sort_keys=True, ensure_ascii=False)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        for attempt in range(20):
+            try:
+                os.replace(temp, path)
+                return
+            except PermissionError:
+                if attempt == 19:
+                    raise
+                time_sleep_facts()
+    finally:
+        if os.path.exists(temp):
+            try:
+                os.unlink(temp)
+            except OSError:
+                pass
+
+
+def time_sleep_facts():
+    # Imported here so a facts-store failure cannot depend on a name the rest of the file does not use.
+    import time
+    time.sleep(0.25)
+
+
+# Facts go into briefs, and briefs leave this machine (Data, Briefs: never a secret, token or personal data). A fact
+# mined from a worker's commands can carry a header, key or token, so anything that looks like one is never stored or
+# sent: credential words, well-known token prefixes, long opaque runs, e-mail addresses and URLs with a password.
+SECRET_FACT_RE = re.compile(
+    r"(?i)(?:authorization|bearer\s|api[_-]?key|access[_-]?key|secret|passw(?:or)?d|passwd|token|cookie|"
+    r"private[_-]?key|credential|\bsk-[A-Za-z0-9]|\bgh[pousr]_[A-Za-z0-9]|\bxox[abprs]-|\bAKIA[0-9A-Z]{8}|"
+    r"-----BEGIN|(?=[A-Za-z0-9+_\-=]*\d)(?=[A-Za-z0-9+_\-=]*[A-Za-z])[A-Za-z0-9+_\-=]{32,}|[^\s@'\"<>]+@[^\s@'\"<>]+\.[a-z]{2,}|://[^/\s:@]+:[^/\s@]+@)"
+)
+
+
+def looks_secret(text):
+    """True when a fact's text might hold a credential or personal data; such a fact is never stored or briefed."""
+    return isinstance(text, str) and SECRET_FACT_RE.search(text) is not None
+
+
+def check_fact_text(text):
+    if not isinstance(text, str):
+        raise ValueError("a fact must be one line of at most {} characters".format(FACT_TEXT_LIMIT))
+    text = text.strip()
+    if not text or "\n" in text or "\r" in text or len(text) > FACT_TEXT_LIMIT:
+        raise ValueError("a fact must be one line of at most {} characters".format(FACT_TEXT_LIMIT))
+    if looks_secret(text):
+        raise ValueError("a fact must not hold a credential, token, long key-like string or e-mail address "
+                         "(facts are copied into worker briefs)")
+    return text
+
+
+def fact_id_for(source, text):
+    digest = hashlib.sha256((source + "\0" + text).encode("utf-8")).hexdigest()
+    return "f-" + digest[:12]
+
+
+def fact_active(fact):
+    """A review fact is active at one confirmation. An auto fact needs three different runs. Any contradiction ends it."""
+    if not isinstance(fact, dict) or fact.get("contradictions"):
+        return False
+    confirmations = fact.get("confirmations")
+    if not isinstance(confirmations, list) or not confirmations:
+        return False
+    if fact.get("source") == "review":
+        return True
+    if fact.get("source") == "auto":
+        return len(set(confirmations)) >= 3
+    return False
+
+
+def _repo_facts(store, repo):
+    facts = store["repos"].get(repo)
+    if not isinstance(facts, list):
+        facts = []
+        store["repos"][repo] = facts
+    return facts
+
+
+def upsert_fact(store, repo, source, text, run_id, when=None):
+    when = when or iso_now()
+    facts = _repo_facts(store, repo)
+    identity = fact_id_for(source, text)
+    for fact in facts:
+        if isinstance(fact, dict) and fact.get("id") == identity:
+            confirmations = fact.get("confirmations")
+            if not isinstance(confirmations, list):
+                confirmations = []
+                fact["confirmations"] = confirmations
+            if run_id not in confirmations:
+                confirmations.append(run_id)
+                fact["updated"] = when
+            return fact
+    fact = {"id": identity, "text": text, "source": source, "confirmations": [run_id], "contradictions": [],
+            "added": when, "updated": when}
+    facts.append(fact)
+    return fact
+
+
+def swap_fact_text(bad, good):
+    return 'Use "{}" instead of "{}" in this repository'.format(good, bad)
+
+
+def parse_swap_text(text):
+    """(failed program, recommended program) from an auto substitution fact, or None."""
+    match = _SWAP_TEXT.match(text or "")
+    if not match:
+        return None
+    return match.group(2), match.group(1)
+
+
+def substitution_pairs(commands):
+    """(failed program, later program) pairs whose arguments match and whose evidence is unambiguous.
+
+    One failed program maps to at most one recommended program in the run. A program that both fails and
+    succeeds on the same arguments, or that is followed by two different successes, is not a fact.
+    """
+    if not isinstance(commands, list):
+        return []
+    by_args = {}
+    for index, command in enumerate(commands):
+        if not isinstance(command, dict):
+            continue
+        program = command.get("program")
+        args = command.get("args")
+        if not isinstance(program, str) or not isinstance(args, tuple):
+            continue
+        by_args.setdefault(args, []).append(index)
+    chosen = {}
+    for args, indexes in by_args.items():
+        saw_ok, saw_fail = {}, {}
+        for index in indexes:
+            command = commands[index]
+            bucket = saw_ok if command.get("ok") else saw_fail
+            bucket[command.get("program")] = True
+        for position, index in enumerate(indexes):
+            failed = commands[index]
+            if failed.get("ok"):
+                continue
+            bad = failed.get("program")
+            if not isinstance(bad, str) or bad in saw_ok:
+                continue
+            goods = []
+            for later in indexes[position + 1:]:
+                item = commands[later]
+                program = item.get("program")
+                if item.get("ok") and isinstance(program, str) and program != bad and program not in goods:
+                    goods.append(program)
+            if len(goods) != 1 or goods[0] in saw_fail:
+                continue
+            chosen.setdefault(bad, set()).add(goods[0])
+    pairs = []
+    for bad in sorted(chosen):
+        goods = chosen[bad]
+        if len(goods) != 1:
+            continue
+        good = next(iter(goods))
+        if not good or '"' in bad or '"' in good or "\n" in bad or "\r" in bad or "\n" in good or "\r" in good:
+            continue
+        text = swap_fact_text(bad, good)
+        if len(text) > FACT_TEXT_LIMIT:
+            continue
+        pairs.append((bad, good))
+    return pairs
+
+
+def commands_contradict(commands, bad, good):
+    """True when some argument list shows `good` failing and `bad` succeeding."""
+    grouped = {}
+    for command in commands or []:
+        if not isinstance(command, dict) or not isinstance(command.get("args"), tuple):
+            continue
+        grouped.setdefault(command["args"], []).append(command)
+    for group in grouped.values():
+        good_failed = any(item.get("program") == good and not item.get("ok") for item in group)
+        bad_succeeded = any(item.get("program") == bad and item.get("ok") for item in group)
+        if good_failed and bad_succeeded:
+            return True
+    return False
+
+
+def observe_run(repo, run_id, commands):
+    """Record auto facts from one run's commands. A corrupt store is left untouched. Returns whether it changed."""
+    if not repo or not run_id or not commands:
+        return False
+    store = load_facts_store()
+    if store is None:
+        return False
+    changed = False
+    when = iso_now()
+    contradicted = set()
+    for fact in list(_repo_facts(store, repo)):
+        if not isinstance(fact, dict) or fact.get("source") != "auto":
+            continue
+        parsed = parse_swap_text(fact.get("text") if isinstance(fact.get("text"), str) else "")
+        if parsed is None:
+            continue
+        bad, good = parsed
+        if not commands_contradict(commands, bad, good):
+            continue
+        contradictions = fact.get("contradictions")
+        if not isinstance(contradictions, list):
+            contradictions = []
+            fact["contradictions"] = contradictions
+        if run_id not in contradictions:
+            contradictions.append(run_id)
+            fact["updated"] = when
+            changed = True
+        if fact.get("id"):
+            contradicted.add(fact.get("id"))
+    for bad, good in substitution_pairs(commands):
+        if commands_contradict(commands, bad, good):
+            continue
+        text = swap_fact_text(bad, good)
+        if looks_secret(text) or len(text) > FACT_TEXT_LIMIT:
+            continue
+        identity = fact_id_for("auto", text)
+        if identity in contradicted:
+            continue
+        existing = next((fact for fact in _repo_facts(store, repo)
+                         if isinstance(fact, dict) and fact.get("id") == identity), None)
+        if existing is not None and existing.get("contradictions"):
+            continue
+        before = list(existing.get("confirmations") or []) if existing is not None else []
+        upsert_fact(store, repo, "auto", text, run_id, when)
+        if run_id not in before:
+            changed = True
+    if changed:
+        save_facts_store(store)
+    return changed
+
+
+def record_review_facts(run_dir, texts):
+    meta_path = os.path.join(run_dir, "meta.json")
+    with open(meta_path, "r", encoding="utf-8") as stream:
+        meta = json.load(stream)
+    if not isinstance(meta, dict):
+        raise ValueError("run meta is not an object")
+    directory = meta.get("dir")
+    if not isinstance(directory, str) or not directory:
+        raise ValueError("run has no directory to attach a fact to")
+    repo = repo_key(directory)
+    run_id = os.path.basename(os.path.normpath(run_dir))
+    store = load_facts_store()
+    if store is None:
+        raise ValueError("facts store is unreadable and was not overwritten")
+    for text in texts:
+        upsert_fact(store, repo, "review", text, run_id)
+    save_facts_store(store)
+
+
+def facts_brief(repo):
+    """(block, ids) for the active facts of `repo`, newest first, capped at 10 facts and 1,500 bytes.
+
+    The block is empty when nothing active fits. A newer fact that does not fit ends the block; an older
+    smaller one is not pulled in ahead of it.
+    """
+    store = load_facts_store()
+    if store is None or not repo:
+        return "", []
+    stored = store["repos"].get(repo)
+    if not isinstance(stored, list):
+        return "", []
+    # looks_secret again here: a store written before the filter, or edited by hand, must not reach a brief.
+    facts = [fact for fact in stored if fact_active(fact) and isinstance(fact.get("text"), str)
+             and not looks_secret(fact["text"])]
+    facts.sort(key=lambda fact: (fact.get("updated") or "", fact.get("added") or "", fact.get("id") or ""), reverse=True)
+    lines = [FACT_HEADER]
+    chosen = []
+    for fact in facts:
+        if len(chosen) >= FACT_LIMIT:
+            break
+        trial = lines + ["- " + fact["text"]]
+        block = "\n".join(trial) + "\n"
+        if len(block.encode("utf-8")) > FACT_BYTES:
+            break
+        lines = trial
+        chosen.append(fact["id"])
+    if not chosen:
+        return "", []
+    return "\n".join(lines) + "\n", chosen
+
+
+def list_facts(repo=None):
+    store = load_facts_store()
+    if store is None:
+        raise ValueError("facts store is unreadable")
+    if repo is None:
+        items = sorted((key, value) for key, value in store["repos"].items() if isinstance(value, list))
+    else:
+        key = repo_key(repo)
+        facts = store["repos"].get(key)
+        items = [(key, facts if isinstance(facts, list) else [])]
+    rows = []
+    for key, facts in items:
+        for fact in facts:
+            if not isinstance(fact, dict):
+                continue
+            row = dict(fact)
+            row["repo"] = key
+            row["active"] = fact_active(fact)
+            rows.append(row)
+    rows.sort(key=lambda row: (row.get("repo") or "", row.get("updated") or "", row.get("id") or ""), reverse=True)
+    return rows
+
+
+def drop_fact(identity):
+    store = load_facts_store()
+    if store is None:
+        raise ValueError("facts store is unreadable and was not overwritten")
+    if not identity:
+        raise ValueError("unknown fact")
+    removed = False
+    for key, facts in list(store["repos"].items()):
+        if not isinstance(facts, list):
+            continue
+        kept = [fact for fact in facts if not (isinstance(fact, dict) and fact.get("id") == identity)]
+        if len(kept) != len(facts):
+            removed = True
+            if kept:
+                store["repos"][key] = kept
+            else:
+                del store["repos"][key]
+    if not removed:
+        raise ValueError("unknown fact: {}".format(identity))
+    save_facts_store(store)
+
+
+def facts_command(args):
+    if getattr(args, "drop", None):
+        drop_fact(args.drop)
+        print("dropped {}".format(args.drop))
+        return 0
+    rows = list_facts(getattr(args, "repo", None))
+    if getattr(args, "json", False):
+        print(json.dumps(rows, indent=2, sort_keys=True, ensure_ascii=False))
+        return 0
+    if not rows:
+        print("no facts")
+        return 0
+    for row in rows:
+        print("{}  {}  {}  {}".format(row.get("id"), "active" if row.get("active") else "inactive",
+                                      row.get("source"), row.get("text")))
+        print("  {}".format(row.get("repo")))
+    return 0
+
+
 def review(args):
+    texts = [check_fact_text(text) for text in (getattr(args, "facts", None) or [])]
     state = state_dir()
     key, run_dir = locate_run(args.run, state)
     if run_dir is None:
@@ -665,6 +1074,12 @@ def review(args):
     with open(os.path.join(state, "reviews.jsonl"), "a", encoding="utf-8", newline="\n") as stream:
         json.dump(line, stream, ensure_ascii=False)
         stream.write("\n")
+    if texts:
+        try:
+            record_review_facts(run_dir, texts)
+        except (OSError, ValueError) as exc:
+            print("lane-stats: review saved; repository fact not recorded: {}".format(exc), file=sys.stderr)
+            return 2
     print("reviewed {}: {}".format(os.path.basename(os.path.normpath(run_dir)), args.outcome))
     return 0
 
@@ -1410,11 +1825,62 @@ def provider_mode_until(provider, live):
     return reset.astimezone(datetime.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
+def provider_windows(data):
+    """Every window on a usage-status reading, whatever its length or label."""
+    if not isinstance(data, dict):
+        return []
+    found = []
+    raw = data.get("windows")
+    if isinstance(raw, list):
+        found.extend(item for item in raw if isinstance(item, dict))
+    elif isinstance(raw, dict):
+        found.extend(item for item in raw.values() if isinstance(item, dict))
+    buckets = data.get("buckets")
+    if isinstance(buckets, list):
+        found.extend(item for item in buckets if isinstance(item, dict))
+    return found
+
+
+def window_used_percent(window):
+    for key in ("used_percent", "used_percentage"):
+        value = number(window.get(key))
+        if value is not None:
+            return value
+    return None
+
+
+def provider_limit_reached(provider, live, config):
+    """True when the live reading says this provider cannot take ordinary work.
+
+    A provider is out when the reading names a reached limit, ordinary usage is not allowed, or any
+    window (a 5h bar, a weekly bar, or a plan's single 30-day bar) is at or above the weekly skip
+    threshold. A missing reading, a null `reached`, and a null `ordinary_usage_allowed` are not out.
+    """
+    if not isinstance(live, dict):
+        return False
+    data = live.get("agy" if provider == "gemini" else provider)
+    if not isinstance(data, dict):
+        return False
+    if data.get("reached") is not None:
+        return True
+    if data.get("ordinary_usage_allowed") is False:
+        return True
+    threshold = number(config.get("exclude_weekly_pct")) if isinstance(config, dict) else None
+    if threshold is None:
+        return False
+    for window in provider_windows(data):
+        used = window_used_percent(window)
+        if used is not None and used >= threshold:
+            return True
+    return False
+
+
 def provider_pace(provider, live, config, now, setting=None):
     used, _, short_used = provider_reading(provider, live, now)
     excluded = ((used is not None and used >= config["exclude_weekly_pct"])
                 or (short_used is not None and short_used >= config["exclude_5h_pct"])
-                or (provider == "claude" and used is not None and used >= config["claude_guard_pct"]))
+                or (provider == "claude" and used is not None and used >= config["claude_guard_pct"])
+                or provider_limit_reached(provider, live, config))
     usage_mode = provider_mode(provider, live, config, now, setting)
     # The factor follows the provider's usage mode; pace.low_pct and pace.high_pct stay in the catalog, unused.
     factor = {"utilization": config["pace"]["low_factor"], "saving": config["pace"]["high_factor"]}.get(usage_mode, 1.0)
@@ -1803,8 +2269,7 @@ def estimate_eta(runs, catalog, lane, model, effort, class_name, tag, now, brief
             continue
         # A run that did no finished work says nothing about the task's length: it stopped early or never started.
         verdict = str(run.get("verdict") or "").upper()
-        if (verdict in ("QUOTA", "BUSY", "NOOP", "FAILED", "SANDBOX", "UNKNOWN", "TIMEOUT")
-                or (run.get("tag") or None) != tag):
+        if verdict in INCOMPLETE_VERDICTS or (run.get("tag") or None) != tag:
             continue
         prior = time_prior(config, run.get("lane"), run.get("effort"), run.get("class"), run_brief_bytes(run))
         history.append({"w": recency_weight(run, explore, now), "r": math.log(max(duration, 3) / 60.0 / prior),
@@ -2878,6 +3343,222 @@ def share(args):
     return 0
 
 
+# ---- lead log and event timeline (no model call) ----
+LEAD_LOG_LIMIT = 300
+LOG_LINE = re.compile(r"- (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}) \(([^)\s]{1,40})\) (.*)\Z")
+LOG_TAG = re.compile(r"\[([A-Za-z][A-Za-z-]*)(?::\s*([^\]]*))?\]")
+TAG_KIND = {"start": "start", "result": "success", "fail": "fail", "breakthrough": "breakthrough",
+            "decision": "decision", "review": "review", "blocked": "blocked", "cleared": "cleared",
+            "done": "done", "metric": "metric", "status": "status", "progress": "progress", "end": "end"}
+KIND_IMPORTANCE = {"breakthrough": 3, "blocked": 3, "fail": 3, "start": 2, "success": 2, "decision": 2,
+                   "review": 2, "done": 2}
+TITLE_LIMIT = 80
+
+
+def lead_log_path():
+    return os.path.join(state_dir(), "lead-log.md")
+
+
+def note_command(args):
+    text = args.text.strip()
+    if not text or "\n" in text or "\r" in text or len(text) > LEAD_LOG_LIMIT:
+        print("lane-stats: a note must be one line of at most {} characters".format(LEAD_LOG_LIMIT), file=sys.stderr)
+        return 2
+    if looks_secret(text):
+        print("lane-stats: a note must not hold a credential, token, long key-like string or e-mail address",
+              file=sys.stderr)
+        return 2
+    lane = (args.lane or "main").strip()
+    if not re.fullmatch(r"[^()\s]{1,40}", lane):
+        print("lane-stats: --lane must be one word of at most 40 characters without parentheses", file=sys.stderr)
+        return 2
+    when = datetime.datetime.now()
+    if args.at:
+        try:
+            naive = datetime.datetime.fromisoformat(args.at[:-1] + "+00:00" if args.at.endswith("Z") else args.at)
+        except ValueError:
+            print("lane-stats: --at is not an ISO time: {}".format(args.at), file=sys.stderr)
+            return 2
+        # A time with no zone is local time; one with a zone is shown in local time.
+        when = naive if naive.tzinfo is None else naive.astimezone().replace(tzinfo=None)
+    path = lead_log_path()
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "a", encoding="utf-8", newline="\n") as stream:
+        stream.write("- {} ({}) {}\n".format(when.strftime("%Y-%m-%d %H:%M"), lane, text))
+    return 0
+
+
+def shorten(text, limit=TITLE_LIMIT):
+    text = " ".join(str(text).split())
+    return text if len(text) <= limit else text[:limit - 1].rstrip() + "…"
+
+
+def parse_log_text(text):
+    """(kind, tags, title) of a lead-log summary: the first known tag sets the kind, no tag is an update."""
+    tags, kind, value = [], None, ""
+    for match in LOG_TAG.finditer(text):
+        name, tag_value = match.group(1).lower(), (match.group(2) or "").strip()
+        tags.append("{}: {}".format(name, tag_value) if tag_value else name)
+        if kind is None and name in TAG_KIND:
+            kind, value = TAG_KIND[name], tag_value
+    plain = " ".join(LOG_TAG.sub(" ", text).split())
+    kind = kind or "update"
+    if kind in ("done", "metric", "progress") and value:
+        title = value
+    elif kind in ("blocked", "status") and value:
+        title = value + (" - " + plain if plain else "")
+    else:
+        title = plain or (tags[0] if tags else "")
+    return kind, tags, shorten(title)
+
+
+def make_event(event_id, when, kind, lane, title, source, tags=(), run=None, **extra):
+    event = {"id": event_id,
+             "at": when.astimezone(datetime.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+             "kind": kind, "importance": KIND_IMPORTANCE.get(kind, 1), "lane": lane,
+             "title": shorten(title), "source": source, "tags": list(tags), "run": run}
+    for key, value in extra.items():
+        if value is not None:
+            event[key] = value
+    return event
+
+
+def log_events(path):
+    events = []
+    try:
+        with open(path, "r", encoding="utf-8") as stream:
+            lines = stream.read().splitlines()
+    except FileNotFoundError:
+        return events
+    for line in lines:
+        match = LOG_LINE.fullmatch(line.strip())
+        if match is None:
+            continue
+        day, clock, lane, text = match.groups()
+        try:
+            when = datetime.datetime.strptime(day + " " + clock, "%Y-%m-%d %H:%M").astimezone()
+        except ValueError:
+            continue
+        kind, tags, title = parse_log_text(text)
+        digest = hashlib.sha1(line.strip().encode("utf-8")).hexdigest()[:16]
+        events.append(make_event("log:" + digest, when, kind, lane, title, "log", tags))
+    return events
+
+
+def run_events(state, since):
+    runs, _, _ = load_runs(state)
+    reviews, _ = latest_reviews(state, runs)
+    events = []
+    for key, run in runs.items():
+        run_id = os.path.basename(os.path.normpath(run.get("run_dir") or key))
+        lane = str(run.get("lane") or "?")
+        arm = "{}/{}".format(lane, run["effort"]) if run.get("effort") else lane
+        started = parse_time(run.get("started_at"))
+        duration = number(run.get("duration_s"))
+        eta = number(run.get("eta_s"))
+        ended = parse_time(run.get("ended_at")) or (
+            started + datetime.timedelta(seconds=duration) if started is not None and duration is not None else None)
+        usage = run.get("usage") if isinstance(run.get("usage"), dict) else {}
+        extra = {"minutes": round(duration / 60.0, 2) if duration is not None else None,
+                 "eta_minutes": round(eta / 60.0, 2) if eta else None,
+                 "list_usd": number(usage.get("list_usd"))}
+        label = " ".join(str(part) for part in (arm, run.get("class")) if part)
+        if started is not None and started >= since:
+            events.append(make_event("run:{}:start".format(run_id), started, "start", lane,
+                                     "start " + label, "run", run=run_id))
+        verdict = str(run.get("verdict") or "")
+        if ended is not None and verdict and ended >= since:
+            kind = "success" if verdict.upper() == "OK" else "fail"
+            events.append(make_event("run:{}:end".format(run_id), ended, kind, lane,
+                                     "{} {}".format(label, verdict), "run", run=run_id, **extra))
+        review_data = reviews.get(key)
+        reviewed = parse_time(review_data.get("reviewed_at")) if review_data else None
+        if reviewed is not None and reviewed >= since:
+            outcome = review_data["outcome"]
+            events.append(make_event("run:{}:review".format(run_id), reviewed, "review", lane,
+                                     "review {}: {}".format(label, outcome), "review", ["review: " + outcome],
+                                     run=run_id))
+    return events
+
+
+def mirror_events(repo, branch, since):
+    events = []
+    for sha, when, subject in orch_commits(repo, branch, False):
+        committed = parse_time(when)
+        if committed is None or committed < since:
+            continue
+        match = re.fullmatch(r"orch: (START|STATUS|READY|LOCAL|REVIEW)(?: (.*))?", subject, re.DOTALL)
+        if match is None:
+            continue
+        marker, rest = match.group(1), match.group(2) or ""
+        tags = []
+        if marker in ("STATUS", "READY"):
+            numbered = re.fullmatch(r"\d+: (\S.*)", rest, re.DOTALL)
+            parsed_kind, tags, title = parse_log_text(numbered.group(1) if numbered else rest)
+            if marker == "READY":
+                kind = "done"
+            else:
+                kind = "status" if parsed_kind == "update" else parsed_kind
+        elif marker == "START":
+            kind, title = "start", "main session " + rest
+        elif marker == "LOCAL":
+            kind, title = "update", "LOCAL " + rest
+        else:
+            kind, title = "review", "REVIEW " + rest
+        events.append(make_event("mirror:" + sha[:16], committed, kind, "main", title, "mirror", tags))
+    return events
+
+
+def since_time(value, now):
+    value = (value or "24h").strip()
+    match = re.fullmatch(r"(\d{1,5})([hd])", value)
+    if match:
+        count = int(match.group(1))
+        return now - datetime.timedelta(**{"hours" if match.group(2) == "h" else "days": count})
+    try:
+        parsed = datetime.datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+    except ValueError:
+        raise ValueError("--since must be like 24h, 7d or an ISO time: {}".format(value)) from None
+    if parsed.tzinfo is None:
+        parsed = parsed.astimezone()
+    return parsed.astimezone(datetime.timezone.utc)
+
+
+def timeline_command(args):
+    now = datetime.datetime.now(datetime.timezone.utc)
+    since = since_time(args.since, now)
+    events = log_events(lead_log_path()) + run_events(state_dir(), since)
+    if args.repo:
+        repo = os.path.abspath(os.path.expanduser(args.repo))
+        branch = args.branch
+        if not branch:
+            result = orch_git(repo, "rev-parse", "--abbrev-ref", "HEAD")
+            branch = result.stdout.decode("utf-8", "replace").strip() if result.returncode == 0 else ""
+        events += mirror_events(repo, branch, since)
+    seen, merged = set(), []
+    for event in events:
+        if event["id"] in seen or parse_time(event["at"]) < since:
+            continue
+        seen.add(event["id"])
+        merged.append(event)
+    merged.sort(key=lambda event: event["at"])  # stable: same-second events keep their source order
+    if args.limit:
+        merged = merged[-args.limit:]
+    if args.json:
+        record = {"schema": 1, "since": since.isoformat(timespec="seconds").replace("+00:00", "Z"),
+                  "until": now.isoformat(timespec="seconds").replace("+00:00", "Z"), "events": merged}
+        sys.stdout.write(json.dumps(record, ensure_ascii=False, allow_nan=False) + "\n")
+        return 0
+    day = None
+    for event in merged:
+        local = parse_time(event["at"]).astimezone()
+        if local.date() != day:
+            day = local.date()
+            print(day.isoformat())
+        print("{}  {}  {}  {}".format(local.strftime("%H:%M"), event["kind"], event["lane"], event["title"]))
+    return 0
+
+
 def build_parser():
     parser = argparse.ArgumentParser(prog="lane-stats")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -2886,7 +3567,14 @@ def build_parser():
     review_parser.add_argument("--outcome", required=True, choices=OUTCOMES)
     review_parser.add_argument("--note", default="")
     review_parser.add_argument("--fix-minutes", type=nonnegative_int)
+    review_parser.add_argument("--fact", dest="facts", action="append", default=None,
+                               help="record a repository fact confirmed by this run; repeatable")
     review_parser.set_defaults(func=review)
+    facts_parser = commands.add_parser("facts", help="list or remove repository facts learned from runs")
+    facts_parser.add_argument("--repo", help="only facts for this directory's repository")
+    facts_parser.add_argument("--json", action="store_true")
+    facts_parser.add_argument("--drop", metavar="ID", help="remove one fact by id")
+    facts_parser.set_defaults(func=facts_command)
     report_parser = commands.add_parser("report")
     report_parser.add_argument("--since", type=date_arg)
     report_parser.add_argument("--by", default="lane,effort,class")
@@ -2968,6 +3656,18 @@ def build_parser():
     orch_parser.add_argument("branch", metavar="BRANCH", help="the main session's branch on origin")
     orch_parser.add_argument("--no-fetch", action="store_true", help="read refs/remotes/origin/BRANCH as it is")
     orch_parser.set_defaults(func=import_orch)
+    note_parser = commands.add_parser("note", help="append one tagged line to the lead log")
+    note_parser.add_argument("text")
+    note_parser.add_argument("--lane")
+    note_parser.add_argument("--at", metavar="ISO", help="local time of the line (default: now)")
+    note_parser.set_defaults(func=note_command)
+    timeline_parser = commands.add_parser("timeline", help="the merged lead-log, run, review and mirror events")
+    timeline_parser.add_argument("--since", default="24h", help="24h, 7d or an ISO time (default 24h)")
+    timeline_parser.add_argument("--repo", help="a git checkout whose main-session orch: markers are merged in")
+    timeline_parser.add_argument("--branch", help="the main session's branch on origin (default: the checkout's branch)")
+    timeline_parser.add_argument("--json", action="store_true")
+    timeline_parser.add_argument("--limit", type=positive_int, help="keep only the newest N events")
+    timeline_parser.set_defaults(func=timeline_command)
     return parser
 
 

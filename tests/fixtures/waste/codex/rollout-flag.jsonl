@@ -1,0 +1,4 @@
+{"timestamp":"__TS0__","type":"session_meta","payload":{"originator":"codex-tui"}}
+{"timestamp":"__TS0__","type":"turn_context","payload":{"model":"gpt-6-luna"}}
+{"timestamp":"__TS0__","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":100000,"cached_input_tokens":0,"output_tokens":10,"reasoning_output_tokens":0}}}}
+{"timestamp":"__TS90__","type":"event_msg","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":100000,"cached_input_tokens":0,"output_tokens":10,"reasoning_output_tokens":0}}}}

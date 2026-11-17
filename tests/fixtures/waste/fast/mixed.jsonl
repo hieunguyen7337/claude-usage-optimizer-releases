@@ -1,0 +1,6 @@
+{"timestamp":"__TS__","type":"assistant","message":{"id":"fast1","model":"claude-sonnet-5-5","usage":{"input_tokens":1000000,"output_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"speed":"fast"},"content":[]}}
+{"timestamp":"__TS__","type":"assistant","message":{"id":"fast2","model":"claude-sonnet-5-5","usage":{"input_tokens":3000000,"output_tokens":0,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"speed":"standard"},"content":[]}}
+{"timestamp":"__TS__","type":"assistant","message":{"id":"fast3","model":"claude-opus-4-6","usage":{"input_tokens":100,"output_tokens":10,"cache_read_input_tokens":0,"cache_creation_input_tokens":0},"content":[]}}
+{"timestamp":"__TS__","type":"assistant","message":{"id":"fast4","model":"claude-fable-5-1","usage":{"input_tokens":10,"output_tokens":10,"cache_read_input_tokens":0,"cache_creation_input_tokens":0},"content":[]}}
+{"timestamp":"__TS__","type":"assistant","message":{"id":"fast5","model":"gemini-3.5-flash","usage":{"input_tokens":10,"output_tokens":10,"cache_read_input_tokens":0,"cache_creation_input_tokens":0},"content":[]}}
+{"timestamp":"__TS__","type":"assistant","message":{"id":"fast6","model":"gpt-5.4","usage":{"input_tokens":10,"output_tokens":10,"cache_read_input_tokens":0,"cache_creation_input_tokens":0},"content":[]}}

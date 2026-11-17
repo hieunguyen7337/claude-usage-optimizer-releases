@@ -833,6 +833,49 @@ if view == "apply":
             applied[key] = value
             changed.append("%s: %s -> %s" % (key, json.dumps(current), json.dumps(value)))
 
+# A per-model autoCompactWindow is the owner's. Leave it in place and say when that model will
+# not compact at the top-level window this merge leaves behind.
+def positive_window(value):
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        try:
+            value = float(value.strip())
+        except ValueError:
+            return None
+    if isinstance(value, (int, float)):
+        number = float(value)
+        if number != number or number <= 0 or number == float("inf") or number == float("-inf"):
+            return None
+        return int(number) if number.is_integer() else number
+    return None
+
+def window_text(value):
+    if value >= 1000000:
+        return "{:g}M".format(round(value / 1000000.0, 1))
+    if value >= 1000:
+        return "{}k".format(int(round(value / 1000.0)))
+    return str(int(round(value)))
+
+def warn_compaction_overrides(merged):
+    top = positive_window(merged.get("autoCompactWindow")) if isinstance(merged, dict) else None
+    table = merged.get("modelSettings") if isinstance(merged, dict) else None
+    if top is None or not isinstance(table, dict):
+        return
+    for model, entry in table.items():
+        if not isinstance(model, str) or not model or not isinstance(entry, dict):
+            continue
+        window = positive_window(entry.get("autoCompactWindow"))
+        if window is None or window == top:
+            continue
+        shown = window_text(window)
+        kit = window_text(top)
+        print("Compaction: %s compacts at %s, not the kit's %s "
+              "(settings.json modelSettings); remove it to use %s" % (model, shown, kit, kit),
+              file=sys.stderr)
+
+warn_compaction_overrides(settings)
+
 if preview:
     for line in added or ["nothing; every key is already set"]:
         print("DRY-RUN: settings.json would gain " + line)

@@ -1,6 +1,6 @@
 {
   "name": "compact-at-rest",
-  "version": "0.1.0",
-  "description": "Compacts the conversation right after Claude finishes an answer when the context is near the compaction window, instead of mid-turn.",
+  "version": "0.2.0",
+  "description": "Compacts between turns when the context is near the compaction window, and after a long idle stretch while the prompt cache is still warm (USAGE_OPTIMIZER_IDLE_COMPACT=off turns the idle compaction off).",
   "author": { "name": "Coding Tool Optimizer" }
 }

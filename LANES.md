@@ -1275,6 +1275,27 @@ cline -P cline -m z-ai/glm-5.3-flash -c <dir> --auto-approve true -t 900 "$(cat 
 - **An MCP server at local scope reaches every worktree (2026-10-31).** It applies to every worktree of that
   repository folder; a worktree that must not reach it needs its own deny in its `settings.local.json`.
 
+## Timeline (`lane-stats note`, `lane-stats timeline`)
+
+One timeline of what the kit's work did, built from local files and git commits. It makes no model call and no
+network call.
+
+- `lane-stats note "<text>" [--lane <id>] [--at <ISO time>]` appends `- YYYY-MM-DD HH:MM (lane) text` to
+  `lead-log.md` in the state folder (local time; lane defaults to `main`). It refuses text with a newline, over 300
+  characters, or that looks like a credential or e-mail address (exit 2).
+- `lane-stats timeline [--since 24h|7d|ISO] [--repo DIR [--branch B]] [--json] [--limit N]` prints the merged events,
+  oldest first (`--limit` keeps the newest N): `HH:MM  kind  lane  title` under a date header per day, or with
+  `--json` one `{"schema": 1, "since", "until", "events"}` object.
+- Tags may appear anywhere in a line, as `[tag]` or `[tag: value]`: `start`, `result`, `fail`, `breakthrough`,
+  `decision`, `review`, `blocked: what the owner must do`, `cleared`, `done: title`, `metric: Name = value unit`,
+  `status: good|warn|bad|done text`, `progress: 3/6 label`, `end`. An untagged line is an `update`; an unknown tag
+  is kept in `tags` and does not change the kind. Importance: breakthrough, blocked, fail 3; start, result, decision,
+  review, done 2; the rest 1.
+- Sources, merged and de-duplicated by event id: the lead log; lane runs (a start event, and a success or fail event
+  with minutes, ETA and list dollars); reviews recorded on runs; and with `--repo`, the main cloud session's `orch:`
+  commits on `origin/<branch>` (the checked-out branch unless `--branch` is given; never fetched): START, STATUS,
+  READY, LOCAL and REVIEW. A STATUS title may start with lead-log tags such as `[blocked: approve deploy]`.
+
 ## Sharing statistics (opt-in)
 
 `lane-stats share` previews anonymous totals for the last complete ISO week; use `--week YYYY-Www` to choose

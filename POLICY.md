@@ -1,7 +1,7 @@
 # Coding Tool Optimizer: usage policy
 
-Coding Tool Optimizer version: 2026-11-16.3. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
-Claude Usage Optimizer version: 2026-11-16.3. (The kit's name until 2026-11-16.3; this line lets older installs find this release.)
+Coding Tool Optimizer version: 2026-11-16.4. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Claude Usage Optimizer version: 2026-11-16.4. (The kit's name until 2026-11-16.3; this line lets older installs find this release.)
 Machine-specific rules (project dispatchers, locked lanes, local paths) belong in
 `~/.claude/CLAUDE.md` above the import line, and they win when the two conflict.
 On Amp or Codex CLI, read that platform's notes first (`~/.claude/usage-optimizer/platforms/<amp|codex>/PLATFORM.md`):
@@ -252,7 +252,9 @@ public prices; use public scores to place a model's tier, never to choose betwee
    price ÷ 4.345), × a pace factor from the provider's mode (×0.25 in utilization, ×3 in saving, ×1 in default;
    Modes, below), plus Claude's review and fix cost. Scarcity prices only a provider or plan with no price (cline;
    Codex 'pro'): share × scarcity × Claude's plan dollars per 1% of its week. A provider at ≥ 95% weekly
-   or ≥ 90% 5h, or Claude at ≥ 85% weekly, is skipped. Old runs fade with a 60-day half-life.
+   or ≥ 90% 5h, or Claude at ≥ 85% weekly, is skipped; so is one whose reading says its limit is reached or ordinary
+   use is not allowed, or with any window at ≥ 95% (a plan's single 30-day window too: from 2026-11-16.4, after the
+   picker drew luna while Codex Free's 30-day window was out). Old runs fade with a 60-day half-life.
 3. **Every run carries a class**, `--class mechanical|substantive|hard|design|review|research`, and the
    pick id. A pair (`pick --pair --approved "<who, when>"`) runs the same brief on two lanes in separate
    copies; keep the better result, and review both. A pair is a capability test (see Principle), so run one only
@@ -260,7 +262,13 @@ public prices; use public scores to place a model's tier, never to choose betwee
 4. **Every reviewed run gets an outcome**, recorded right after the review:
    `lane-stats review <run|last> --outcome accepted|fixed|rework|rejected [--fix-minutes N] [--note …]`.
    `fixed` means merged after Claude's own small fix; a usable runner-up of a pair is `accepted` with a
-   note. A run without a review is not data.
+   note. A run without a review is not data. Add `--fact "<one line>"` when the review taught something about the
+   repository a worker should know next time (from 2026-11-16.4, adapted from antiburn): `lane` puts up to 10 active
+   facts (1,500 bytes) into every brief for that repository, mines command swaps from runs (a fact turns on after 3
+   runs and retires on a contradiction), and never stores or sends one that looks like a credential, token or
+   address. `lane-stats facts` lists and drops them; `--no-facts` or `LANES_FACTS=off` turns them off.
+   **Stuck runs:** a run past 2.5x its ETA and its p80 that repeats one failing command 3 times warns; with
+   `LANES_STUCK=kill` (or `--stuck-kill`) `lane` stops it as STUCK. `LANES_STUCK=off` turns the guard off.
 5. **Lock in gradually.** Weekly, or after every ~20 reviewed runs, run `lane-stats recommend` and tell
    the user which classes moved. A class is `exploring`, `leaning` (leader's chance of being best ≥ 0.5
    with ≥ 4 runs) or `locked` (≥ 0.8 with ≥ 8 runs). Locked classes still get the 20% floor, so a better
@@ -368,7 +376,12 @@ take the high pace factor (×3).
    suite after a merge, a release's tests) go to `lane haiku --cloud --verify -e low -C <clean worktree> -b <brief
    listing the commands>`: the session changes nothing and returns each command's exit code and output (LANES.md,
    "Cloud runs"). Run a test on this machine only for behaviour the Linux VM cannot show (Windows encodings, Git
-   Bash, `.cmd` wrappers), one named module at a time.
+   Bash, `.cmd` wrappers), one named module at a time. For the fastest full run, set `USAGE_OPTIMIZER_MODE=utilization`
+   for that one `lane` call: the session splits the suite into 4 parallel shards (2026-11-16: the kit's 1,151 tests in
+   about 4 minutes of wall time, against about 2 hours serially on a loaded PC), and a cloud run costs this PC no
+   memory. A branch must be pushed first: the VM clones the pushed commit. Locally, `tools/run-tests.py` runs the
+   modules as parallel processes sized to free memory, longest first, and `--windows-only` runs just the modules the
+   VM cannot cover; it records each module's time for the next split (from 2026-11-16.4).
 
    Otherwise run it as a subagent; Codex and gemini arms stay local processes, and `lane` waits for memory. A cloud run reaches its first command about 16 s after
    launch, so waiting for a local slot only wins when the unit is not cloud-eligible, depends on a unit still
@@ -577,6 +590,14 @@ the other providers' lanes, the Fable advisor and publishing.
     - In a cloud session (from 2026-11-01.3) the gate allows the compaction unless `USAGE_OPTIMIZER_COMPACT_GATE` is
       set. A cloud loop has no answers to compact between, so it now compacts at the soft threshold instead of
       carrying 350k on every call. One mirror's gate had held 3,745 compactions until that ceiling.
+    - **Compact ahead (from 2026-11-16.4).** Long turns crossed 250k mid-turn, the gate held them to the turn's end,
+      and compactions landed at a median 319k, not 225k (`turn-meter compactions`, 2026-11-16). So at each answer
+      the mod also adds the session's median context growth per turn (from at least 3 turns that grew) and compacts
+      when the sum reaches the window. `USAGE_OPTIMIZER_COMPACT_AHEAD=off` turns the forecast off.
+    - **Idle compaction (from 2026-11-16.4, adapted from antiburn).** The prompt cache lives about an hour; a prompt
+      after that re-reads the whole context uncached. After 50 idle minutes at 40% of the window or more, the mod
+      compacts while the cache is still warm and logs one dim line. `USAGE_OPTIMIZER_IDLE_COMPACT=off`,
+      `USAGE_OPTIMIZER_IDLE_COMPACT_MIN`, `USAGE_OPTIMIZER_IDLE_COMPACT_PCT`.
     - After a compaction the kit re-injects the lanes in flight and the runs awaiting review.
     - Replayed over a week, the kit's soft and hard thresholds cut main-session list spend by 8.5% against 3%
       for the old single 450k threshold. 250k rather than the cheapest 200k carries about 160k tokens of verbatim
@@ -585,6 +606,21 @@ the other providers' lanes, the Fable advisor and publishing.
       later. `turn-meter compactions` shows how it is going.
 - **Tool calls.** Batch independent calls in one block, and background anything long. Wait once per
   job and never poll. Prefer saved scripts to long inline heredocs.
+- **Loop guard (from 2026-11-16.4, adapted from Microsoft TokenEconomizer).** When the same tool call fails a third
+  time in one turn, the kit's `loop-guard` mod adds one note to that result: do not run it again unchanged; read the
+  error, change the approach, or stop and ask. At most 2 notes a turn; it never blocks a call. A turn past 2.5x the
+  session's median length with half its recent calls failing shows a status line. `USAGE_OPTIMIZER_LOOP_GUARD=off`.
+- **Waste report (from 2026-11-16.4).** `turn-meter waste [--days 14] [--json]` lists agents, skills and MCP servers
+  unused across recent sessions (each costs tokens on every request), sessions whose cache was rewritten far more
+  than it was read (idle gaps), Opus or Fable subagents doing light work, old models and fast mode, and every
+  agent's sessions on this machine. It proposes; it changes nothing.
+- **Timeline (from 2026-11-16.4).** `lane-stats timeline [--since 24h] [--repo <dir>] [--json]` merges the lead log,
+  lane runs, reviews and a mirror's markers into one list of events, with no model call; `lane-stats note "[decision]
+  …"` adds a tagged line to the lead log. Note decisions, blockers and breakthroughs as they happen; mirrors may start a
+  STATUS title with the same tags (`[blocked: …]`). Adapted from jkstack's live-timeline feed (MIT).
+- **Compaction window per model (from 2026-11-16.4).** Claude Code's `modelSettings.<model>.autoCompactWindow`
+  overrides the kit's 250k for that model: from about 2026-11-07 one set Opus to 350k, so compactions landed near 320k.
+  The statusline shows the window that applies, and `usage-status` and the installer warn about any override.
 - **Hand off longer read-only work.** A read-only investigation of 3+ steps goes to a worker in a
   read-only run.
 - **Check headroom first.** Run `~/.claude/usage-optimizer/bin/usage-status` before a fan-out or a long
@@ -684,7 +720,10 @@ a serializer (`jq -n`, `json.dumps`): on Suite R luna broke 6.5% of its JSONL fi
   (at start, resume or compaction, which reloads it: seen 2026-10-31; `… 2026-10-31.5 → 2026-10-31.6` once a newer
   one is installed: restart or `/compact` to load it; `CTO 10-31.6` when narrow),
   then the quotas grouped by provider (`Claude 5h 9% resets 10:40 · wk 23% resets Sun 12:00 │ Codex wk 37% resets Mon 21:51`).
-  Percentages turn yellow at 80% and red at 95%. Past the compaction threshold the context reads
+  Percentages turn yellow at 80% and red at 95%. From 2026-11-16.4 each weekly bar (and a plan's 30-day bar) carries
+  its even pace, the share of the window already gone: `wk 23% (pace 31%)`, with `, hot` when use leads pace by 10
+  points or more (adapted from antiburn); it is the first thing dropped in a narrow terminal, and
+  `USAGE_OPTIMIZER_PACE=off` hides it. Past the compaction threshold the context reads
   `ctx 280k/250k, compacts between turns` in yellow (red at the 350k ceiling). In a narrow terminal it drops the turn cost and reset
   times (low windows first) before cutting. The Codex group comes from the same cache, refreshed in the
   background every 5 minutes and never waited on: `Codex 5h 3% resets 14:03 · wk 41% resets Mon 21:51` on Plus,

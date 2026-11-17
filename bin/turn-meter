@@ -2365,6 +2365,9 @@ def _census_files(root, prefix, start):
         for name in names:
             if name.endswith(".jsonl") and name.startswith(prefix):
                 path = os.path.join(folder, name)
+                # Waste and census share this walk. A credential-named transcript is never statted or opened.
+                if _waste_blocked(path):
+                    continue
                 try:
                     if os.path.getmtime(path) >= cutoff:
                         found.append(path)
@@ -2631,6 +2634,1189 @@ def _compactions_text(value):
         "Median summary size: {} chars".format(summary_text)))
 
 
+# A read-only usage-waste report. TURN_METER_WASTE=off skips it and leaves every other command as it was.
+# The JSON shape is the contract for a later prune tool: keys stay, and a missing source is "skipped" plus a reason,
+# never a guess. It writes nothing (no transcript-cost cache, no settings).
+WASTE_KEYS = ("unused", "cache_rehydration", "overpowered_subagents", "old_models", "agents")
+WASTE_CACHE_CLAUDE = 2.35
+WASTE_CACHE_CODEX = 2.0
+WASTE_CACHE_COLD_TOKENS = 50000
+WASTE_TTL_MINUTES = 60
+WASTE_TTL_5M_MINUTES = 5
+WASTE_PROMPT_MIN = 10
+WASTE_PROMPT_SESSIONS = 2
+WASTE_SESSION_MIN = 5
+WASTE_SUBAGENT_TOOLS = 5
+WASTE_SUBAGENT_OUTPUT = 2000
+WASTE_TEXT_LIMIT = 10
+_WASTE_EFFORTS = {"low", "medium", "high", "xhigh", "max", "minimal"}
+_WASTE_BLOCKED = {"auth.json", ".credentials.json", "credentials.json", "secrets.json", "credentials"}
+
+
+def _waste_blocked(path):
+    # Credential files are never opened, including through a symlink whose real name is one.
+    base = os.path.basename(path).lower()
+    if base in _WASTE_BLOCKED or "credential" in base:
+        return True
+    try:
+        real = os.path.basename(os.path.realpath(path)).lower()
+    except OSError:
+        return False
+    return real in _WASTE_BLOCKED or "credential" in real
+
+
+def _waste_name(value):
+    # A tool argument is a name only when it is short and has no quote or newline, so a prompt cannot ride along.
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value or len(value) > 80 or any(ch in value for ch in "\n\r\t\"{}<>"):
+        return None
+    return value
+
+
+def _waste_config_dir():
+    return os.path.abspath(os.path.expanduser(os.environ.get("CLAUDE_CONFIG_DIR") or "~/.claude"))
+
+
+def _waste_frontmatter(text):
+    # (name, description) from YAML-ish frontmatter. Description is the text whose bytes are priced; no YAML library.
+    if text.startswith("\ufeff"):
+        text = text[1:]
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    if not text.startswith("---"):
+        return None, ""
+    rest = text[3:]
+    if rest.startswith("\n"):
+        rest = rest[1:]
+    end = rest.find("\n---")
+    if end < 0:
+        return None, ""
+    name, description, mode = None, [], None
+    for line in rest[:end].split("\n"):
+        if mode == "block":
+            if line.startswith((" ", "\t")) or line.strip() == "":
+                description.append(line.strip())
+                continue
+            mode = None
+        if line.startswith("description:"):
+            value = line[len("description:"):].strip()
+            if value in ("|", ">", "|-", ">-", "|+", ">+"):
+                mode = "block"
+                description = []
+                continue
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+                value = value[1:-1]
+            description = [value]
+            mode = None
+            continue
+        if line.startswith("name:"):
+            value = line[len("name:"):].strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+                value = value[1:-1]
+            name = _waste_name(value)
+    text_value = " ".join(part for part in description if part).strip() if isinstance(description, list) else ""
+    return name, text_value
+
+
+def _waste_description_tokens(description):
+    # Floor of UTF-8 bytes / 4. MCP servers have no description here and stay "not measured".
+    if not description:
+        return 0
+    return len(description.encode("utf-8")) // 4
+
+
+def _waste_family(model):
+    # (family, version). A version is one tuple per numeric part, so claude-opus-4-6 < claude-opus-5-5.
+    # Effort and a trailing -YYYYMMDD snapshot are not part of the family. No version means "not comparable".
+    if not isinstance(model, str) or not model.strip():
+        return None, ()
+    name = model.strip().split("[", 1)[0]
+    name = re.sub(r"-\d{8}$", "", name)
+    parts = [part for part in name.split("-") if part]
+    if parts and parts[-1].lower() in _WASTE_EFFORTS:
+        parts = parts[:-1]
+    family, version = [], []
+    for part in parts:
+        if re.fullmatch(r"\d+(?:\.\d+)*", part):
+            version.append(tuple(int(piece) for piece in part.split(".")))
+        else:
+            family.append(part.lower())
+    return ("-".join(family) if family else None), tuple(version)
+
+
+def _waste_lanes_explore():
+    # lanes and explore from arms.json (LANES_ARMS) with arms.local.json merged over them, key by key.
+    lanes, explore = {}, {}
+    default = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir, "arms.json")
+    for path in (os.environ.get("LANES_ARMS") or default,
+                 os.environ.get("LANES_ARMS_LOCAL") or "~/.config/lanes/arms.local.json"):
+        catalog = _read_json(os.path.expanduser(path)) or {}
+        if not isinstance(catalog, dict):
+            continue
+        raw_lanes = catalog.get("lanes")
+        if isinstance(raw_lanes, dict):
+            for key, value in raw_lanes.items():
+                if isinstance(value, dict):
+                    lanes[key] = value
+        raw_explore = catalog.get("explore")
+        if isinstance(raw_explore, dict):
+            explore.update(raw_explore)
+    return lanes, explore
+
+
+def _waste_resolve_model(model, lanes):
+    # explore.main_session.model is often "opus[1m]": the lane name, then that lane's model.
+    if not isinstance(model, str) or not model.strip():
+        return None
+    bare = model.split("[", 1)[0].strip()
+    lane = lanes.get(bare)
+    if isinstance(lane, dict) and isinstance(lane.get("model"), str):
+        return lane["model"]
+    return model
+
+
+def _waste_newest():
+    # family -> (version tuple, catalog model). The lanes' model fields and explore.main_session only.
+    lanes, explore = _waste_lanes_explore()
+    models = []
+    for lane in lanes.values():
+        if isinstance(lane.get("model"), str):
+            models.append(lane["model"])
+    main = explore.get("main_session") if isinstance(explore.get("main_session"), dict) else {}
+    resolved = _waste_resolve_model(main.get("model"), lanes)
+    if resolved:
+        models.append(resolved)
+    newest = {}
+    for model in models:
+        family, version = _waste_family(model)
+        if not family or not version:
+            continue
+        current = newest.get(family)
+        if current is None or version > current[0]:
+            newest[family] = (version, model)
+    return newest
+
+
+def _waste_heavy(model):
+    if not isinstance(model, str):
+        return False
+    tokens = re.split(r"[^a-z0-9]+", model.lower())
+    return "opus" in tokens or "fable" in tokens
+
+
+def _waste_usage(usage):
+    # Token parts of one Claude response. saw_5m is the ephemeral_5m key, not an unsplit write we treat as 5m.
+    if not isinstance(usage, dict):
+        usage = {}
+    creation = usage.get("cache_creation")
+    saw_5m = isinstance(creation, dict) and "ephemeral_5m_input_tokens" in creation
+    if isinstance(creation, dict):
+        write_5m = _token_count(creation.get("ephemeral_5m_input_tokens")) or 0
+        write_1h = _token_count(creation.get("ephemeral_1h_input_tokens")) or 0
+        created = write_5m + write_1h
+    else:
+        write_5m = _token_count(usage.get("cache_creation_input_tokens")) or 0
+        write_1h = 0
+        created = write_5m
+    speed = None
+    saw_speed = False
+    field = None
+    if "speed" in usage:
+        saw_speed, field = True, "usage.speed"
+        speed = usage.get("speed") if isinstance(usage.get("speed"), str) else None
+    elif "fast_mode" in usage or "fastMode" in usage:
+        saw_speed, field = True, "usage.fast_mode"
+        flag = usage.get("fast_mode", usage.get("fastMode"))
+        speed = "fast" if flag is True or (isinstance(flag, str) and flag.strip().lower() == "fast") else "standard"
+    return {"input": _token_count(usage.get("input_tokens")) or 0,
+            "output": _token_count(usage.get("output_tokens")) or 0,
+            "cache_read": _token_count(usage.get("cache_read_input_tokens")) or 0,
+            "cache_creation": created, "write_5m": write_5m, "write_1h": write_1h, "saw_5m": saw_5m,
+            "saw_speed": saw_speed, "speed": speed, "field": field,
+            "saw_tier": "service_tier" in usage}
+
+
+def _waste_list_usd(prices, model, tokens):
+    try:
+        price = _price_for(prices, model)
+        if price is None:
+            return None
+        cost = _message_usd(price, tokens)
+    except Exception:
+        return None
+    if not isinstance(cost, (int, float)) or isinstance(cost, bool) or not math.isfinite(cost):
+        return None
+    return round(cost, 6)
+
+
+def _waste_codex_usd(model, usage):
+    # Same credit formula as _codex_rollout_usd, on one request's last_token_usage rather than the rollout total.
+    try:
+        codex = _catalog_codex()
+        rate_card = codex.get("rate_card") if isinstance(codex.get("rate_card"), dict) else {}
+        rate = rate_card.get(model)
+        if not isinstance(rate, dict) or not isinstance(usage, dict):
+            return None
+        counts = {name: _token_count(usage.get(source)) for name, source in (
+            ("input", "input_tokens"), ("cached_input", "cached_input_tokens"),
+            ("output", "output_tokens"), ("reasoning_output", "reasoning_output_tokens"))}
+        if any(value is None for value in counts.values()):
+            return None
+        rates = {name: rate.get(name) for name in ("input", "cached_input", "output")}
+        if any(not isinstance(value, (int, float)) or isinstance(value, bool) for value in rates.values()):
+            return None
+        credits = ((counts["input"] - counts["cached_input"]) * rates["input"] +
+                   counts["cached_input"] * rates["cached_input"] + counts["output"] * rates["output"]) / 1000000
+        usd_per_credit = codex.get("usd_per_credit")
+        if not isinstance(usd_per_credit, (int, float)) or isinstance(usd_per_credit, bool):
+            return None
+        cost = credits * usd_per_credit
+    except Exception:
+        return None
+    return round(cost, 6) if isinstance(cost, (int, float)) and math.isfinite(cost) else None
+
+
+def _waste_cache_session(session, platform, requests, saw_5m):
+    # ratio = sum(cache_creation) / largest prompt. Prompt = input + cache read + cache creation.
+    # Codex has no cache_creation_input_tokens: uncached input (input_tokens - cached_input_tokens) stands in for
+    # the write, and input_tokens is already the whole prompt. Flag at 2.35 (Claude) or 2.0 (Codex). Cold turns are
+    # listed only for a flagged session: a gap longer than the TTL (60 min, or 5 when any request carries the
+    # ephemeral_5m key) that rewrites more than 50k cache tokens.
+    if not requests:
+        return None
+    creation = sum(item["cache_creation"] for item in requests)
+    largest = max(item["input"] + item["cache_read"] + item["cache_creation"] for item in requests)
+    if largest <= 0:
+        return None
+    ratio = creation / float(largest)
+    threshold = WASTE_CACHE_CODEX if platform == "codex" else WASTE_CACHE_CLAUDE
+    # Integer compare so a ratio that lands on 2.35 or 2.0 is flagged; binary floats sit a hair under those decimals.
+    if creation * 1000 < int(round(threshold * 1000)) * largest:
+        return None
+    ttl = WASTE_TTL_5M_MINUTES if saw_5m and platform != "codex" else WASTE_TTL_MINUTES
+    ordered = sorted((item for item in requests if item.get("stamp") is not None), key=lambda item: item["stamp"])
+    cold = []
+    for previous, current in zip(ordered, ordered[1:]):
+        gap = (current["stamp"] - previous["stamp"]).total_seconds()
+        if gap > ttl * 60 and current["cache_creation"] > WASTE_CACHE_COLD_TOKENS:
+            cold.append({"at": _iso(current["stamp"]), "gap_minutes": round(gap / 60.0, 2),
+                         "ttl_minutes": ttl, "cache_tokens": current["cache_creation"]})
+    rewritten = sum(item["cache_tokens"] for item in cold)
+    return {"platform": platform, "session": session, "ratio": round(ratio, 4),
+            "cache_creation_tokens": creation, "largest_prompt_tokens": largest, "threshold": threshold,
+            "cold_turns": cold,
+            "action": "compact before idle gaps in session {}: ratio {:.2f}, {} cold turns rewrote {} tokens".format(
+                session, ratio, len(cold), rewritten)}
+
+
+def _waste_blank():
+    return {"prompts": 0, "sessions": set(), "agents": set(), "skills": set(), "mcps": set(), "cwds": set(),
+            "requests": {}, "order": [], "anon": 0, "saw_5m": False, "agent_type": None, "models": {}}
+
+
+def _waste_note_tools(bucket, block, index):
+    name = block.get("name") if isinstance(block, dict) else None
+    if not isinstance(name, str):
+        return
+    tool_input = block.get("input") if isinstance(block.get("input"), dict) else {}
+    if name in ("Agent", "Task"):
+        kind = _waste_name(tool_input.get("subagent_type"))
+        if kind:
+            bucket["agents"].add(kind)
+    elif name == "Skill":
+        skill = _waste_name(tool_input.get("skill"))
+        if skill:
+            bucket["skills"].add(skill)
+            if ":" in skill:
+                bucket["skills"].add(skill.rsplit(":", 1)[-1])
+    if name.startswith("mcp__"):
+        server, sep, _tool = name[5:].partition("__")
+        server = _waste_name(server) if sep else None
+        if server:
+            bucket["mcps"].add(server)
+    tool_id = block.get("id") if isinstance(block.get("id"), str) and block.get("id") else None
+    return tool_id or "{}#{}".format(name, index)
+
+
+def _waste_add_entry(bucket, entry, stamp, is_main):
+    if is_main and _real_prompt(entry):
+        bucket["prompts"] += 1
+    cwd = entry.get("cwd")
+    if isinstance(cwd, str) and cwd.strip():
+        bucket["cwds"].add(os.path.abspath(cwd))
+    for key in ("agent_type", "agentType", "subagent_type", "agent"):
+        kind = _waste_name(entry.get(key))
+        if kind and bucket["agent_type"] is None:
+            bucket["agent_type"] = kind
+    message = entry.get("message") if isinstance(entry.get("message"), dict) else {}
+    if entry.get("type") != "assistant":
+        return
+    model = message.get("model")
+    if model == "<synthetic>":
+        return
+    usage = _waste_usage(message.get("usage") if isinstance(message.get("usage"), dict) else {})
+    content = message.get("content")
+    tools = []
+    if isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "tool_use":
+                tool_id = _waste_note_tools(bucket, block, len(tools))
+                if tool_id:
+                    tools.append(tool_id)
+    identity = message.get("id") if isinstance(message.get("id"), str) else None
+    if identity is None:
+        bucket["anon"] += 1
+        identity = "anon-{}".format(bucket["anon"])
+        fresh = True
+    else:
+        fresh = identity not in bucket["requests"]
+    record = bucket["requests"].get(identity)
+    if fresh:
+        bucket["order"].append(identity)
+        bucket["requests"][identity] = {"stamp": stamp, "model": model if isinstance(model, str) else None,
+                                        "tools": set(tools), **usage}
+        return
+    record["tools"].update(tools)
+    record["saw_5m"] = record["saw_5m"] or usage["saw_5m"]
+    if usage["saw_speed"]:
+        record["saw_speed"] = True
+        record["field"] = record["field"] or usage["field"]
+        if usage["speed"] and str(usage["speed"]).strip().lower() == "fast":
+            record["speed"] = "fast"
+        elif record.get("speed") is None:
+            record["speed"] = usage["speed"]
+    record["saw_tier"] = record["saw_tier"] or usage["saw_tier"]
+    if usage["output"] >= record["output"]:
+        for key in ("input", "output", "cache_read", "cache_creation", "write_5m", "write_1h"):
+            record[key] = usage[key]
+        if isinstance(model, str):
+            record["model"] = model
+        if stamp is not None:
+            record["stamp"] = stamp
+
+
+def _waste_commit_bucket(scan, bucket, session, agent_file, is_sub, platform, prices):
+    scan["prompts"] += bucket["prompts"]
+    if not is_sub and (bucket["prompts"] or bucket["requests"]):
+        scan["sessions"].add(session)
+    scan["agents"].update(bucket["agents"])
+    scan["skills"].update(bucket["skills"])
+    scan["mcps"].update(bucket["mcps"])
+    scan["cwds"].update(bucket["cwds"])
+    requests = [bucket["requests"][key] for key in bucket["order"] if key in bucket["requests"]]
+    if not requests and not bucket["prompts"]:
+        return
+    label = session if not is_sub else "{}/{}".format(session, agent_file)
+    saw_5m = bucket["saw_5m"] or any(item["saw_5m"] for item in requests)
+    if requests:
+        scan["usage_records"] += len(requests)
+        flagged = _waste_cache_session(label, platform, requests, saw_5m)
+        if flagged:
+            scan["cache"].append(flagged)
+    output_by_model, tools, total_out = {}, set(), 0
+    for item in requests:
+        total_out += item["output"]
+        tools.update(item["tools"])
+        if item.get("model"):
+            output_by_model[item["model"]] = output_by_model.get(item["model"], 0) + item["output"]
+            scan["models"][item["model"]] = scan["models"].get(item["model"], 0) + 1
+        if item.get("saw_speed"):
+            scan["saw_speed"] = True
+            scan["speed_field"] = scan["speed_field"] or item.get("field")
+        if item.get("saw_tier"):
+            scan["saw_tier"] = True
+        cost = _waste_list_usd(prices, item.get("model"), (
+            item["input"], item["output"], item["cache_read"], item["write_5m"], item["write_1h"]))
+        if cost is None:
+            scan["unpriced"] += 1
+            if item.get("speed") and str(item.get("speed")).strip().lower() == "fast":
+                scan["fast_unpriced"] += 1
+        else:
+            scan["priced"] += 1
+            scan["total_usd"] += cost
+            if item.get("speed") and str(item.get("speed")).strip().lower() == "fast":
+                scan["fast_requests"] += 1
+                scan["fast_usd"] += cost
+    if is_sub and requests:
+        scan["subagent_files"] += 1
+        model = max(output_by_model, key=output_by_model.get) if output_by_model else None
+        if _waste_heavy(model) and len(tools) <= WASTE_SUBAGENT_TOOLS and total_out < WASTE_SUBAGENT_OUTPUT:
+            cost = None
+            priced = True
+            for item in requests:
+                part = _waste_list_usd(prices, item.get("model"), (
+                    item["input"], item["output"], item["cache_read"], item["write_5m"], item["write_1h"]))
+                if part is None:
+                    priced = False
+                    break
+                cost = (cost or 0.0) + part
+            scan["subagents"].append({
+                "session": session, "agent_id": agent_file, "model": model,
+                "agent_type": bucket["agent_type"], "tool_calls": len(tools), "output_tokens": total_out,
+                "list_usd": round(cost, 6) if priced and cost is not None else None,
+                "action": "a smaller model probably fits"})
+
+
+def _waste_read_claude_file(path, root, start, scan, prices):
+    session, agent_file, is_sub = None, None, False
+    rel = os.path.relpath(path, root).split(os.sep)
+    if (len(rel) >= 4 and rel[-2] == "subagents" and rel[-1].startswith("agent-") and rel[-1].endswith(".jsonl")):
+        session, agent_file, is_sub = rel[-3], rel[-1][:-len(".jsonl")], True
+    elif rel[-1].endswith(".jsonl"):
+        session = rel[-1][:-len(".jsonl")]
+    else:
+        return
+    window, undated = _waste_blank(), _waste_blank()
+    any_dated = False
+    dated_in_window = False
+    try:
+        for entry in _census_lines(path):
+            stamp = _census_stamp(entry)
+            if stamp is None:
+                _waste_add_entry(undated, entry, None, not is_sub)
+            else:
+                any_dated = True
+                if stamp >= start:
+                    dated_in_window = True
+                    _waste_add_entry(window, entry, stamp, not is_sub)
+    except OSError:
+        scan["skipped_files"] += 1
+        return
+    if any_dated and not dated_in_window:
+        return
+    chosen = window if any_dated else undated
+    if is_sub:
+        scan["subagent_seen"] += 1
+    else:
+        scan["claude_files"] += 1
+    _waste_commit_bucket(scan, chosen, session, agent_file, is_sub, "claude-code", prices)
+
+
+def _waste_scan_claude(start, scan, prices):
+    root = os.path.join(_waste_config_dir(), "projects")
+    for path in _census_files(root, "", start):
+        if path.endswith(".jsonl") and not _waste_blocked(path):
+            _waste_read_claude_file(path, root, start, scan, prices)
+
+
+def _waste_scan_codex(start, scan):
+    # One rollout is one session. last_token_usage.input_tokens already includes the cached part.
+    root = os.path.join(os.path.abspath(os.path.expanduser(os.environ.get("CODEX_HOME") or "~/.codex")), "sessions")
+    for path in _census_files(root, "rollout-", start):
+        if _waste_blocked(path):
+            continue
+        model, requests, any_dated, dated_in_window = None, [], False, False
+        undated, context_models = [], []
+        try:
+            for entry in _census_lines(path):
+                stamp = _census_stamp(entry)
+                payload = entry.get("payload") if isinstance(entry.get("payload"), dict) else {}
+                if entry.get("type") == "turn_context" or payload.get("type") == "turn_context":
+                    if isinstance(payload.get("model"), str) and payload.get("model"):
+                        model = payload["model"]
+                        context_models.append(model)
+                if not (entry.get("type") == "event_msg" and payload.get("type") == "token_count"):
+                    if stamp is not None:
+                        any_dated = True
+                        dated_in_window = dated_in_window or stamp >= start
+                    continue
+                info = payload.get("info") if isinstance(payload.get("info"), dict) else {}
+                usage = info.get("last_token_usage") if isinstance(info.get("last_token_usage"), dict) else None
+                if not isinstance(usage, dict):
+                    continue
+                inp = _token_count(usage.get("input_tokens"))
+                cached = _token_count(usage.get("cached_input_tokens")) or 0
+                if inp is None:
+                    continue
+                created = max(0, inp - cached)
+                speed, saw_speed, field = None, False, None
+                for source in (payload, info, usage):
+                    if isinstance(source, dict) and "speed" in source:
+                        saw_speed, field = True, "payload.speed"
+                        speed = source.get("speed") if isinstance(source.get("speed"), str) else None
+                    elif isinstance(source, dict) and ("fast_mode" in source or "fastMode" in source):
+                        saw_speed, field = True, "payload.fast_mode"
+                        flag = source.get("fast_mode", source.get("fastMode"))
+                        speed = "fast" if flag is True or (isinstance(flag, str) and flag.strip().lower() == "fast") else speed
+                    if isinstance(source, dict) and "service_tier" in source:
+                        scan["saw_tier"] = True
+                item = {"stamp": stamp, "model": model, "input": created, "output": _token_count(usage.get("output_tokens")) or 0,
+                        "cache_read": cached, "cache_creation": created, "write_5m": 0, "write_1h": 0,
+                        "saw_5m": False, "saw_speed": saw_speed, "speed": speed, "field": field,
+                        "prompt": inp, "raw_usage": usage}
+                if stamp is None:
+                    undated.append(item)
+                else:
+                    any_dated = True
+                    if stamp >= start:
+                        dated_in_window = True
+                        requests.append(item)
+        except OSError:
+            scan["skipped_files"] += 1
+            continue
+        if any_dated and not dated_in_window:
+            continue
+        chosen = requests if any_dated else undated
+        if not chosen and not context_models:
+            continue
+        scan["codex_files"] += 1
+        session = os.path.splitext(os.path.basename(path))[0]
+        # The ratio's prompt for Codex is the reported input total, which already includes the cache read.
+        normalized = []
+        for item in chosen:
+            # Prompt = cache read + uncached write, which is the reported input total. input (neither) is 0.
+            prompt = item["prompt"]
+            cached = min(item["cache_read"], prompt)
+            normalized.append({"stamp": item["stamp"], "input": 0, "cache_read": cached,
+                               "cache_creation": max(0, prompt - cached), "model": item["model"],
+                               "output": item["output"], "raw_usage": item["raw_usage"],
+                               "saw_speed": item["saw_speed"], "speed": item["speed"], "field": item["field"]})
+            if item.get("model"):
+                scan["models"][item["model"]] = scan["models"].get(item["model"], 0) + 1
+            if item["saw_speed"]:
+                scan["saw_speed"] = True
+                scan["speed_field"] = scan["speed_field"] or item["field"]
+            cost = _waste_codex_usd(item.get("model"), item["raw_usage"])
+            if cost is None:
+                scan["unpriced"] += 1
+            else:
+                scan["priced"] += 1
+                scan["total_usd"] += cost
+                if item.get("speed") and str(item.get("speed")).strip().lower() == "fast":
+                    scan["fast_requests"] += 1
+                    scan["fast_usd"] += cost
+        if normalized:
+            scan["usage_records"] += len(normalized)
+            flagged = _waste_cache_session(session, "codex", normalized, False)
+            if flagged:
+                scan["cache"].append(flagged)
+        elif context_models:
+            for name in context_models:
+                scan["models"][name] = scan["models"].get(name, 0) + 1
+
+
+def _waste_scan(start, platform):
+    scan = {"prompts": 0, "sessions": set(), "agents": set(), "skills": set(), "mcps": set(), "cwds": set(),
+            "cache": [], "subagents": [], "models": {}, "fast_usd": 0.0, "total_usd": 0.0, "priced": 0,
+            "unpriced": 0, "fast_requests": 0, "fast_unpriced": 0, "saw_speed": False, "saw_tier": False,
+            "speed_field": None, "claude_files": 0, "codex_files": 0, "subagent_files": 0, "subagent_seen": 0,
+            "skipped_files": 0, "usage_records": 0}
+    prices = _catalog_prices()
+    if platform in ("all", "claude-code"):
+        _waste_scan_claude(start, scan, prices)
+    if platform in ("all", "codex"):
+        _waste_scan_codex(start, scan)
+    return scan
+
+
+def _waste_read_text(path):
+    if _waste_blocked(path):
+        return None
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            return handle.read(200000)
+    except OSError:
+        return None
+
+
+def _waste_mcp_names(obj, source, found):
+    if not isinstance(obj, dict):
+        return
+    servers = obj.get("mcpServers")
+    if isinstance(servers, dict):
+        for name in servers:
+            if isinstance(name, str) and name and name not in found:
+                found[name] = {"scope": "user", "path": source, "project": None}
+    projects = obj.get("projects")
+    if isinstance(projects, dict):
+        for project, body in projects.items():
+            if not isinstance(body, dict) or not isinstance(body.get("mcpServers"), dict):
+                continue
+            for name in body["mcpServers"]:
+                if isinstance(name, str) and name and name not in found:
+                    found[name] = {"scope": "project", "path": source,
+                                   "project": project if isinstance(project, str) else None}
+
+
+def _waste_inventory(cwds):
+    # Agents: user dir and each seen project's .claude/agents. Skills: user skill folders. MCP: names only.
+    config = _waste_config_dir()
+    items = []
+    for scope, folder, project in [("user", os.path.join(config, "agents"), None)] + [
+            ("project", os.path.join(cwd, ".claude", "agents"), cwd) for cwd in sorted(cwds)]:
+        try:
+            names = os.listdir(folder)
+        except OSError:
+            continue
+        for name in sorted(names):
+            if not name.endswith(".md"):
+                continue
+            path = os.path.join(folder, name)
+            if not os.path.isfile(path) or _waste_blocked(path):
+                continue
+            text = _waste_read_text(path) or ""
+            title, description = _waste_frontmatter(text)
+            items.append({"kind": "agent", "name": title or name[:-3], "scope": scope, "path": path,
+                          "project": project, "description_tokens": _waste_description_tokens(description),
+                          "description_note": "bytes/4"})
+    skill_root = os.path.join(config, "skills")
+    try:
+        skill_names = os.listdir(skill_root)
+    except OSError:
+        skill_names = []
+    for name in sorted(skill_names):
+        folder = os.path.join(skill_root, name)
+        if not os.path.isdir(folder) or name.startswith("."):
+            continue
+        description = ""
+        for leaf in ("SKILL.md", "skill.md"):
+            text = _waste_read_text(os.path.join(folder, leaf))
+            if text is not None:
+                _title, description = _waste_frontmatter(text)
+                break
+        items.append({"kind": "skill", "name": name, "scope": "user", "path": folder, "project": None,
+                      "description_tokens": _waste_description_tokens(description), "description_note": "bytes/4"})
+    found = {}
+    claude_json = os.path.abspath(os.path.expanduser("~/.claude.json"))
+    if os.path.isfile(claude_json) and not _waste_blocked(claude_json):
+        _waste_mcp_names(_read_json(claude_json) or {}, claude_json, found)
+    settings = os.path.join(config, "settings.json")
+    if os.path.isfile(settings) and not _waste_blocked(settings):
+        _waste_mcp_names(_read_json(settings) or {}, settings, found)
+    for name in sorted(found):
+        meta = found[name]
+        items.append({"kind": "mcp", "name": name, "scope": meta["scope"], "path": meta["path"],
+                      "project": meta["project"], "description_tokens": None, "description_note": "not measured"})
+    return items
+
+
+def _waste_empty_unused(reason):
+    return {"skipped": reason, "evidence": {"user_prompts": 0, "sessions": 0}, "items": []}
+
+
+def _waste_unused(scan, platform):
+    if platform == "codex":
+        return _waste_empty_unused("agents, skills and MCP servers are a Claude Code inventory")
+    try:
+        inventory = _waste_inventory(scan["cwds"])
+    except Exception:
+        return _waste_empty_unused("error: inventory")
+    evidence = {"user_prompts": scan["prompts"], "sessions": len(scan["sessions"])}
+    if not inventory:
+        return {"skipped": "no agents, skills or MCP servers configured", "evidence": evidence, "items": []}
+    if scan["claude_files"] == 0 and scan["subagent_seen"] == 0:
+        return {"skipped": "no Claude Code transcripts in the window", "evidence": evidence, "items": []}
+    enough = ((scan["prompts"] >= WASTE_PROMPT_MIN and len(scan["sessions"]) >= WASTE_PROMPT_SESSIONS)
+              or len(scan["sessions"]) >= WASTE_SESSION_MIN)
+    if not enough:
+        return {"skipped": "{} user prompts across {} sessions; need {} prompts over at least {} sessions, or at least {} sessions".format(
+            scan["prompts"], len(scan["sessions"]), WASTE_PROMPT_MIN, WASTE_PROMPT_SESSIONS, WASTE_SESSION_MIN),
+            "evidence": evidence, "items": []}
+    items = []
+    sessions = len(scan["sessions"])
+    # One row per (kind, name): the inventory lists user scope first, then each project, so the first source wins
+    # and its description_tokens is the figure shown.
+    seen = set()
+    for item in inventory:
+        if (item["kind"], item["name"]) in seen:
+            continue
+        seen.add((item["kind"], item["name"]))
+        if item["kind"] == "agent" and item["name"] in scan["agents"]:
+            continue
+        if item["kind"] == "skill" and item["name"] in scan["skills"]:
+            continue
+        if item["kind"] == "mcp" and item["name"] in scan["mcps"]:
+            continue
+        if item["kind"] == "mcp":
+            action = "disable MCP server {}: unused in {} sessions, description not measured".format(item["name"], sessions)
+        else:
+            action = "disable {} {}: unused in {} sessions, about {} tokens per request".format(
+                item["kind"], item["name"], sessions, item["description_tokens"])
+        items.append(dict(item, action=action))
+    items.sort(key=lambda item: (-1 if item["description_tokens"] is None else -item["description_tokens"],
+                                 item["kind"], item["name"]))
+    return {"skipped": None, "evidence": evidence, "items": items}
+
+
+def _waste_cache(scan):
+    if scan["claude_files"] == 0 and scan["codex_files"] == 0 and scan["subagent_seen"] == 0:
+        reason = "no transcripts in the window"
+    elif scan["usage_records"] == 0:
+        reason = "no cache-token records in the window"
+    else:
+        reason = None
+    sessions = sorted(scan["cache"], key=lambda item: (-item["ratio"], item["session"]))
+    return {"skipped": reason, "sessions": sessions, "skipped_files": scan["skipped_files"]}
+
+
+def _waste_overpowered(scan, platform):
+    if scan["subagent_seen"] == 0 and scan["subagent_files"] == 0:
+        if platform == "codex":
+            reason = "no subagent transcripts in Codex rollouts"
+        elif scan["claude_files"] == 0 and scan["codex_files"] == 0:
+            reason = "no transcripts in the window"
+        else:
+            reason = "no subagent transcripts in the window"
+    else:
+        reason = None
+    items = sorted(scan["subagents"], key=lambda item: (-1 if item["list_usd"] is None else -item["list_usd"],
+                                                        -item["output_tokens"], item["session"], item["agent_id"] or ""))
+    return {"skipped": reason, "items": items}
+
+
+def _waste_old_models(scan):
+    fast_skipped = None
+    if not scan["saw_speed"]:
+        fast_skipped = ("no fast-mode field in transcripts (service_tier is present and is not counted as fast mode)"
+                        if scan["saw_tier"] else "no fast-mode field in transcripts")
+    elif scan["priced"] == 0:
+        fast_skipped = "no priced requests"
+    share = None
+    action = None
+    if fast_skipped is None and scan["total_usd"] > 0:
+        share = round(scan["fast_usd"] / scan["total_usd"], 4)
+        action = "fast mode is {:.1f}% of list cost (${:.2f} of ${:.2f}); turn it off when the window is tight".format(
+            share * 100.0, scan["fast_usd"], scan["total_usd"])
+    elif fast_skipped is None:
+        fast_skipped = "list cost is zero"
+    fast = {"skipped": fast_skipped, "field": scan["speed_field"],
+            "fast_list_usd": round(scan["fast_usd"], 6) if fast_skipped is None else None,
+            "total_list_usd": round(scan["total_usd"], 6) if fast_skipped is None else None,
+            "share": share, "fast_requests": scan["fast_requests"] if fast_skipped is None else 0,
+            "priced_requests": scan["priced"] if fast_skipped is None else 0, "action": action}
+    if not scan["models"]:
+        return {"skipped": "no models in the window", "newest": {}, "items": [], "fast_mode": fast}
+    try:
+        newest = _waste_newest()
+    except Exception:
+        return {"skipped": "error: catalog", "newest": {}, "items": [], "fast_mode": fast}
+    items = []
+    published = {family: model for family, (_version, model) in newest.items()}
+    for model, count in sorted(scan["models"].items()):
+        family, version = _waste_family(model)
+        current = newest.get(family)
+        if not family or not version or current is None or version >= current[0]:
+            continue
+        items.append({"model": model, "family": family, "newest": current[1], "requests": count,
+                      "action": "switch {} to {}: seen in {} requests".format(model, current[1], count)})
+    items.sort(key=lambda item: (-item["requests"], item["model"]))
+    return {"skipped": None, "newest": published, "items": items, "fast_mode": fast}
+
+
+def _waste_amp_dir():
+    # Thread JSON only. AMP_HOME (~/.amp) holds credentials and is never opened.
+    override = os.environ.get("TURN_METER_AMP_THREADS") or os.environ.get("AMP_THREADS_DIR")
+    if override:
+        return os.path.abspath(os.path.expanduser(override))
+    data = os.environ.get("AMP_DATA_DIR")
+    if data and data.split(",")[0].strip():
+        return os.path.abspath(os.path.expanduser(os.path.join(data.split(",")[0].strip(), "threads")))
+    xdg = os.environ.get("XDG_DATA_HOME")
+    if xdg:
+        return os.path.abspath(os.path.expanduser(os.path.join(xdg, "amp", "threads")))
+    return os.path.abspath(os.path.expanduser(os.path.join("~", ".local", "share", "amp", "threads")))
+
+
+def _waste_stamp_list(value, found):
+    stamp = _time(value)
+    if stamp is not None:
+        found.append(stamp)
+
+
+def _waste_amp(start):
+    root = _waste_amp_dir()
+    empty = {"status": "not present", "sessions": 0, "active_hours": 0.0, "note": "no Amp thread store"}
+    if _waste_blocked(root):
+        return {"status": "not read", "sessions": 0, "active_hours": 0.0, "note": "Amp path is a credential location"}
+    if not os.path.isdir(root):
+        return empty
+    parsed, failed, seconds, sessions = 0, 0, 0.0, 0
+    try:
+        names = os.listdir(root)
+    except OSError:
+        return {"status": "not read", "sessions": 0, "active_hours": 0.0, "note": "Amp thread store could not be listed"}
+    for name in names:
+        if not name.endswith(".json"):
+            continue
+        path = os.path.join(root, name)
+        if not os.path.isfile(path) or _waste_blocked(path):
+            if _waste_blocked(path):
+                failed += 1
+            continue
+        try:
+            if os.path.getsize(path) > 32 * 1024 * 1024:
+                failed += 1
+                continue
+            with open(path, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        except (OSError, ValueError):
+            failed += 1
+            continue
+        if not isinstance(data, dict) or not isinstance(data.get("messages"), list):
+            continue
+        parsed += 1
+        times = []
+        _waste_stamp_list(data.get("created"), times)
+        for message in data["messages"]:
+            if not isinstance(message, dict):
+                continue
+            meta = message.get("meta") if isinstance(message.get("meta"), dict) else {}
+            _waste_stamp_list(meta.get("sentAt"), times)
+            usage = message.get("usage") if isinstance(message.get("usage"), dict) else {}
+            _waste_stamp_list(usage.get("timestamp"), times)
+        if any(stamp >= start for stamp in times) or (not times and os.path.getmtime(path) >= start.timestamp()):
+            sessions += 1
+            seconds += _active_seconds(times, start)
+    if parsed == 0 and failed:
+        return {"status": "not read", "sessions": 0, "active_hours": 0.0,
+                "note": "{} Amp thread file(s) could not be read".format(failed)}
+    note = None if not failed else "{} Amp thread file(s) not read".format(failed)
+    return {"status": "read", "sessions": sessions, "active_hours": round(seconds / 3600.0, 4), "note": note}
+
+
+def _waste_agy_dir():
+    override = os.environ.get("TURN_METER_AGY_HOME")
+    if override:
+        return os.path.abspath(os.path.expanduser(override))
+    return os.path.abspath(os.path.expanduser(os.path.join("~", ".gemini", "antigravity-cli")))
+
+
+def _waste_agy_times(path, times):
+    try:
+        for entry in _census_lines(path):
+            for key in ("timestamp", "time", "created_at", "createdAt", "ts"):
+                if key in entry:
+                    _waste_stamp_list(entry.get(key), times)
+                    break
+    except OSError:
+        return False
+    return True
+
+
+def _waste_agy(start):
+    # JSONL mirrors only. conversations/*.db is protobuf inside sqlite and is not parsed.
+    root = _waste_agy_dir()
+    if _waste_blocked(root):
+        return {"status": "not read", "sessions": 0, "active_hours": 0.0, "note": "Antigravity path is a credential location"}
+    if not os.path.isdir(root):
+        return {"status": "not present", "sessions": 0, "active_hours": 0.0, "note": "no Antigravity store"}
+    db_names = None
+    db_dir = os.path.join(root, "conversations")
+    if os.path.isdir(db_dir):
+        try:
+            db_names = [name for name in os.listdir(db_dir) if name.endswith(".db")]
+        except OSError:
+            db_names = None
+    by_id, failed = {}, 0
+    brain = os.path.join(root, "brain")
+    if os.path.isdir(brain):
+        try:
+            convs = os.listdir(brain)
+        except OSError:
+            convs = []
+            failed += 1
+        for conv in convs:
+            logs = os.path.join(brain, conv, ".system_generated", "logs")
+            path = None
+            for leaf in ("transcript_full.jsonl", "transcript.jsonl"):
+                candidate = os.path.join(logs, leaf)
+                if os.path.isfile(candidate) and not _waste_blocked(candidate):
+                    path = candidate
+                    break
+            if path is None:
+                continue
+            times = []
+            if not _waste_agy_times(path, times):
+                failed += 1
+                continue
+            if not times:
+                try:
+                    times.append(dt.datetime.fromtimestamp(os.path.getmtime(path), UTC))
+                except (OSError, OverflowError, ValueError):
+                    pass
+            by_id[conv] = times
+    history = os.path.join(root, "history.jsonl")
+    if os.path.isfile(history) and not _waste_blocked(history):
+        try:
+            for entry in _census_lines(history):
+                identity = entry.get("conversationId") or entry.get("conversation_id") or entry.get("id")
+                if not isinstance(identity, str) or identity in by_id:
+                    continue
+                times = []
+                _waste_stamp_list(entry.get("timestamp"), times)
+                by_id[identity] = times
+        except OSError:
+            failed += 1
+    if not by_id and (db_names or failed):
+        if db_names:
+            note = "sqlite conversation store was not parsed (protobuf); no JSONL transcript mirror"
+        elif db_names is None and failed:
+            note = "Antigravity store could not be read"
+        else:
+            note = "Antigravity transcripts could not be read"
+        return {"status": "not read", "sessions": 0, "active_hours": 0.0, "note": note}
+    sessions, seconds = 0, 0.0
+    for times in by_id.values():
+        if times and not any(stamp >= start for stamp in times):
+            continue
+        if not times:
+            continue
+        sessions += 1
+        seconds += _active_seconds(times, start)
+    note = None
+    if db_names:
+        note = "sqlite store not parsed; counted from JSONL transcripts"
+    elif failed:
+        note = "{} Antigravity file(s) not read".format(failed)
+    return {"status": "read", "sessions": sessions, "active_hours": round(seconds / 3600.0, 4), "note": note}
+
+
+def _waste_agents(start):
+    config = _waste_config_dir()
+    codex_home = os.path.abspath(os.path.expanduser(os.environ.get("CODEX_HOME") or "~/.codex"))
+    kinds, _folders, wall, claude_skipped = _census_claude(start, config)
+    origins, codex_skipped = _census_codex(start, codex_home)
+    amp = _waste_amp(start)
+    agy = _waste_agy(start)
+    value = {"skipped": None, "claude": kinds, "codex": origins, "claude_wall_hours": round(wall, 4),
+             "amp": amp, "antigravity": agy, "skipped_files": claude_skipped + codex_skipped}
+    nothing = (not kinds and not origins and amp["status"] == "not present" and agy["status"] == "not present")
+    if nothing:
+        value["skipped"] = "no Claude, Codex, Amp or Antigravity session stores in the window"
+    return value
+
+
+def _waste_disabled(days, platform, reason, now=None):
+    now = now or dt.datetime.now(UTC)
+    start = now - dt.timedelta(days=days)
+    report = {"schema": 1, "days": days, "since": _iso(start), "until": _iso(now), "platform": platform,
+              "off": reason == "TURN_METER_WASTE=off"}
+    report["unused"] = _waste_empty_unused(reason)
+    report["cache_rehydration"] = {"skipped": reason, "sessions": [], "skipped_files": 0}
+    report["overpowered_subagents"] = {"skipped": reason, "items": []}
+    report["old_models"] = {"skipped": reason, "newest": {}, "items": [], "fast_mode": {
+        "skipped": reason, "field": None, "fast_list_usd": None, "total_list_usd": None, "share": None,
+        "fast_requests": 0, "priced_requests": 0, "action": None}}
+    report["agents"] = {"skipped": reason, "claude": {}, "codex": {}, "claude_wall_hours": 0.0,
+                        "amp": {"status": "not read", "sessions": 0, "active_hours": 0.0, "note": reason},
+                        "antigravity": {"status": "not read", "sessions": 0, "active_hours": 0.0, "note": reason},
+                        "skipped_files": 0}
+    return report
+
+
+def _waste_report(days, platform, now=None):
+    """Read-only usage-waste report for the last `days` days. Changes nothing.
+
+    Off switch: TURN_METER_WASTE=off (default on). Point stores with the existing CLAUDE_CONFIG_DIR, CODEX_HOME,
+    LANES_ARMS and LANES_ARMS_LOCAL, plus TURN_METER_AMP_THREADS (else AMP_THREADS_DIR, else AMP_DATA_DIR/threads,
+    else $XDG_DATA_HOME/amp/threads, else ~/.local/share/amp/threads) and TURN_METER_AGY_HOME (else
+    ~/.gemini/antigravity-cli). AMP_HOME is never opened.
+
+    Stable JSON object (schema 1), one key per section. `skipped` is null when the section ran. Text shows the
+    top 10 items of each list; this object keeps every item.
+
+    {
+      "schema": 1,
+      "days": 14,
+      "since": "ISO-8601 Z",
+      "until": "ISO-8601 Z",
+      "platform": "all" | "claude-code" | "codex",
+      "off": false,
+      "unused": {
+        "skipped": null | "<reason>",
+        "evidence": {"user_prompts": 0, "sessions": 0},
+        "items": [{
+          "kind": "agent" | "skill" | "mcp",
+          "name": "<name>",
+          "scope": "user" | "project",
+          "path": "<file>",
+          "project": null | "<cwd>",
+          "description_tokens": 0 | null,
+          "description_note": "bytes/4" | "not measured",
+          "action": "disable ..."
+        }]
+      },
+      "cache_rehydration": {
+        "skipped": null | "<reason>",
+        "skipped_files": 0,
+        "sessions": [{
+          "platform": "claude-code" | "codex",
+          "session": "<id>",
+          "ratio": 0.0,
+          "cache_creation_tokens": 0,
+          "largest_prompt_tokens": 0,
+          "threshold": 2.35 | 2.0,
+          "cold_turns": [{"at": "ISO", "gap_minutes": 0.0, "ttl_minutes": 60 | 5, "cache_tokens": 0}],
+          "action": "compact before idle gaps ..."
+        }]
+      },
+      "overpowered_subagents": {
+        "skipped": null | "<reason>",
+        "items": [{
+          "session": "<id>",
+          "agent_id": "agent-<id>",
+          "model": "<model>",
+          "agent_type": null | "<type>",
+          "tool_calls": 0,
+          "output_tokens": 0,
+          "list_usd": null | 0.0,
+          "action": "a smaller model probably fits"
+        }]
+      },
+      "old_models": {
+        "skipped": null | "<reason>",
+        "newest": {"<family>": "<catalog model>"},
+        "items": [{"model": "<seen>", "family": "<family>", "newest": "<catalog>", "requests": 0,
+                   "action": "switch ..."}],
+        "fast_mode": {
+          "skipped": null | "no fast-mode field in transcripts" | "<reason>",
+          "field": null | "usage.speed" | "usage.fast_mode" | "payload.speed" | "payload.fast_mode",
+          "fast_list_usd": null | 0.0,
+          "total_list_usd": null | 0.0,
+          "share": null | 0.0,
+          "fast_requests": 0,
+          "priced_requests": 0,
+          "action": null | "fast mode is ..."
+        }
+      },
+      "agents": {
+        "skipped": null | "<reason>",
+        "claude": {"<kind>": {"sessions": 0, "active_seconds": 0.0, "output_tokens": 0, "models": {}}},
+        "codex": {"<origin>": {"sessions": 0, "active_seconds": 0.0, "turns": 0, "models": {}}},
+        "claude_wall_hours": 0.0,
+        "amp": {"status": "read" | "not present" | "not read", "sessions": 0, "active_hours": 0.0, "note": null},
+        "antigravity": {"status": "read" | "not present" | "not read", "sessions": 0, "active_hours": 0.0, "note": null},
+        "skipped_files": 0
+      }
+    }
+
+    unused: an inventoried agent, skill or MCP server with no Agent/Task subagent_type, Skill skill, or
+    mcp__<server>__<tool> use, and only once the window has 10 user prompts over at least 2 sessions, or 5 sessions.
+    description_tokens is floor(UTF-8 bytes of frontmatter description / 4); MCP is "not measured".
+    cache ratio sums cache_creation_input_tokens over the session and divides by the largest prompt
+    (input + cache read + cache creation). Codex uses uncached input (input_tokens - cached_input_tokens) as the
+    write and input_tokens as the prompt. Cold turns follow a gap longer than 60 minutes, or 5 when a request
+    shows ephemeral_5m, and rewrite more than 50000 cache tokens.
+    overpowered: a subagent transcript whose dominant model is Opus or Fable, with at most 5 tool calls and under
+    2000 output tokens. list_usd is this module's list price, or null when a model has no price.
+    old_models: a seen model whose family is in the catalog and whose version is older than the newest lanes.*.model
+    or explore.main_session model of that family. fast_mode uses usage.speed / fast_mode (Codex: the same on the
+    token_count payload). service_tier is not fast mode. When no request carries the field, fast_mode.skipped says so.
+    agents extends the census kinds with Amp thread files and Antigravity JSONL. A sqlite/protobuf Antigravity
+    store with no JSONL mirror is status "not read".
+    """
+    now = now or dt.datetime.now(UTC)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    now = now.astimezone(UTC)
+    start = now - dt.timedelta(days=days)
+    platform = platform if platform in ("claude-code", "codex", "all") else "all"
+    report = {"schema": 1, "days": days, "since": _iso(start), "until": _iso(now), "platform": platform, "off": False}
+    try:
+        scan = _waste_scan(start, platform)
+    except Exception as error:
+        return _waste_disabled(days, platform, "error: {}".format(type(error).__name__), now)
+    builders = (
+        ("unused", lambda: _waste_unused(scan, platform)),
+        ("cache_rehydration", lambda: _waste_cache(scan)),
+        ("overpowered_subagents", lambda: _waste_overpowered(scan, platform)),
+        ("old_models", lambda: _waste_old_models(scan)),
+        ("agents", lambda: _waste_agents(start)),
+    )
+    for key, builder in builders:
+        try:
+            report[key] = builder()
+        except Exception as error:
+            report[key] = _waste_disabled(days, platform, "error: {}".format(type(error).__name__), now)[key]
+    return report
+
+
+def _waste_lines(title, section, rows):
+    if section.get("skipped"):
+        return [title, "  skipped: {}".format(section["skipped"])]
+    if not rows:
+        return [title, "  none"]
+    shown = rows[:WASTE_TEXT_LIMIT]
+    lines = [title] + ["  {}".format(row) for row in shown]
+    if len(rows) > WASTE_TEXT_LIMIT:
+        lines.append("  and {} more".format(len(rows) - WASTE_TEXT_LIMIT))
+    return lines
+
+
+def _waste_text(value):
+    unused = value["unused"]
+    unused_rows = [item["action"] for item in unused.get("items") or []]
+    cache = value["cache_rehydration"]
+    cache_rows = []
+    for item in cache.get("sessions") or []:
+        cold = item["cold_turns"]
+        cache_rows.append("{} {} ratio {:.2f} (threshold {}), cold turns {}, cache tokens {}: {}".format(
+            item["platform"], item["session"], item["ratio"], item["threshold"], len(cold),
+            item["cache_creation_tokens"], item["action"]))
+    over = value["overpowered_subagents"]
+    over_rows = []
+    for item in over.get("items") or []:
+        cost = "list cost not priced" if item["list_usd"] is None else "list ${:.6f}".format(item["list_usd"])
+        over_rows.append("session {} model {} agent {} tool calls {} output tokens {} {}: {}".format(
+            item["session"], item["model"], item["agent_type"] or "unknown", item["tool_calls"],
+            item["output_tokens"], cost, item["action"]))
+    old = value["old_models"]
+    old_rows = ["{} requests {}: {}".format(item["requests"], item["model"], item["action"]) for item in old.get("items") or []]
+    fast = old.get("fast_mode") or {}
+    if fast.get("skipped"):
+        fast_line = "fast mode skipped: {}".format(fast["skipped"])
+    else:
+        fast_line = fast.get("action") or "fast mode: none"
+    agent = value["agents"]
+    agent_rows = []
+    if not agent.get("skipped"):
+        for kind, row in sorted((agent.get("claude") or {}).items(), key=lambda kv: -kv[1].get("active_seconds", 0)):
+            agent_rows.append("claude-code {:<12} {:>4} sessions {:>7.1f} h".format(
+                kind, row.get("sessions", 0), row.get("active_seconds", 0) / 3600.0))
+        for origin, row in sorted((agent.get("codex") or {}).items(), key=lambda kv: -kv[1].get("active_seconds", 0)):
+            agent_rows.append("codex {:<16} {:>4} sessions {:>7.1f} h".format(
+                origin, row.get("sessions", 0), row.get("active_seconds", 0) / 3600.0))
+        for label, row in (("amp", agent.get("amp") or {}), ("antigravity", agent.get("antigravity") or {})):
+            if row.get("status") == "read":
+                note = " ({})".format(row["note"]) if row.get("note") else ""
+                agent_rows.append("{:<16} {:>4} sessions {:>7.1f} h{}".format(
+                    label, row.get("sessions", 0), row.get("active_hours", 0.0), note))
+            else:
+                agent_rows.append("{}: {} ({})".format(label, row.get("status") or "not read", row.get("note") or ""))
+    lines = ["waste since {} platform {}".format(value.get("since", ""), value.get("platform", ""))]
+    lines.extend(_waste_lines("UNUSED AGENTS, SKILLS AND MCP SERVERS", unused, unused_rows))
+    lines.extend(_waste_lines("CACHE REHYDRATION", cache, cache_rows))
+    lines.extend(_waste_lines("OVERPOWERED SUBAGENTS", over, over_rows))
+    if old.get("skipped"):
+        lines.extend(["OLD MODELS AND FAST MODE", "  skipped: {}".format(old["skipped"])])
+    else:
+        body = _waste_lines("OLD MODELS AND FAST MODE", old, old_rows)
+        lines.extend(body)
+    lines.append("  {}".format(fast_line))
+    lines.extend(_waste_lines("EVERY AGENT", agent, agent_rows))
+    return "\n".join(lines)
+
+
+def _waste_command(days, platform, json_output, now=None):
+    # Any error prints a skipped report and exits 0. The waste command never changes files and never fails the process.
+    try:
+        if _switched_off("TURN_METER_WASTE"):
+            value = _waste_disabled(days, platform, "TURN_METER_WASTE=off", now)
+        else:
+            value = _waste_report(days, platform, now)
+    except Exception as error:
+        value = _waste_disabled(days, platform, "error: {}".format(type(error).__name__), now)
+    try:
+        if json_output:
+            print(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
+        else:
+            print(_waste_text(value))
+    except Exception:
+        print("waste: error: report could not be printed")
+    return 0
+
+
 def _use_utf8_streams():
     if os.name == "nt":
         for stream in (sys.stdout, sys.stderr):
@@ -2678,6 +3864,10 @@ def _main(argv=None):
     census.add_argument("--json", action="store_true")
     notices = commands.add_parser("notices")
     notices.add_argument("--json", action="store_true")
+    waste = commands.add_parser("waste")
+    waste.add_argument("--days", type=int, default=14)
+    waste.add_argument("--json", action="store_true")
+    waste.add_argument("--platform", choices=("claude-code", "codex", "all"), default="all")
     args = parser.parse_args(argv)
     if args.command == "hook":
         _hook(args.platform, args.json)
@@ -2737,6 +3927,10 @@ def _main(argv=None):
             print(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
         else:
             print(_census_text(value, folders))
+    elif args.command == "waste":
+        if args.days < 1:
+            parser.error("--days must be a positive integer")
+        return _waste_command(args.days, args.platform, args.json)
     elif args.command == "notices":
         value = _notices_list(state, dt.datetime.now(UTC))
         if args.json:

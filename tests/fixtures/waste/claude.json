@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "ghost-server": {
+      "command": "echo"
+    },
+    "used-server": {
+      "command": "echo"
+    }
+  },
+  "projects": {
+    "/invented/project": {
+      "mcpServers": {
+        "used-server": {
+          "command": "echo"
+        },
+        "proj-only": {
+          "command": "echo"
+        }
+      }
+    }
+  }
+}

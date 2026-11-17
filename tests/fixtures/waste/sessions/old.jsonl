@@ -1,0 +1,2 @@
+{"timestamp":"__OLD__","type":"user","entrypoint":"cli","message":{"role":"user","content":"SECRET-PROMPT-TEXT"}}
+{"timestamp":"__OLD__","type":"assistant","message":{"id":"old1","model":"claude-sonnet-5-5","usage":{"input_tokens":10,"output_tokens":1,"cache_read_input_tokens":0,"cache_creation_input_tokens":0},"content":[{"type":"tool_use","name":"Agent","input":{"subagent_type":"old-only-agent","prompt":"SECRET-PROMPT-TEXT"},"id":"old-tool"}]}}

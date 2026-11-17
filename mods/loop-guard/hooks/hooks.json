@@ -1,0 +1,4 @@
+{
+  "description": "Note a tool call that fails three times in one turn, and warn when a turn runs long on repeated failures",
+  "modules": ["./register.ts"]
+}

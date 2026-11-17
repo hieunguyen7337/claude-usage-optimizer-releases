@@ -1223,6 +1223,59 @@ def gb_text(mb):
     return "{:.1f}".format(mb / 1024.0)
 
 
+def window_text(value):
+    if value >= 1000000:
+        return "{:g}M".format(round(value / 1000000.0, 1))
+    if value >= 1000:
+        return "{}k".format(int(round(value / 1000.0)))
+    return str(int(round(value)))
+
+
+def positive_window(value):
+    # A JSON true is a bool, which float() would turn into 1. It is not a window.
+    if isinstance(value, bool):
+        return None
+    parsed = number(value)
+    if parsed is None or parsed <= 0:
+        return None
+    return int(parsed) if parsed.is_integer() else parsed
+
+
+def compaction_overrides():
+    """Per-model autoCompactWindow values that differ from the top-level one.
+
+    Each item is {model, window, top}. A missing file, bad JSON or no such override gives [].
+    CLAUDE_CONFIG_DIR is the settings directory, as the status line's compact window uses it."""
+    try:
+        base = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+        data = read_json(os.path.join(base, "settings.json"))
+        if not isinstance(data, dict):
+            return []
+        top = positive_window(data.get("autoCompactWindow"))
+        table = data.get("modelSettings")
+        if top is None or not isinstance(table, dict):
+            return []
+        found = []
+        for model, entry in table.items():
+            if not isinstance(model, str) or not model or not isinstance(entry, dict):
+                continue
+            window = positive_window(entry.get("autoCompactWindow"))
+            if window is None or window == top:
+                continue
+            found.append({"model": model, "window": window, "top": top})
+        return found
+    except Exception:
+        return []
+
+
+def compaction_line(item):
+    window = window_text(item["window"])
+    top = window_text(item["top"])
+    return ("Compaction: {} compacts at {}, not the kit's {} "
+            "(settings.json modelSettings); remove it to use {}").format(
+                item["model"], window, top, top)
+
+
 def local_line(local):
     if local is None:
         return "Local: RAM unknown on this OS"
@@ -1773,11 +1826,15 @@ def usage_status(args):
     # The cache codex_section just read or refreshed; no further meter call.
     changes = window_changes(claude.get("reading"), read_json(os.path.join(claude_dir, "codex-latest.json")),
                              agy, now)
+    overrides = compaction_overrides()
     data = {"claude": claude, "codex": codex, "agy": agy, "local": local, "hint": hint}
     if changes:
         data["window_changes"] = changes
     if amp is not None:
         data["amp"] = amp
+    if overrides:
+        data["compaction_overrides"] = [{"model": item["model"], "window": item["window"]}
+                                        for item in overrides]
     if args.json:
         print(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
         return
@@ -1788,6 +1845,7 @@ def usage_status(args):
     if amp_line:
         lines.append(amp_line)
     lines.extend("warning: " + change["text"] for change in changes)
+    lines.extend(compaction_line(item) for item in overrides)
     if not args.no_local:
         lines.append(local_line(local))
     if args.brief:

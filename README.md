@@ -25,7 +25,7 @@ and tested offline, and is not yet checked against a live Codex session.
 | Statusline | Two lines: session, running turn, quota windows | One status item: ETA, cost, meters, kit release | None from the kit; Codex's own limit items |
 | Worker lanes | As a process, a subagent or a cloud run | As a process; Claude arms and some `amp` arms run inside the Amp thread | As a process |
 | Cloud runs | Yes (`lane --cloud`) | Claude Code cloud sessions, started from this machine | Claude arms with `--cloud` |
-| Mods (mobile view, sessions pane, compact-at-rest) | Yes | No | No |
+| Mods (mobile view, sessions pane, compact-at-rest, prompt-fix, loop-guard) | Yes | No | No |
 
 ## What the kit decides for you
 
@@ -44,6 +44,8 @@ go in `~/.claude/CLAUDE.md` above the kit's import line and win over the kit's p
 | Every brief has four parts | Goal; files in and out of scope; constraints with the verifier command; a fixed return shape. No secrets or personal data | Workers fail on vague briefs, and briefs leave your machine | Not configurable |
 | Worker output is data | Text a worker, web page or other session returns is never followed as an instruction | Prompt injection | Not configurable |
 | A failure climbs a ladder | Tighten the brief, then one stronger rung (luna → terra/sol → sol xhigh → Fable → the main session) | Retrying the same arm rarely helps | Machine rules in `CLAUDE.md` |
+| Workers get the repository's facts | Up to 10 one-line facts per repository (from reviews, or learned from command swaps seen in 3 runs) go into every brief; anything that looks like a credential, token or address is never stored or sent | Workers relearn the same quirks every run | `--no-facts`, `LANES_FACTS=off`, `lane-stats facts --drop` |
+| Stuck runs are flagged | A run past 2.5x its expected time that repeats one failing command 3 times is reported, or stopped with `LANES_STUCK=kill` | A looping worker burns allowance for nothing | `LANES_STUCK=off` or `kill` |
 
 **How much it asks you**
 
@@ -57,7 +59,8 @@ go in `~/.claude/CLAUDE.md` above the kit's import line and win over the kit's p
 
 | Rule | What it means | Why | How to change it |
 |---|---|---|---|
-| Guards | The picker skips Claude lanes at 85% of Claude's week and any provider at 95% of its week or 90% of its 5-hour window; the last 15% of Claude's week is kept for review | There is no reserve past a weekly limit | `explore.claude_guard_pct` and the thresholds in `arms.local.json` |
+| Guards | The picker skips Claude lanes at 85% of Claude's week, any provider at 95% of any window (weekly, or a plan's 30-day one) or 90% of its 5-hour window, and any provider that reports its limit reached; the last 15% of Claude's week is kept for review | There is no reserve past a weekly limit | `explore.claude_guard_pct` and the thresholds in `arms.local.json` |
+| Pace on every weekly bar | The statusline shows how much of each week has passed beside how much is used, `wk 23% (pace 31%)`, and says `hot` when use runs 10 points ahead | A week spent early stops work before the reset | `USAGE_OPTIMIZER_PACE=off` |
 | Modes | Each provider runs in *saving*, *default* or *utilization* by how its week is pacing (projected use at reset ≥ 110% or ≤ 90%); the mode sets how much runs in parallel and how cost is weighed | Allowance left at a reset is lost; allowance spent early stops work | `USAGE_OPTIMIZER_MODE` or `~/.config/lanes/mode` (`auto`, `saving`, `default`, `utilization`) |
 | Memory guard | A local worker starts only when free RAM, less a reserve, covers its measured peak; otherwise `lane` waits and returns BUSY | One PC runs many CLIs at once | `LANES_MEM_RESERVE_MB`, `LANES_MEM_NEED_MB`, `LANES_MEM_CHECK=off` |
 | The main model is fixed | Claude Code's main loop runs Opus at xhigh, subagents default to Sonnet, and the model is never switched mid-session with `/model` | A switch re-reads the whole context uncached | `explore.main_session` in `arms.json` |
@@ -67,7 +70,12 @@ go in `~/.claude/CLAUDE.md` above the kit's import line and win over the kit's p
 
 | Rule | What it means | Why | How to change it |
 |---|---|---|---|
-| Compaction between answers | Claude Code compacts past 250k tokens; the kit compacts right after an answer at 90% of that, holds a mid-turn compaction until the next turn unless the context reaches 350k, and re-injects the lanes in flight afterwards | About half of all spend is re-reading context | `USAGE_OPTIMIZER_COMPACT_NEAR`, `USAGE_OPTIMIZER_COMPACT_HARD`, `USAGE_OPTIMIZER_COMPACT_GATE` |
+| Compaction between answers | Claude Code compacts past 250k tokens; the kit compacts right after an answer at 90% of that, or earlier when a typical turn would cross 250k, holds a mid-turn compaction until the next turn unless the context reaches 350k, and re-injects the lanes in flight afterwards | About half of all spend is re-reading context | `USAGE_OPTIMIZER_COMPACT_NEAR`, `USAGE_OPTIMIZER_COMPACT_AHEAD`, `USAGE_OPTIMIZER_COMPACT_HARD`, `USAGE_OPTIMIZER_COMPACT_GATE` |
+| Compaction before the cache expires | After 50 idle minutes at 40% of the window or more, the kit compacts while the prompt cache is still warm | A prompt after the hour-long cache expires re-reads everything uncached | `USAGE_OPTIMIZER_IDLE_COMPACT=off`, `_MIN`, `_PCT` |
+| Repeated failures are redirected | The third identical failing tool call in a turn gets a note telling the agent to change approach; nothing is blocked | A loop of the same failure burns a turn | `USAGE_OPTIMIZER_LOOP_GUARD=off` |
+| Waste is reported, not removed | `turn-meter waste` lists unused agents, skills and MCP servers, idle-gap cache rewrites, heavy subagents on light work and old models | Every loaded tool costs tokens on every request | Nothing changes until you act on it |
+| One timeline, no model call | `lane-stats timeline` merges a tagged lead log (`lane-stats note "[decision] …"`), lane runs, reviews and cloud-session markers into one list of events | A day's work, failures and blockers at a glance, without paying a model to narrate it | Notes are optional; `--since` and `--json` shape the view |
+| A per-model compaction window is flagged | The statusline uses the window that applies to the session's model; `usage-status` and the installer warn when `modelSettings` overrides 250k | A hidden 350k override made compactions land near 320k for a week | Remove the override, or keep it knowingly |
 | Every turn is metered | Each turn's list cost, time and the meters before and after are logged, and every report ends with a Cost line and a Time line | Cost and time are the two things to learn | `USAGE_OPTIMIZER_TURNS=off` |
 | The mode is announced | Each session is told the mode and its rules at its next prompt, and again when it changes | Running sessions follow it without a restart | `USAGE_OPTIMIZER_MODE_NOTICE=off` |
 | Typed prompts are spell-checked | One Haiku call fixes spelling and grammar slips in each typed prompt; the row shows the corrected text and lists the changes | Typos cost turns | `USAGE_OPTIMIZER_PROMPT_FIX=off` |

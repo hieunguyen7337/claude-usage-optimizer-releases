@@ -1,4 +1,4 @@
 {
-  "description": "Compact between turns, right after an answer, when the context is near the compaction window",
+  "description": "Compact between turns when the context is near the window, or after an idle stretch while the prompt cache is still warm",
   "modules": ["./register.ts"]
 }

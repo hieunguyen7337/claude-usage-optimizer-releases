@@ -113,6 +113,7 @@ def _rate_data(data):
 
 
 STALE_SCOPED_HOURS = 6  # a /usage reading this old is drawn with its age
+CLAUDE_WEEK_MINUTES = 7 * 24 * 60  # Claude's weekly window. Codex windows carry window_minutes.
 
 
 def _claude_json_path():
@@ -188,15 +189,49 @@ def _tokens(value):
     return str(int(value))
 
 
-def _compact_window():
+def _positive_window(value):
+    # A JSON true is a bool, which float() would turn into 1. It is not a window.
+    if isinstance(value, bool):
+        return None
+    number = _number(value)
+    return number if number and number > 0 else None
+
+
+def _model_compact_window(settings, model_id):
+    # modelSettings.<id>.autoCompactWindow overrides the top-level window for that model.
+    # An id such as claude-opus-5-5[1m] matches that key, then the key with the [...] suffix removed.
+    table = settings.get("modelSettings") if isinstance(settings, dict) else None
+    if not isinstance(table, dict) or not isinstance(model_id, str) or not model_id:
+        return None
+    candidates = [model_id]
+    stripped = re.sub(r"\[[^\]]*\]$", "", model_id)
+    if stripped and stripped != model_id:
+        candidates.append(stripped)
+    for key in candidates:
+        entry = table.get(key)
+        if not isinstance(entry, dict):
+            continue
+        window = _positive_window(entry.get("autoCompactWindow"))
+        if window:
+            return window
+    return None
+
+
+def _compact_window(model_id=None):
     # Claude Code compacts at settings.autoCompactWindow but never sends it to the status line.
     base = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
     try:
         with open(os.path.join(base, "settings.json"), "r", encoding="utf-8") as handle:
-            value = _number(json.load(handle).get("autoCompactWindow"))
+            settings = json.load(handle)
+        if not isinstance(settings, dict):
+            return None
+        override = _model_compact_window(settings, model_id)
+        if override:
+            return override
+        value = _positive_window(settings.get("autoCompactWindow"))
     except (OSError, ValueError, TypeError, AttributeError):
         return None
-    return value if value and value > 0 else None
+    return value
 
 
 def _compact_gate_enabled():
@@ -209,7 +244,7 @@ def _compact_hard():
     return value if value and value > 0 else 350000.0
 
 
-def _context_data(context):
+def _context_data(context, model_id=None):
     if not isinstance(context, dict):
         return None
     # current_usage and used_percentage are null until the first reply after a start or a
@@ -222,7 +257,7 @@ def _context_data(context):
         if all(count is not None for count in counts):
             used = sum(counts)
     size = _number(context.get("context_window_size"))
-    window = _compact_window()
+    window = _compact_window(model_id)
     if window and (not size or window < size):
         size = window
     if used is not None and size and size > 0:
@@ -433,7 +468,70 @@ def _reset_text(value, enabled):
     return _label("resets " + value, enabled)
 
 
-def _codex_group(cache, now, enabled, reset_mode="all"):
+def _pace_enabled():
+    # USAGE_OPTIMIZER_PACE=off hides the marker. Any other value, including unset, leaves it on.
+    # A bad environment read hides the marker so the line stays as it was.
+    try:
+        return os.environ.get("USAGE_OPTIMIZER_PACE", "on").strip().lower() != "off"
+    except Exception:
+        return False
+
+
+def _want_pace(include_pace):
+    if include_pace is None:
+        return _pace_enabled()
+    return bool(include_pace)
+
+
+def _pace_percent(resets_at, length_minutes, now):
+    """Whole-percent share of the window already elapsed, or None when it cannot be known.
+
+    Pace is (window length − time to reset) ÷ window length. A reset that has already
+    passed belongs to a new window whose end we do not know, so it draws no marker.
+    """
+    try:
+        length = _number(length_minutes)
+        if length is None or length <= 0 or now is None:
+            return None
+        reset = resets_at if isinstance(resets_at, _dt.datetime) else _stamp(resets_at)
+        current = now if isinstance(now, _dt.datetime) else _stamp(now)
+        if reset is None or current is None:
+            return None
+        if current.tzinfo is None:
+            current = current.replace(tzinfo=_dt.timezone.utc)
+        current = current.astimezone(_dt.timezone.utc)
+        if reset.tzinfo is None:
+            reset = reset.replace(tzinfo=_dt.timezone.utc)
+        reset = reset.astimezone(_dt.timezone.utc)
+        remaining = (reset - current).total_seconds()
+        if remaining <= 0:
+            return None
+        length_seconds = length * 60.0
+        pace = (length_seconds - remaining) / length_seconds * 100.0
+        if not math.isfinite(pace):
+            return None
+        return max(0, min(100, int(round(pace))))
+    except Exception:
+        return None
+
+
+def _pace_marker(used_percent, pace):
+    # Plain text: the used percent keeps its own colour. Hot when that shown percent
+    # leads the even-pace percent by 10 points or more.
+    try:
+        if pace is None:
+            return ""
+        used = _number(used_percent)
+        if used is None:
+            return ""
+        if int(round(used)) >= pace + 10:
+            return " (pace {}%, hot)".format(pace)
+        return " (pace {}%)".format(pace)
+    except Exception:
+        return ""
+
+
+def _codex_group(cache, now, enabled, reset_mode="all", include_pace=None):
     if not isinstance(cache, dict):
         return None
     status = cache.get("status")
@@ -462,6 +560,9 @@ def _codex_group(cache, now, enabled, reset_mode="all"):
         reset_at = _stamp(item.get("resets_at"))
         shown_percent = 0 if reset_at and reset_at <= current else int(round(percent))
         piece = "{} {}".format(_label(label, enabled), _percentage(shown_percent, enabled))
+        # 5h windows stay unmarked. A window with no window_minutes has no length, so no marker.
+        if _want_pace(include_pace) and minutes is not None and label != "5h":
+            piece += _pace_marker(shown_percent, _pace_percent(reset_at, minutes, current))
         if reset_at and not (reset_mode == "none" or
                              (reset_mode == "above70" and percent < 70)):
             if reset_at <= current:
@@ -497,8 +598,12 @@ def _codex_text(now):
         return None
 
 
-def _claude_text(five, seven, scoped, enabled, reset_mode="all", include_scoped=True):
+def _claude_text(five, seven, scoped, enabled, reset_mode="all", include_scoped=True,
+                 now=None, include_pace=None):
     pieces = []
+    pace_on = _want_pace(include_pace)
+    if now is None and pace_on:
+        now = _dt.datetime.now(_dt.timezone.utc)
 
     def add(label, record, weekly=False):
         if not record or record.get("used_percentage") is None:
@@ -507,6 +612,9 @@ def _claude_text(five, seven, scoped, enabled, reset_mode="all", include_scoped=
         if percent is None:
             return
         piece = "{} {}".format(_label(label, enabled), _percentage(percent, enabled))
+        # The 5h window is not weekly and gets no marker. Weekly bars, including scoped ones, are 7 days.
+        if weekly and pace_on:
+            piece += _pace_marker(percent, _pace_percent(record.get("resets_at"), CLAUDE_WEEK_MINUTES, now))
         reset = _format_reset(record.get("resets_at"), weekly)
         if reset and not (reset_mode == "none" or
                           (reset_mode == "above70" and percent < 70)):
@@ -1017,12 +1125,15 @@ def main():
         if not isinstance(data, dict):
             data = {}
         model = data.get("model")
+        model_id = None
         if isinstance(model, dict):
             candidate = model.get("display_name") or model.get("id")
             if candidate:
                 model_name = str(candidate).replace("\r", " ").replace("\n", " ")
+            if isinstance(model.get("id"), str):
+                model_id = model.get("id")
 
-        context_data = _context_data(data.get("context_window"))
+        context_data = _context_data(data.get("context_window"), model_id)
 
         five, seven, scoped = _rate_data(data)
         effort_text = _effort_text(data.get("effort"))
@@ -1066,10 +1177,10 @@ def main():
 
         cache = _codex_cache(now)
 
-        def second_line(reset_mode="all", include_scoped=True):
+        def second_line(reset_mode="all", include_scoped=True, include_pace=None):
             groups = []
-            claude = _claude_text(five, seven, scoped, enabled, reset_mode, include_scoped)
-            codex = _codex_group(cache, now, enabled, reset_mode)
+            claude = _claude_text(five, seven, scoped, enabled, reset_mode, include_scoped, now, include_pace)
+            codex = _codex_group(cache, now, enabled, reset_mode, include_pace)
             if claude:
                 groups.append(claude)
             if codex:
@@ -1084,10 +1195,12 @@ def main():
             {"include_turn": False, "include_ctx_pct": False, "kit": "short"},
             {"include_turn": False, "include_ctx_pct": False, "kit": None},
         ])
+        # Pace markers are dropped first when the row does not fit, before resets or scoped bars.
         line2 = _fit_line(second_line, columns, [
-            {"reset_mode": "above70", "include_scoped": True},
-            {"reset_mode": "none", "include_scoped": True},
-            {"reset_mode": "none", "include_scoped": False},
+            {"include_pace": False},
+            {"reset_mode": "above70", "include_scoped": True, "include_pace": False},
+            {"reset_mode": "none", "include_scoped": True, "include_pace": False},
+            {"reset_mode": "none", "include_scoped": False, "include_pace": False},
         ])
         output = line1 + ("\n" + line2 if line2 else "")
 

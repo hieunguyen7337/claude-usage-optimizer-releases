@@ -279,6 +279,8 @@ MARKERS (commits on your own branch; push after each; the subject is exactly one
   orch: READY <n>: <title>        finished work; body: what it holds and whether you merged it to the default branch
   orch: LOCAL lane <unit> <lane>/<effort> <brief path> class=<class>
   orch: REVIEW <unit> <outcome> arm=<lane>/<effort> class=<class> min=<minutes> tok=<in>/<out> usd=<list usd> [fix=<minutes>] [via=local]
+A STATUS title may start with lead-log tags such as [blocked: ...], [decision] or [progress: 3/6 ...], which
+lane-stats timeline reads.
 <n> counts your STATUS and READY markers from 1. <unit> is 1 to 48 characters of A-Z a-z 0-9 . _ - , starting and
 ending with a letter or digit. outcome is
 accepted, fixed, rework or rejected. min is the unit's wall minutes, tok its input/output tokens and usd its list price
@@ -3270,7 +3272,376 @@ def larger_peak(left, right):
     return max(values) if values else None
 
 
-def run_process(argv, cwd, log_path, timeout, stdin_data, env=None):
+# A shell command is a fact or a stuck signal only when it is one simple command. Metacharacters, Windows
+# backslashes and long lines are ambiguous, so they are ignored.
+_SHELLS = {"bash", "sh", "dash", "bash.exe", "sh.exe", "dash.exe"}
+_SHELL_FLAGS = {"-c", "-lc"}
+_WRAPPERS = {"powershell", "powershell.exe", "pwsh", "pwsh.exe", "cmd", "cmd.exe"}
+_COMMAND_META = re.compile(r"[|&;<>`\n\r]|\$\(")
+_CODEX_COMMAND_TYPES = {"exec_command_end", "exec_command", "command_execution", "command"}
+_COMMAND_TEXT_LIMIT = 400
+_LANE_STATS = None
+
+
+def facts_disabled(opts=None):
+    """LANES_FACTS=off and --no-facts both turn the brief block and the miner off."""
+    if os.environ.get("LANES_FACTS", "").strip().lower() == "off":
+        return True
+    return bool(opts is not None and getattr(opts, "no_facts", False))
+
+
+def load_lane_stats():
+    """lane-stats, loaded on first use so the two tools share one facts store and neither imports the other at startup."""
+    global _LANE_STATS
+    if _LANE_STATS is not None:
+        return _LANE_STATS
+    import importlib.machinery
+    import importlib.util
+    name = "lane_stats_from_lane"
+    path = sibling_script("lane-stats")
+    loader = importlib.machinery.SourceFileLoader(name, path)
+    spec = importlib.util.spec_from_loader(name, loader)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        loader.exec_module(module)
+    except SystemExit as error:
+        # A lane-stats that exits on import (an old copy, a test stand-in) must not end the run: callers treat an
+        # ImportError like any other facts lookup failure and carry on without facts.
+        sys.modules.pop(name, None)
+        raise ImportError(f"lane-stats exited on import ({error.code})") from None
+    except Exception:
+        sys.modules.pop(name, None)
+        raise
+    _LANE_STATS = module
+    return module
+
+
+def parse_command_text(text, depth=0):
+    if depth > 2 or not isinstance(text, str):
+        return None
+    text = text.strip()
+    if not text or len(text) > _COMMAND_TEXT_LIMIT or "\\" in text or _COMMAND_META.search(text):
+        return None
+    try:
+        argv = shlex.split(text, posix=True)
+    except ValueError:
+        return None
+    if not argv or any(not isinstance(part, str) for part in argv):
+        return None
+    if len(argv) == 3 and os.path.basename(argv[0]).lower() in _SHELLS and argv[1] in _SHELL_FLAGS:
+        return parse_command_text(argv[2], depth + 1)
+    program = argv[0]
+    if not program or program.startswith("-") or os.path.basename(program).lower() in _WRAPPERS:
+        return None
+    if any(char in program for char in "\"'\r\n"):
+        return None
+    try:
+        shown = shlex.join(argv)
+    except (TypeError, ValueError):
+        return None
+    return {"program": program, "args": tuple(argv[1:]), "command": shown}
+
+
+def command_from_parts(command, exit_code):
+    if isinstance(exit_code, bool) or not isinstance(exit_code, int):
+        return None
+    if isinstance(command, list):
+        if not command or not all(isinstance(part, str) for part in command):
+            return None
+        try:
+            parsed = parse_command_text(shlex.join(command))
+        except (TypeError, ValueError):
+            return None
+    elif isinstance(command, str):
+        parsed = parse_command_text(command)
+    else:
+        return None
+    if parsed is None:
+        return None
+    parsed["ok"] = exit_code == 0
+    return parsed
+
+
+def codex_command(event):
+    candidates = []
+    for key in ("item", "payload", "msg"):
+        value = event.get(key)
+        if isinstance(value, dict):
+            candidates.append(value)
+    candidates.append(event)
+    for obj in candidates:
+        kind = obj.get("type")
+        if kind not in _CODEX_COMMAND_TYPES or (isinstance(kind, str) and kind.endswith("_begin")):
+            continue
+        command = obj.get("command")
+        if command is None:
+            command = obj.get("cmd")
+        exit_code = obj.get("exit_code")
+        if exit_code is None:
+            exit_code = obj.get("exit")
+        parsed = command_from_parts(command, exit_code)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def content_blocks(event):
+    blocks = []
+    for container in (event.get("message"), event):
+        if not isinstance(container, dict):
+            continue
+        content = container.get("content")
+        if isinstance(content, list):
+            blocks.extend(item for item in content if isinstance(item, dict))
+    return blocks
+
+
+def tool_input(block):
+    raw = block.get("input")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            return None
+    return raw if isinstance(raw, dict) else None
+
+
+def parse_shell_commands(text):
+    """Shell commands, in order, from a Codex json log or a Claude stream-json log. Anything unclear is skipped."""
+    pending = {}
+    commands = []
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        parsed = codex_command(event)
+        if parsed is not None:
+            commands.append(parsed)
+            continue
+        for block in content_blocks(event):
+            kind = block.get("type")
+            if kind == "tool_use" and block.get("name") == "Bash":
+                tool_id = block.get("id")
+                raw = tool_input(block)
+                command = raw.get("command") if isinstance(raw, dict) else None
+                if isinstance(tool_id, str) and isinstance(command, str):
+                    pending[tool_id] = command
+            elif kind == "tool_result":
+                tool_id = block.get("tool_use_id")
+                command = pending.pop(tool_id, None) if isinstance(tool_id, str) else None
+                if not isinstance(command, str) or not isinstance(block.get("is_error"), bool):
+                    continue
+                parsed = parse_command_text(command)
+                if parsed is None:
+                    continue
+                parsed["ok"] = not block["is_error"]
+                commands.append(parsed)
+    return commands
+
+
+def record_run_facts(dir_path, run_id, log_path):
+    try:
+        with open(log_path, "r", encoding="utf-8", errors="replace") as stream:
+            text = stream.read()
+        commands = parse_shell_commands(text)
+        if not commands:
+            return
+        stats = load_lane_stats()
+        stats.observe_run(stats.repo_key(dir_path), run_id, commands)
+    except Exception:
+        return
+
+
+def stuck_poll_seconds():
+    """How often the guard reads the log. LANES_STUCK_POLL overrides the 30s default; a bad value keeps 30."""
+    raw = os.environ.get("LANES_STUCK_POLL", "").strip()
+    if not raw:
+        return 30.0
+    try:
+        value = float(raw)
+    except ValueError:
+        return 30.0
+    if not math.isfinite(value) or value <= 0:
+        return 30.0
+    return value
+
+
+def stuck_policy(opts=None):
+    """off, kill, warn, or unknown. LANES_STUCK=off wins over --stuck-kill. The default is warn."""
+    value = os.environ.get("LANES_STUCK", "").strip().lower()
+    if value == "off":
+        return "off"
+    if value == "kill":
+        return "kill"
+    if value in ("", "warn", "warning"):
+        if opts is not None and getattr(opts, "stuck_kill", False):
+            return "kill"
+        return "warn"
+    return "unknown"
+
+
+def make_stuck_guard(opts, meta, meta_path, log_path, eta_s, eta_p80_s):
+    """The guard for one process run, or None when it is off or there is no ETA to compare against.
+
+    An unknown LANES_STUCK warns only once a guard is actually installed. No ETA keeps the run on the
+    original wait path and prints nothing.
+    """
+    try:
+        policy = stuck_policy(opts)
+        if policy == "off" or not is_eta_minutes(eta_s) or not is_eta_minutes(eta_p80_s):
+            return None
+        if policy == "unknown":
+            print("warning: LANES_STUCK={!r} is not off or kill; the guard will warn only".format(
+                os.environ.get("LANES_STUCK", "")), file=sys.stderr)
+            policy = "warn"
+        return {"policy": policy, "meta": meta, "meta_path": meta_path, "log_path": log_path,
+                "eta_s": float(eta_s), "eta_p80_s": float(eta_p80_s), "warned": False, "killed": False}
+    except Exception:
+        return None
+
+
+def minutes_text(seconds):
+    return "{:.1f}".format(float(seconds) / 60.0)
+
+
+def log_text_from(guard):
+    # A second handle: seeking the handle the child inherited would move the child's write position.
+    path = guard.get("log_path")
+    if not path:
+        return ""
+    try:
+        with open(path, "rb") as stream:
+            return stream.read().decode("utf-8", "replace")
+    except OSError:
+        return ""
+
+
+def stuck_failure(commands):
+    """(command, count) when one failing command occurs at least 3 times in the last 10, else None."""
+    counts = {}
+    order = []
+    for command in (commands or [])[-10:]:
+        if not isinstance(command, dict) or command.get("ok"):
+            continue
+        program = command.get("program")
+        args = command.get("args")
+        if not isinstance(program, str) or not isinstance(args, tuple):
+            continue
+        key = (program, args)
+        if key not in counts:
+            shown = command.get("command") if isinstance(command.get("command"), str) else program
+            counts[key] = {"count": 0, "command": shown}
+            order.append(key)
+        counts[key]["count"] += 1
+    best = None
+    for key in order:
+        item = counts[key]
+        if item["count"] >= 3 and (best is None or item["count"] >= best["count"]):
+            best = item
+    if best is None:
+        return None
+    return best["command"], best["count"]
+
+
+def run_is_stuck(elapsed, eta_s, eta_p80_s, commands):
+    """The repeated failure once elapsed time is past both 2.5x the ETA and the p80, else None."""
+    if not is_eta_minutes(eta_s) or not is_eta_minutes(eta_p80_s):
+        return None
+    if elapsed <= 2.5 * float(eta_s) or elapsed <= float(eta_p80_s):
+        return None
+    return stuck_failure(commands)
+
+
+def note_stuck(guard, command, failures, elapsed):
+    if guard.get("stuck") is None:
+        guard["stuck"] = {"at": utc_now(), "command": command, "failures": int(failures)}
+        meta = guard.get("meta")
+        if isinstance(meta, dict):
+            meta["stuck"] = {"at": guard["stuck"]["at"], "command": command, "failures": int(failures)}
+            try:
+                write_meta(guard["meta_path"], meta)
+            except OSError:
+                pass
+    if not guard.get("warned"):
+        guard["warned"] = True
+        print("warning: stuck: {} failed {} times; elapsed {} min against an ETA of {} min".format(
+            command, int(failures), minutes_text(elapsed), minutes_text(guard["eta_s"])), file=sys.stderr)
+
+
+def guard_should_kill(guard):
+    if guard.get("killed") or "started" not in guard:
+        return False
+    try:
+        found = run_is_stuck(time.monotonic() - guard["started"], guard.get("eta_s"), guard.get("eta_p80_s"),
+                             parse_shell_commands(log_text_from(guard)))
+    except Exception:
+        return False
+    if not found:
+        return False
+    try:
+        note_stuck(guard, found[0], found[1], time.monotonic() - guard["started"])
+    except Exception:
+        return False
+    if guard.get("policy") == "kill":
+        guard["killed"] = True
+        return True
+    return False
+
+
+def guarded_communicate(proc, stdin_data, timeout, guard):
+    """communicate() on a side thread so the guard can read the log every poll interval.
+
+    A stuck worker is killed only when the policy is kill. A timeout still kills, and is not reported as
+    stuck. Returns True when the run hit its timeout.
+    """
+    holder = {}
+
+    def _wait():
+        try:
+            proc.communicate(input=stdin_data, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            holder["timeout"] = True
+        except Exception as exc:
+            holder["error"] = exc
+
+    thread = threading.Thread(target=_wait, name="lane-stuck-wait", daemon=True)
+    thread.start()
+    while thread.is_alive():
+        thread.join(stuck_poll_seconds())
+        if not thread.is_alive():
+            break
+        if guard_should_kill(guard):
+            kill_process_tree(proc)
+            thread.join(30)
+            break
+    if holder.get("error") is not None:
+        raise holder["error"]
+    if holder.get("timeout") and not guard.get("killed"):
+        kill_process_tree(proc)
+        try:
+            proc.communicate()
+        except Exception:
+            try:
+                proc.wait(timeout=10)
+            except Exception:
+                pass
+        return True
+    if proc.poll() is None:
+        try:
+            proc.wait(timeout=10)
+        except Exception:
+            pass
+    return False
+
+
+def run_process(argv, cwd, log_path, timeout, stdin_data, env=None, guard=None):
     started = time.monotonic()
     timed_out = False
     stdout_bytes = b""
@@ -3290,14 +3661,20 @@ def run_process(argv, cwd, log_path, timeout, stdin_data, env=None):
                 meter_call(meter, "finish")
                 raise
             meter_call(meter, "start", proc)
-            try:
-                proc.communicate(input=stdin_data, timeout=timeout)
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                kill_process_tree(proc)
-                proc.communicate()
+            if guard is None:
+                try:
+                    proc.communicate(input=stdin_data, timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    timed_out = True
+                    kill_process_tree(proc)
+                    proc.communicate()
+            else:
+                guard["started"] = time.monotonic()
+                timed_out = guarded_communicate(proc, stdin_data, timeout, guard)
             peak_bytes = meter_call(meter, "finish")
             code = 124 if timed_out else proc.returncode
+            if guard is not None and code is None:
+                code = 1
             log.flush()
             log.seek(0)
             stdout_bytes = log.read()
@@ -3355,7 +3732,7 @@ def status_clean(path):
     return status is not None and not status
 
 
-def compose_brief(lane, brief_bytes, ro):
+def compose_brief_body(lane, brief_bytes, ro):
     separator = b"\n\n" if brief_bytes and not brief_bytes.endswith(b"\n") else b"\n"
     if lane == "gemini":
         return brief_bytes + separator + GEMINI_BLOCK.encode("utf-8") + b"\n" + PROCESS_RULE.encode("utf-8") + b"\n"
@@ -3368,6 +3745,28 @@ def compose_brief(lane, brief_bytes, ro):
     if IS_WINDOWS and lane in CODEX_LANES + ("codex-cloud",):
         rules += "\n\n" + WINDOWS_CODEX_RULE
     return brief_bytes + separator + rules.encode("utf-8") + b"\n"
+
+
+def compose_brief(lane, brief_bytes, ro, dir_path=None, sent_ids=None, include_facts=True):
+    """The brief a lane is sent. Active repository facts are appended unless facts are off or `dir_path` is omitted.
+
+    `sent_ids`, when given, receives the fact ids that were appended (possibly none). A lookup error leaves the
+    brief as it was before facts existed.
+    """
+    body = compose_brief_body(lane, brief_bytes, ro)
+    if not include_facts or facts_disabled() or not dir_path:
+        return body
+    try:
+        stats = load_lane_stats()
+        block, ids = stats.facts_brief(stats.repo_key(dir_path))
+    except Exception:
+        return body
+    if sent_ids is not None:
+        sent_ids.extend(ids)
+    if not block:
+        return body
+    separator = b"\n" if body.endswith(b"\n") else b"\n\n"
+    return body + separator + block.encode("utf-8")
 
 
 def platform_table(catalog):
@@ -3977,6 +4376,10 @@ def build_parser():
                         help="fable only, and required for it: why the advisor is called (user = you asked for it)")
     parser.add_argument("--side", metavar="REASON",
                         help="with --cloud: run a worker VM beside a live main cloud session (see `lane main`)")
+    parser.add_argument("--no-facts", action="store_true",
+                        help="do not add repository facts to the brief or mine new ones (LANES_FACTS=off does the same)")
+    parser.add_argument("--stuck-kill", action="store_true",
+                        help="stop a stuck worker (the default is one warning; LANES_STUCK=off disables the guard)")
     return parser
 
 
@@ -3997,7 +4400,7 @@ def subagent_launch(lane, effort, unit_class, run_id, prompt_path):
 
 
 def prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_bytes, outdir, platform="claude-code",
-                         agent_model=None):
+                         agent_model=None, facts_sent=None):
     run_id = os.path.basename(os.path.normpath(outdir))
     prompt_path = os.path.join(outdir, "prompt.md")
     prompt_text = subagent_prompt(run_id, dir_path, opts.ro, sent_bytes.decode("utf-8"))
@@ -4052,6 +4455,8 @@ def prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_byte
              "child_thread_id": None, "tool_started_at": None, "later_ends": []}}
     if opts.role:
         meta["role"] = opts.role
+    if facts_sent is not None:
+        meta["facts_sent"] = list(facts_sent)
     with open(prompt_path, "w", encoding="utf-8", newline="\n") as stream:
         stream.write(prompt_text)
     # The subagent runs inside Claude Code's own process: no memory or task-headroom wait.
@@ -4916,7 +5321,8 @@ def run_lane(opts, parser):
         brief_bytes.decode("utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         parser.error("cannot read BRIEF as UTF-8: {}".format(exc))
-    sent_bytes = compose_brief(opts.lane, brief_bytes, opts.ro)
+    sent_ids = []
+    sent_bytes = compose_brief(opts.lane, brief_bytes, opts.ro, dir_path, sent_ids, not facts_disabled(opts))
     sent_text = sent_bytes.decode("utf-8")
     outdir = output_dir(opts.lane, dir_path, opts.outdir)
     cloud_mode = bool(opts.cloud or opts.lane == "codex-cloud")
@@ -4927,7 +5333,7 @@ def run_lane(opts, parser):
     platform = kit_platform(catalog)
     if opts.subagent:
         return prepare_subagent_run(opts, model, arm_name, dir_path, brief_bytes, sent_bytes, outdir, platform,
-                                    agent_model)
+                                    agent_model, sent_ids)
     provider = PROVIDERS[opts.lane]
     executable_name = {"codex": "codex", "claude": "claude", "gemini": "agy", "cursor": "cursor-agent",
                        "grok": "grok", "cline": "cline", "amp": "amp"}[provider]
@@ -5022,7 +5428,7 @@ def run_lane(opts, parser):
             "resume": opts.resume, "started_at": started_at, "ended_at": None,
             "duration_s": None, "exit_code": None, "verdict": None,
             "session_id": None, "launched_at": None, "peak_mem_mb": None, "log": log_path, "cmd": command,
-            "executable": format_executable(executable, executable_origin)}
+            "executable": format_executable(executable, executable_origin), "facts_sent": list(sent_ids)}
     if cloud_meta is not None:
         meta["cloud"] = cloud_meta
     if opts.verify:
@@ -5036,6 +5442,7 @@ def run_lane(opts, parser):
     log_text = ""
     marker_path = None
     peak_mem_mb = None
+    guard = None
     try:
         if amp_settings:
             write_amp_settings(amp_settings)
@@ -5085,13 +5492,15 @@ def run_lane(opts, parser):
             before_status = git_status(dir_path) if opts.lane in CLAUDE_LANES + ("cursor", "grok", "amp") else None
             before_head = (git_head(dir_path) if opts.lane in CLAUDE_LANES + ("cursor", "grok", "amp")
                            and is_git_repo(dir_path) else None)
+            # Subagent and cloud runs never reach here, so the guard does not cover them.
+            guard = make_stuck_guard(opts, meta, meta_path, log_path, eta_s, eta_p80_s)
             if opts.lane == "gemini":
                 wait_for_memory(opts.lane, catalog, outdir)
                 wait_for_task_headroom(opts.lane)
                 mark_launched(meta, meta_path)
                 code, timed_out, _, stdout_text, stderr_text, peak_mem_mb = run_process(
-                    actual_argv, dir_path, log_path, opts.timeout, stdin_data, child_env)
-                if not timed_out and os.path.getsize(log_path) < 400:
+                    actual_argv, dir_path, log_path, opts.timeout, stdin_data, child_env, guard)
+                if not (guard and guard.get("killed")) and not timed_out and os.path.getsize(log_path) < 400:
                     first_text = strip_ansi(stdout_text + "\n" + stderr_text)
                     if "Eligibility check failed" in first_text:
                         time.sleep(30)
@@ -5099,8 +5508,10 @@ def run_lane(opts, parser):
                         wait_for_memory(opts.lane, catalog, outdir)
                         wait_for_task_headroom(opts.lane)
                         mark_launched(meta, meta_path)
+                        if guard is not None:
+                            guard["log_path"] = retry_log
                         retry_code, retry_timeout, _, stdout_text, stderr_text, retry_peak = run_process(
-                            actual_argv, dir_path, retry_log, opts.timeout, stdin_data, child_env)
+                            actual_argv, dir_path, retry_log, opts.timeout, stdin_data, child_env, guard)
                         peak_mem_mb = larger_peak(peak_mem_mb, retry_peak)
                         retry_data = open(retry_log, "rb").read()
                         append_log(log_path, b"\n--- retry ---\n" + retry_data)
@@ -5110,7 +5521,7 @@ def run_lane(opts, parser):
                 wait_for_task_headroom(opts.lane)
                 mark_launched(meta, meta_path)
                 code, timed_out, _, stdout_text, stderr_text, peak_mem_mb = run_process(
-                    actual_argv, dir_path, log_path, opts.timeout, stdin_data, child_env)
+                    actual_argv, dir_path, log_path, opts.timeout, stdin_data, child_env, guard)
             if use_mask and marker_path:
                 started = os.path.exists(marker_path)
                 if not started:
@@ -5120,6 +5531,8 @@ def run_lane(opts, parser):
             verdict, exit_code, session = decide_verdict(opts.lane, code, timed_out, log_text, outdir, dir_path,
                                                           stdout_text, stderr_text, before_status, opts.ro, before_head,
                                                           started_at, utc_now())
+            if guard and guard.get("killed"):
+                verdict, exit_code = "STUCK", 4
     except LaneError as exc:
         verdict, exit_code, session = exc.verdict, exc.code, meta.get("session_id")
         if exc.verdict != "BUSY":
@@ -5184,6 +5597,8 @@ def run_lane(opts, parser):
         meta["text_warnings"] = text_warnings
     write_meta(meta_path, meta)
     append_ledger(outdir, meta)
+    if not cloud_mode and not facts_disabled(opts):
+        record_run_facts(dir_path, os.path.basename(os.path.normpath(outdir)), log_path)
     print("lane={} verdict={} exit={} session={} secs={} out={} class={}{}{}{}".format(
         opts.lane, verdict, exit_code, session or "-", int(duration + 0.5), outdir, opts.unit_class or "-",
         " web" if opts.web else "", eta_summary_suffix(duration, meta.get("eta_s")),

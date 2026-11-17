@@ -1,0 +1,9 @@
+{
+  "name": "loop-guard",
+  "version": "0.1.0",
+  "description": "When the same tool call fails three times in one turn, adds one note telling Claude to change approach, and on a long turn of repeated failures tells the person Esc stops it. Never blocks a call or ends a turn (USAGE_OPTIMIZER_LOOP_GUARD=off turns it off).",
+  "author": {
+    "name": "Coding Tool Optimizer"
+  },
+  "types": "./types/index.d.ts"
+}

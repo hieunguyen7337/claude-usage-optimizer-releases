@@ -707,6 +707,33 @@ class LaneStatsTests(unittest.TestCase):
                              (0.25, False))
         self.assertEqual(stats.provider_pace("codex", {}, config, now), (1.0, False))
 
+    def test_pick_skips_a_provider_whose_limit_is_reached_on_any_window(self):
+        # Codex Free, 2026-11-16: one 30-day window at 100%, not a weekly bar. The picker still has to skip it.
+        now = stats.parse_time("2026-11-16T00:00:00Z")
+        config = self.catalog["explore"]
+        reading = {"windows": [{"label": "30d", "window_minutes": 43200, "used_percent": 100.0,
+                                "resets_at": "2026-12-16T00:00:00Z"}],
+                   "reached": "rate_limit_reached", "ordinary_usage_allowed": False}
+        live = {"codex": reading}
+        self.assertTrue(stats.provider_pace("codex", live, config, now)[1])
+        rows = stats.eligible_arms(self.context(live), "hard")
+        self.assertFalse(any(row["provider"] == "codex" for row in rows))
+        self.assertTrue(any(row["provider"] == "claude" for row in rows))
+
+        def excluded(used, reached, ordinary):
+            data = {"windows": [{"label": "30d", "window_minutes": 43200, "used_percent": used,
+                                 "resets_at": "2026-12-16T00:00:00Z"}],
+                    "reached": reached, "ordinary_usage_allowed": ordinary}
+            return stats.provider_pace("codex", {"codex": data}, config, now)[1]
+
+        self.assertTrue(excluded(100.0, None, True))
+        self.assertTrue(excluded(95.0, None, True))
+        self.assertTrue(excluded(10.0, "rate_limit_reached", True))
+        self.assertTrue(excluded(10.0, None, False))
+        self.assertFalse(excluded(10.0, None, True))
+        self.assertFalse(excluded(10.0, None, None))
+        self.assertFalse(excluded(94.9, None, True))
+
     def write_mode_file(self, text):
         os.makedirs(self.config, exist_ok=True)
         with open(os.path.join(self.config, "mode"), "w", encoding="utf-8") as stream:
@@ -1131,7 +1158,7 @@ class LaneStatsTests(unittest.TestCase):
         runs = stats.load_runs(self.state)[0]
         before = stats.estimate_eta(runs, self.catalog, "luna", None, "xhigh", "substantive", None, now)
         # The 2026-10-29 case: a max hard unit stopped after 19 s with verdict UNKNOWN and must not move the estimate.
-        for verdict in ("UNKNOWN", "NOOP", "FAILED", "SANDBOX", "TIMEOUT", "QUOTA", "BUSY"):
+        for verdict in ("UNKNOWN", "NOOP", "FAILED", "STUCK", "SANDBOX", "TIMEOUT", "QUOTA", "BUSY"):
             self.add_run("stopped-{}".format(verdict), lane="luna", effort="xhigh", class_name="substantive",
                          duration_s=19, verdict=verdict)
         runs = stats.load_runs(self.state)[0]
@@ -1658,7 +1685,7 @@ class LaneStatsTests(unittest.TestCase):
                          {"codex": "prolite", "claude": "max_20x", "gemini": "google_ai_pro", "cline": None,
                           "cursor": None, "grok": None, "amp": None})
         self.assertEqual(catalog["explore"]["weeks_per_month"], 4.345)
-        self.assertEqual(catalog["catalog_version"], "2026-11-16.3")
+        self.assertEqual(catalog["catalog_version"], "2026-11-16.4")
         # The base window stays the measured 8,400: lane-bench divides credits by it, and plan_scale is base too.
         self.assertEqual(providers["codex"]["window"]["weekly_credits"], 8400)
         self.assertEqual(providers["codex"]["plan_scale"], {"prolite": 1.0, "plus": 5.8})

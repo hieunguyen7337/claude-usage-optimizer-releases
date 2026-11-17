@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "settings-server": {
+      "command": "echo"
+    }
+  }
+}
