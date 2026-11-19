@@ -19,6 +19,13 @@ import release_bundle
 
 IDENTITY = "Coding Tool Optimizer <kit@localhost>"
 PUBLIC_NAME = "coding-tool-optimizer"
+REPO_URL = "https://github.com/hieunguyen7337/coding-tool-optimizer"
+PAGES_URL = "https://hieunguyen7337.github.io/coding-tool-optimizer/"
+# The kit page (tools/make-page.py writes dist/index.html) is served by GitHub Pages from the docs/ folder.
+PAGE_SOURCE = pathlib.Path("dist") / "index.html"
+PAGE_TARGET = "docs/index.html"
+# Optional: the release's own notes, written by the publisher, shown above the standard install notes.
+NOTES_SOURCE = pathlib.Path("dist") / "release-notes.md"
 
 
 class PublishError(Exception):
@@ -68,7 +75,10 @@ def check_clone(clone):
     return origin
 
 
-def public_files(kit):
+def public_files(kit, require_page=False):
+    """The public tree: the shipped files, LICENSE, the prefaced README and, when built, the kit page in docs/.
+
+    The source README's own title is dropped, so the public README has one H1 (the preface's)."""
     files = {name: item["content"] for name, item in release_bundle.shipped_files(kit).items()}
     try:
         license_bytes = (kit / "LICENSE").read_bytes()
@@ -77,7 +87,14 @@ def public_files(kit):
     except OSError as error:
         raise PublishError("cannot read public release input: " + str(error))
     files["LICENSE"] = license_bytes
+    readme = re.sub(rb"\A# [^\n]*\n+", b"", readme, count=1)
     files["README.md"] = preface.rstrip(b"\r\n") + b"\n\n" + readme
+    page = kit / PAGE_SOURCE
+    if page.is_file():
+        files[PAGE_TARGET] = page.read_bytes()
+        files["docs/.nojekyll"] = b""
+    elif require_page:
+        raise PublishError("the kit page is missing: run tools/make-page.py first ({})".format(page))
     public_root = kit / "public-repo"
     for path in sorted(public_root.rglob("*")):
         if path.is_symlink():
@@ -136,6 +153,30 @@ def checksums(kit, directory):
     return assets + [str(sum_path)]
 
 
+def release_notes(kit, release_version):
+    """The GitHub Release body: the publisher's notes for this release, when written, then how to install it."""
+    try:
+        own = (kit / NOTES_SOURCE).read_text(encoding="utf-8").strip()
+    except OSError:
+        own = ""
+    standard = """Coding Tool Optimizer {version}: a usage optimizer for AI coding agents (Claude Code, Amp, Codex CLI).
+
+**Install.** Paste the setup prompt for your agent from [SETUP_PROMPT.md]({repo}/blob/main/SETUP_PROMPT.md), or:
+
+```bash
+grep bundle SHA256SUMS | sha256sum -c        # macOS: grep bundle SHA256SUMS | shasum -a 256 -c
+bash coding-tool-optimizer-bundle.sh --dry-run    # add --platform amp or --platform codex for those agents
+bash coding-tool-optimizer-bundle.sh
+```
+
+The bundle extracts to `~/claude-usage-optimizer`, checks every file's sha256 and runs `install.sh`. The kit sends
+nothing to its authors; the README's "What leaves your machine" lists every connection. Kit page: {pages}
+
+Assets: `coding-tool-optimizer-bundle.sh` (the kit), `coding-tool-optimizer-evidence.sh` (optional Suite R
+evidence), `SHA256SUMS`.""".format(version=release_version, repo=REPO_URL, pages=PAGES_URL)
+    return (own + "\n\n" + standard) if own else standard
+
+
 def publish(clone, kit):
     print("ACTION check release: {}".format(kit))
     check_release(kit)
@@ -145,7 +186,7 @@ def publish(clone, kit):
     tag = "v" + release_version
     print("ACTION check remote tag is absent: {}".format(tag))
     refuse_existing_tag(clone, tag)
-    files = public_files(kit)
+    files = public_files(kit, require_page=True)
     print("ACTION replace public tree: {} files".format(len(files)))
     replace_tree(clone, files)
     print("ACTION commit: Release {}".format(release_version))
@@ -157,7 +198,7 @@ def publish(clone, kit):
     with tempfile.TemporaryDirectory() as temporary:
         assets = checksums(kit, pathlib.Path(temporary))
         command = ["gh", "release", "create", tag, "--title", release_version,
-                   "--notes", "Coding Tool Optimizer release " + release_version] + assets
+                   "--notes", release_notes(kit, release_version)] + assets
         print("ACTION GitHub release: " + " ".join(command[:-3]) + " [3 assets]")
         run(command, cwd=clone)
 
@@ -172,6 +213,8 @@ def dry_run(clone, kit):
     print("WOULD replace public tree with {} files".format(len(files)))
     print("WOULD commit Release {} and tag v{}".format(release_version, release_version))
     print("WOULD push origin HEAD and v{} without force".format(release_version))
+    print("WOULD publish the kit page as {}".format(PAGE_TARGET) if PAGE_TARGET in files
+          else "WARN the kit page is missing (run tools/make-page.py); a real publish refuses")
     print("WOULD create GitHub release with bundle, evidence, and SHA256SUMS")
 
 

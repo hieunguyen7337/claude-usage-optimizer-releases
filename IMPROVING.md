@@ -206,7 +206,12 @@ on its default branch, then run `python3 -I tools/publish-public.py --clone dist
 with `--push`. The push refuses unless `check-release` passes with `OK private`, the clone is clean and its origin is
 the releases repository, and the tag `v<version>` is new. It commits the shipped files, `LICENSE`, the
 `public-repo/` files (the README preface, the statistics issue form and its workflow), tags, pushes without force
-and creates a GitHub Release with the bundle, the evidence file and `SHA256SUMS`. Codex CLI and Amp users install
+and creates a GitHub Release with the bundle, the evidence file and `SHA256SUMS`. From 2026-11-19.1 it also copies
+the built page (`dist/index.html`, so run `make-page.py` first: the push refuses without it) to `docs/index.html`,
+which GitHub Pages serves to anyone at https://hieunguyen7337.github.io/coding-tool-optimizer/ (Pages builds from
+the default branch's `docs/` folder, set once), and the Release's notes start with `dist/release-notes.md` when you
+write one (what changed, for users), followed by the install steps. Every user installs from there: the setup
+prompts download the bundle from the latest Release. Codex CLI and Amp users install
 from there, and `bin/cloud-setup` falls back to it when a cloud VM cannot reach the private kit repository.
 
 On other machines, rerun the setup prompt. Pool reviewed runs with `lane-stats export` and `lane-stats import`; the per-run ledger never

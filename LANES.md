@@ -14,7 +14,7 @@ until kit 2026-10-16.1. muse was retired on 2026-10-17.)
 ~/.claude/usage-optimizer/bin/lane <haiku|sonnet|opus> --subagent -C <abs dir> -b <brief file> -e <effort> --class <class> [--pick <id>] [--ro]
 ~/.claude/usage-optimizer/bin/lane <haiku|sonnet|opus> --cloud -C <abs dir> -b <brief file> -e <effort> --class <class> [--pick <id>]
 ~/.claude/usage-optimizer/bin/lane codex-cloud -C <abs dir> -b <brief file> --class <class>
-lane-stats pick --class <class> [--pair] [--exclude <lanes>] [--place <process|subagent|cloud>] [--dir <abs dir>] [--brief <file>] [--seed N] [--no-usage] [--json]
+lane-stats pick --class <class> [--pair] [--exclude <lanes>] [--include <lanes>] [--place <process|subagent|cloud>] [--dir <abs dir>] [--brief <file>] [--seed N] [--no-usage] [--json]
 lane-stats review <run|last> --outcome accepted|fixed|rework|rejected [--fix-minutes N] [--note <text>] [--findings APPLIED/TOTAL]
 lane-stats reviewers [--json] [--min-findings N]
 lane-stats report [--by lane,effort,class] [--since YYYY-MM-DD] [--json]
@@ -777,8 +777,8 @@ runs) and never counts as agreement. One review at a time per workdir.
   per 1% of its week.
 - After a plan change, set `providers.<provider>.prior_plan` in `~/.config/lanes/arms.local.json`, and the plan's
   `plan_prices` entry if it is not listed. `lane` records the plan on every run where the meter reports one (Codex).
-- Claude's meter reports no plan, so a Claude plan change is a `providers.claude.plan_changes` entry
-  (`{"plan": "max_5x", "from": "2026-11-13T12:42:39Z"}`): a run without its own plan is on the plan in force at its
+- Claude's meter reports no plan, so a Claude plan change is a `providers.claude.plan_changes` entry in
+  `arms.local.json` (`{"plan": "max_5x", "from": "2026-11-13T12:42:39Z"}`): a run without its own plan is on the plan in force at its
   time, today's plan is the latest change, and `prior_plan` stays the plan the priors were written for. `turn-meter`
   shows today's plan by its `plan_prices.<plan>.name` and calibrates only from readings after the latest change.
 

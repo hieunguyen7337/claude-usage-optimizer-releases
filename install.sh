@@ -181,8 +181,8 @@ package_version() {
   done
 }
 
-CLIS=(claude codex agy cline)
-if has_platform amp; then CLIS+=(amp); fi
+# Every worker lane's CLI; all but the main agent's are optional, and the checklist says how to skip a missing one.
+CLIS=(claude codex agy amp grok cursor-agent cline)
 CLI_MISSING=()
 codex_version=''
 if [[ "${USAGE_OPTIMIZER_SKIP_CLI_CHECK:-}" == 1 ]]; then
@@ -217,10 +217,11 @@ for cli in ${CLIS[@]+"${CLIS[@]}"}; do
     version_line='locked by a local guard (exit 86)'
   elif ((VERSION_STATUS == 124)); then
     version_line='version check timed out'
-  elif [[ -z "$version_line" ]]; then
+  elif ((VERSION_STATUS != 0)) || [[ -z "$version_line" ]]; then
+    # A failing --version prints an error, not a version: never show it as one or compare it.
     version_line="version unavailable (exit $VERSION_STATUS)"
   fi
-  if [[ "$cli" == codex ]]; then codex_version=$version_line; fi
+  if [[ "$cli" == codex ]] && ((VERSION_STATUS == 0)); then codex_version=$version_line; fi
   printf '%-14s %-12s %s\n' "$cli" 'found' "$version_line"
 done
 
@@ -1343,10 +1344,12 @@ fi
 printf '\nFinal checklist\n'
 if ((${#CLI_MISSING[@]})); then
   printf 'Missing CLIs: %s\n' "${CLI_MISSING[*]}"
+  printf 'Each worker CLI is optional. So the picker never draws a provider you do not have, declare it absent in\n'
+  printf '~/.config/lanes/plans.json, for example {"grok": "none", "cursor": "none"}.\n'
 else
   printf 'Missing CLIs: none\n'
 fi
-printf 'Logins: codex login; agy login.\n'
+printf 'Logins: sign in to each CLI you use with its own login (for example codex login, agy login).\n'
 if [[ "$OS_NAME" == Windows ]]; then
   printf 'Windows has no credential mask: lane refuses glm unless you pass --no-mask.\n'
 fi

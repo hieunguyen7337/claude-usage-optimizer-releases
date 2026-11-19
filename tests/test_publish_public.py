@@ -51,7 +51,17 @@ class PublishPublicTest(unittest.TestCase):
         files = publish_public.public_files(ROOT)
         self.assertNotIn("public-repo/README-public.md", files)
         self.assertTrue(files["README.md"].startswith(
-            (ROOT / "public-repo" / "README-public.md").read_bytes().rstrip() + b"\n\n# Coding Tool Optimizer"))
+            (ROOT / "public-repo" / "README-public.md").read_bytes().rstrip() + b"\n\nCoding Tool Optimizer routes"))
+        self.assertNotIn(b"\n# ", files["README.md"], "one H1: the preface's first line")
+        if (ROOT / "dist" / "index.html").is_file():
+            self.assertIn("docs/index.html", files)
+        original = publish_public.PAGE_SOURCE
+        try:
+            publish_public.PAGE_SOURCE = pathlib.Path("dist") / "no-such-page.html"
+            with self.assertRaises(publish_public.PublishError):
+                publish_public.public_files(ROOT, require_page=True)
+        finally:
+            publish_public.PAGE_SOURCE = original
         publish_public.replace_tree(self.clone, files)
         self.assertFalse((self.clone / "old.txt").exists())
         self.assertEqual((self.clone / "LICENSE").read_bytes(), (ROOT / "LICENSE").read_bytes())

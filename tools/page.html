@@ -223,26 +223,21 @@ status_line = ["five-hour-limit", "weekly-limit"]</pre>
     </div>
   </section>
 
-  <section aria-labelledby="bundle-h" data-for="claude">
+  <section aria-labelledby="bundle-h">
     <h2 id="bundle-h">The bundle</h2>
-    <p>The Claude Code prompt installs from this single file, which it fetches with Claude's Artifact tool; the terminal command above installs the same release from <a href="https://github.com/hieunguyen7337/coding-tool-optimizer">the public releases repository</a> instead. A machine without that tool can take it from the clipboard, or by <code>scp</code> from the server that built it.</p>
+    <p>Every setup prompt installs from this single file, attached to the repository's <a href="https://github.com/hieunguyen7337/coding-tool-optimizer/releases/latest">latest GitHub Release</a> with a <code>SHA256SUMS</code> file. It extracts the kit to <code>~/claude-usage-optimizer</code>, checks every file's sha256 and runs <code>install.sh</code> with the arguments you give it (<code>--dry-run</code> first; <code>--platform amp</code> or <code>--platform codex</code> for those agents).</p>
     <dl class="facts">
-      <dt>File</dt><dd>{{BUNDLE}}</dd>
+      <dt>File</dt><dd><a href="https://github.com/hieunguyen7337/coding-tool-optimizer/releases/latest/download/{{BUNDLE}}">{{BUNDLE}}</a></dd>
+      <dt>Version</dt><dd>{{VERSION}}</dd>
       <dt>Size</dt><dd>{{SIZE}}</dd>
       <dt>sha256</dt><dd id="sha">{{SHA256}}</dd>
-      <dt>Page</dt><dd>{{URL}}</dd>
     </dl>
     <div class="btns">
       <button class="quiet" id="copy-sha" type="button">Copy sha256</button>
-      <button class="quiet" id="copy-bundle" type="button">Copy bundle text</button>
     </div>
     <div class="status" id="bundle-status" role="status"></div>
-    <p>From the clipboard: run <code>cat &gt; ~/{{BUNDLE}}</code>, paste, press <kbd>Ctrl-D</kbd>, then check that <code>sha256sum ~/{{BUNDLE}}</code> prints the hash above. By <code>scp</code>: <code>scp &lt;user&gt;@&lt;server&gt;:claude-usage-optimizer/dist/{{BUNDLE}} ~/</code></p>
-    <p>The Suite R rescore evidence (FINDINGS section 8: the per-run rescores, the v2 outcomes and the v2 table) ships beside the bundle as <code>{{EVIDENCE}}</code>, {{EVIDENCESIZE}}, sha256 <code>{{EVIDENCESHA}}</code>. The kit runs without it. To add it, fetch it the same way (Artifact tool path <code>{{EVIDENCE}}</code>) and run <code>bash {{EVIDENCE}}</code>: it extracts next to the kit, checks every sha256 and installs nothing; the next install copies it into the kit.</p>
-    <details id="bundle-details">
-      <summary>Show the bundle</summary>
-      <pre class="bundle" id="bundle-text">Loading…</pre>
-    </details>
+    <p>Check it with <code>sha256sum {{BUNDLE}}</code> (or <code>shasum -a 256</code> on macOS) against the hash above or its line in <code>SHA256SUMS</code>, then run <code>bash {{BUNDLE}} --dry-run</code>. The kit sends nothing to its authors. Its tools reach only the services you already use, through your own logins; the two exceptions are off until you turn them on (<code>lane-stats share</code>, and phone notifications from cloud sessions), and an install from a git clone checks that clone's origin for a newer release every 6 hours (<code>USAGE_OPTIMIZER_UPDATE_CHECK=off</code> stops it). The README's "What leaves your machine" section lists every connection.</p>
+    <p>The Suite R rescore evidence (FINDINGS section 8: the per-run rescores, the v2 outcomes and the v2 table) is attached to the same release as <a href="https://github.com/hieunguyen7337/coding-tool-optimizer/releases/latest/download/{{EVIDENCE}}"><code>{{EVIDENCE}}</code></a>, {{EVIDENCESIZE}}, sha256 <code>{{EVIDENCESHA}}</code>. The kit runs without it. <code>bash {{EVIDENCE}}</code> extracts it next to the kit, checks every sha256 and installs nothing; the next install copies it into the kit.</p>
   </section>
 
   <section aria-labelledby="opinions-h">
@@ -352,7 +347,7 @@ status_line = ["five-hour-limit", "weekly-limit"]</pre>
   </section>
 
   <footer>
-    <span>Follow the embedded guide to sweep for lessons, build and check a release, compare the live bundle when publishing from another machine, then publish to the same Artifact URL and re-run the setup prompt elsewhere.</span>
+    <span>Coding Tool Optimizer is MIT-licensed. Source of this page and every release: <a href="https://github.com/hieunguyen7337/coding-tool-optimizer">github.com/hieunguyen7337/coding-tool-optimizer</a>.</span>
   </footer>
 </div>
 
@@ -360,7 +355,6 @@ status_line = ["five-hour-limit", "weekly-limit"]</pre>
 <script>
 (function () {
   var BUNDLE = "{{BUNDLE}}";
-  var bundleText = null;
 
   function say(id, text) {
     var el = document.getElementById(id);
@@ -433,24 +427,6 @@ status_line = ["five-hour-limit", "weekly-limit"]</pre>
     copy(shaEl.textContent.trim(), "bundle-status", "Copied the hash.", shaEl);
   });
 
-  var bundleBtn = document.getElementById("copy-bundle");
-  var bundlePre = document.getElementById("bundle-text");
-  bundleBtn.disabled = true;
-  fetch(BUNDLE).then(function (r) {
-    if (!r.ok) throw new Error(r.status);
-    return r.text();
-  }).then(function (t) {
-    bundleText = t;
-    bundlePre.textContent = t;
-    bundleBtn.disabled = false;
-  }).catch(function () {
-    bundlePre.textContent = "The bundle didn't load on this page. Use the Artifact tool or scp instead.";
-    bundleBtn.disabled = false;
-  });
-  bundleBtn.addEventListener("click", function () {
-    if (bundleText === null) { say("bundle-status", "The bundle isn't loaded. Use the Artifact tool or scp instead."); return; }
-    copy(bundleText, "bundle-status", "Copied " + Math.round(bundleText.length / 1024) + " KB. On the other machine: cat > ~/" + BUNDLE + ", paste, Ctrl-D.", bundlePre);
-  });
 
   var boxes = document.querySelectorAll("ul.checks input[type=checkbox]");
   var KEY = "claude-kit-checks";

@@ -1,7 +1,7 @@
 # Coding Tool Optimizer: usage policy
 
-Coding Tool Optimizer version: 2026-11-17.2. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
-Claude Usage Optimizer version: 2026-11-17.2. (The kit's name until 2026-11-16.3; this line lets older installs find this release.)
+Coding Tool Optimizer version: 2026-11-19.1. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Claude Usage Optimizer version: 2026-11-19.1. (The kit's name until 2026-11-16.3; this line lets older installs find this release.)
 Machine-specific rules (project dispatchers, locked lanes, local paths) belong in
 `~/.claude/CLAUDE.md` above the import line, and they win when the two conflict.
 On Amp or Codex CLI, read that platform's notes first (`~/.claude/usage-optimizer/platforms/<amp|codex>/PLATFORM.md`):
@@ -58,7 +58,9 @@ better (Measure every task).
 - Real units routed by the picker are work, not tests. Between approved tests, their reviewed outcomes are how we
   learn capability.
 
-Known (2026-10-31):
+Known (2026-10-31). These are the kit maintainer's plans and measurements ("the owner" below is the maintainer;
+on your machine it is you). They set the catalog's priors; on your machine `usage-status` and `lane-stats` read
+your own plans, and your own reviewed runs replace these numbers. Plan names and dates here are not your plan.
 - **The Claude meter is account-wide.** Every machine, claude.ai, the desktop app and the Claude lanes
   (haiku, sonnet, opus) draw on it. Judge headroom by the statusline %, never by one machine's spend.
 - **Claude is on Max from 2026-11-13 12:42 UTC** (the owner's plan change). Anthropic renamed the plans on 2026-10-30:
@@ -66,7 +68,7 @@ Known (2026-10-31):
   for verified accounts). Measured on Max (FINDINGS §21; one PC's spend, so lower bounds): about $1,440 of non-Fable
   list a week ($14.4 a point), 0.47–0.59 of Ultra's week, so `plan_scale.max_5x` is 2.0 (the old names suggested 4);
   a 5h window of about $165–175 of Opus list, about 11% of the week; Fable's cap about $240 of Fable list.
-  `providers.claude.plan_changes` records the switch: `lane-stats` prices runs before it as Ultra runs, and
+  `providers.claude.plan_changes` in that machine's `arms.local.json` records the switch: `lane-stats` prices runs before it as Ultra runs, and
   `turn-meter` shows today's plan and calibrates only from readings after it.
 - **Measured windows:** Claude Max 20x (now Ultra) held about $1,525 list/week ($1,017–3,050; about $3,000 by
   2026-11-01) and $254/5h ($235–277) until 2026-11-13.
@@ -118,7 +120,9 @@ Known (2026-10-31):
 - **Gemini is free and under-used (FINDINGS §3, §14):** Google AI Pro holds at least about 100M gemini-3.8-flash
   tokens a week, on no Claude or Codex meter, and gemini scored 96.7% on our classification evals, level with
   sol and Opus. Its consumer data terms let Google keep and review what it is sent, so it suits mechanical edits,
-  classification and research on public material; pass `--exclude gemini` to `pick` for private code or
+  classification and research on public material. From 2026-11-19.1 the picker leaves gemini and grok out
+  (`explore.default_exclude`) until a machine opts in (`pick --include gemini`, or `"default_exclude": []` in
+  `arms.local.json`); a machine that has opted in passes `--exclude gemini,grok` to `pick` for private code or
   personal data.
 - **Real units cost 15–40x a review item (FINDINGS §13, §15),** so code work, not review, fills a week. One
   machine's six days of real units used 1,282 Codex credits (15% of Pro Lite) and $139 list (9% of Claude's week).

@@ -13,11 +13,20 @@ on Claude Code as Claude Usage Optimizer, which is where the `~/.claude/usage-op
 - **Learns the cheapest arm.** `lane-stats` compares each model and effort by usable results against usage and time,
   and picks the next one to run.
 
+The [kit page](https://hieunguyen7337.github.io/coding-tool-optimizer/) shows the setup prompt for each agent, the rules the kit enforces and the full policy.
+
 ## Quick start
 
 Pick the agent you work in. Each path installs the same kit (policy, worker lanes, meters) plus that agent's adapter,
 and each starts with a dry run that changes nothing. The setup prompts are in [SETUP_PROMPT.md](SETUP_PROMPT.md):
-paste the one for your agent into it, or run the commands yourself from a clone of this repository.
+paste the one for your agent into it, and it downloads the bundle from the latest release, checks it against
+`SHA256SUMS`, shows you the dry run and waits for your "go". Or run the commands yourself from a clone of this
+repository:
+
+```bash
+git clone https://github.com/hieunguyen7337/coding-tool-optimizer
+cd coding-tool-optimizer
+```
 
 - **Codex CLI:** the "Codex CLI" prompt, or `bash install.sh --dry-run --platform codex`, then
   `bash install.sh --platform codex`. Trust the kit's hooks once in `/hooks`, then start a new Codex session. Codex
@@ -25,11 +34,15 @@ paste the one for your agent into it, or run the commands yourself from a clone 
   [What it changes](#install-for-codex).
 - **Amp:** the "Amp" prompt, or `bash install.sh --dry-run --platform amp`, then `bash install.sh --platform amp`.
   Run `plugins: reload` or restart Amp; the kit's status item appears. [What it changes](#install-for-amp).
-- **Claude Code:** the "Claude Code" prompt (it fetches the bundle from the kit page), or `bash install.sh --dry-run`,
-  then `bash install.sh`. Restart open sessions. [What it changes](#install-for-claude-code).
+- **Claude Code:** the "Claude Code" prompt, or `bash install.sh --dry-run`, then `bash install.sh`. Restart open
+  sessions. [What it changes](#install-for-claude-code).
 
-On Windows, run the installer from Git Bash with Python 3.8 or newer. The kit's files go to
-`~/.claude/usage-optimizer/` whichever agent you use; Claude Code is not needed.
+On Windows, run the installer from Git Bash with Python 3.8 or newer. Linux and Windows are tested; macOS is not.
+The kit's files go to `~/.claude/usage-optimizer/` whichever agent you use; Claude Code is not needed.
+
+You need the CLIs and logins of the plans you want to use (Claude Code, Codex CLI, `agy` for Gemini, Amp, Grok Build,
+Cursor CLI). The installer lists which ones it found; declare a provider you do not have in
+`~/.config/lanes/plans.json` (for example `{"grok": "none", "cursor": "none"}`) and the picker never draws it.
 
 After the install, work as usual. The policy tells your agent to plan, send each written unit to a worker lane
 (`lane-stats pick`, then `lane`), review every diff, and end each report with a Cost line and a Time line. Three
@@ -79,7 +92,7 @@ above the kit's import line on Claude Code, `~/.config/amp/AGENTS.md` above the 
 
 | Rule | What it means | Why | How to change it |
 |---|---|---|---|
-| Default is yes | The agent commits, merges reviewed work, pushes, installs and updates the kit and runs usage tests without asking; it asks only for a choice between options, with its pick | The owner's attention is the scarcest thing; nearly everything can be rolled back | Machine rules (for example "ask before pushing") |
+| Default is yes | The agent commits, merges reviewed work, pushes, installs and updates the kit and runs usage tests without asking; it asks only for a choice between options, with its pick | Your attention is the scarcest thing; nearly everything can be rolled back | Machine rules (for example "ask before pushing") |
 | Capability tests need your yes | Benchmarks, pairs and reruns of finished work spend allowance on work nobody needs; `lane-bench run` and `pick --pair` refuse to start without `--approved "<who, when>"` | They can cost several percent of a week each | A standing yes in the machine rules, with a cap |
 | Reset credits are yours | The kit never redeems a Codex reset credit; it tells you when one would help | Spending one is irreversible | Not configurable |
 
@@ -109,13 +122,13 @@ The compaction rules, the loop guard, the spell-check and the mobile view are Cl
 | Every turn is metered | Each turn's list cost, time and the meters before and after are logged, and every report ends with a Cost line and a Time line | Cost and time are the two things to learn | `USAGE_OPTIMIZER_TURNS=off` |
 | The mode is announced | Each session is told the mode and its rules at its next prompt, and again when it changes | Running sessions follow it without a restart | `USAGE_OPTIMIZER_MODE_NOTICE=off` |
 | Typed prompts are spell-checked (Claude Code) | One Haiku call fixes spelling and grammar slips in each typed prompt; the row shows the corrected text and lists the changes | Typos cost turns | `USAGE_OPTIMIZER_PROMPT_FIX=off` |
-| The mobile view (Claude Code) | Tool calls fold to one line and the agent narrates its work in plain sentences | The owner reads sessions from a phone | `install.sh --no-view`, or switch the output style |
+| The mobile view (Claude Code) | Tool calls fold to one line and the agent narrates its work in plain sentences | Sessions read well on a phone, where only prose is sure to be read | `install.sh --no-view`, or switch the output style |
 
 **Data and accounts**
 
 | Rule | What it means | Why | How to change it |
 |---|---|---|---|
-| Consumer-terms lanes get public work only | Gemini's consumer terms (Google AI Pro) let Google keep and review what it is sent, and Grok's are not yet confirmed, so both get only open-source code and public research; pass `--exclude gemini,grok` for private code | Their data terms | `--exclude` per pick, or disable their arms in `arms.local.json` |
+| Consumer-terms lanes are opt-in | Gemini's consumer terms (Google AI Pro) let Google keep and review what it is sent, and Grok's are not yet confirmed, so the picker leaves both out (`explore.default_exclude`) until you opt in; then give them only open-source code and public research | Their data terms | `pick --include gemini` for one pick, or `"explore": {"default_exclude": []}` in `arms.local.json` |
 | Cursor only with privacy mode | Never a `(NO ZDR)` model, and never a Claude model through Cursor | Data retention and double billing | Not configurable |
 | One person, one account | The kit never pools or rotates several Claude subscriptions | Anthropic's terms forbid routing others' requests through plan credentials | Not configurable |
 | Training toggles off | ChatGPT, Antigravity and Claude data-training settings stay off | Your code stays yours | Your accounts' settings |
@@ -127,6 +140,27 @@ The compaction rules, the loop guard, the spell-check and the mobile view are Cl
 | The kit improves itself | Every lesson (a lane quirk, a meter fix, a measured result) becomes the next release and is published; machine-only facts stay in that machine's rules | One machine's lesson helps every machine | `USAGE_OPTIMIZER_UPDATE_CHECK=off` stops the update notice |
 | Benchmarks are only the prior | Public scores place a model's tier; the kit's own reviewed runs decide between arms | Scores move with the harness, version and task | `lane-bench priors` writes measured priors |
 
+## What leaves your machine
+
+Installing the kit changes files only under your home folder (each install section below lists them) and sends
+nothing to the kit's authors. The kit has no telemetry and no server of its own.
+
+- **Worker lanes** run the CLIs you installed (Claude Code, Codex CLI, `agy`, Amp, Grok Build, Cursor CLI), each with
+  your own login, and send a unit's brief and the files the worker reads to that provider. Gemini and Grok are left
+  out of the picker until you opt in (above). Each brief is yours to write: the policy keeps secrets and personal
+  data out of briefs, and on Linux `lane` hides credential stores from the throwaway `glm` lane.
+- **Meters** read your own accounts' usage: Codex through its local app-server, Gemini through `agy /usage`, Amp through
+  `amp`, Claude from the numbers Claude Code already gives its status line. None of this makes a model call.
+- **Claude Code mods:** `prompt-fix` sends each prompt you type to your own Claude account (one Haiku call) to fix
+  typos (`USAGE_OPTIMIZER_PROMPT_FIX=off`).
+- **Update check:** an install from a git clone runs `git ls-remote` against that clone's origin at most every 6 hours
+  (`USAGE_OPTIMIZER_UPDATE_CHECK=off`). An install from the bundle has no origin and checks nothing.
+- **Off until you turn them on:** `lane-stats share` (one week of anonymous totals, previewed first, posted as a public
+  issue here under your GitHub account) and phone notifications from cloud sessions (`cloud-notify`, only to an ntfy
+  topic you set).
+
+The run ledger, turn log and settings stay in `~/.local/state/lanes/` and `~/.config/lanes/` on your machine.
+
 ## This repository
 
 This repository holds the kit's published releases only. A release tool rewrites it at each release, so pull
@@ -136,6 +170,7 @@ bundle, the evidence file and `SHA256SUMS`.
 - **Install:** clone this repository and run `bash install.sh` (add `--dry-run` first to see what it changes), or
   download the bundle from the latest release, check it against `SHA256SUMS`, and run it with `bash`. On Windows, run
   it from Git Bash.
+- **Kit page:** https://hieunguyen7337.github.io/coding-tool-optimizer/ is built from this repository at each release (the `docs/` folder).
 - **Share statistics (optional):** `lane-stats share` previews one week of anonymous totals; `lane-stats share
   --enable` and then `--send` post them here as a public issue through the "Weekly statistics" form. A workflow
   checks each submission. Sharing is off until you turn it on, and an issue shows your GitHub account.
@@ -184,8 +219,6 @@ The kit's own README follows.
 
 ---
 
-# Coding Tool Optimizer: a usage optimizer for AI coding agents
-
 Coding Tool Optimizer routes coding work across the AI subscriptions you already pay for: Claude, ChatGPT (Codex),
 Google AI Pro (Gemini), Cursor, Grok and Amp. The main session runs in Claude Code, Amp or Codex CLI and spends its
 plan on planning, review and judgement. Execution and read-only legwork go to cheaper worker lanes, and the remaining
@@ -229,7 +262,7 @@ and Codex CLI get.
 
 - `measure/`: reproducible Claude and Codex meter probes and fits; see [the commands](measure/README.md).
 - `findings/`: [measured plan sizes, weights and evidence](findings/FINDINGS.md), also in JSON.
-- `lane-bench`: measure model × effort on your own review suite and write measured priors. Running a suite needs the user's approval. Its `run` works on Linux, macOS and Windows: since 2026-10-28 it starts `lane` and `usage-status` through their `.cmd` wrappers or Python on Windows and stops a run's whole process tree (before that every Windows run exited 127). `export` uses `jq` where it is installed and Python elsewhere. `lane-bench summary` lists every model and effort, with capability and usage side by side ([ours](findings/suite-r/by-arm.md)).
+- `lane-bench`: measure model × effort on your own review suite and write measured priors. Running a suite needs the user's approval. Its `run` works on Linux and Windows (macOS is untested): since 2026-10-28 it starts `lane` and `usage-status` through their `.cmd` wrappers or Python on Windows and stops a run's whole process tree (before that every Windows run exited 127). `export` uses `jq` where it is installed and Python elsewhere. `lane-bench summary` lists every model and effort, with capability and usage side by side ([ours](findings/suite-r/by-arm.md)).
 
 ## Platforms
 
@@ -259,25 +292,28 @@ hooks. `install.sh` still installs the tools, settings, hooks and policy, and th
 
 - `kit-status` reads the meters and the mode before a fan-out or a long task.
 - `kit-dispatch` hands one briefed unit to a worker and records the review.
-- `kit-waste` lists unused agents, skills and MCP servers, and prunes only with the owner's yes.
+- `kit-waste` lists unused agents, skills and MCP servers, and prunes only with your yes.
 - `kit-review` weighs findings by reviewer tier.
-- `kit-hillclimb` runs a blind hill-climb after the owner approves that capability test.
+- `kit-hillclimb` runs a blind hill-climb after you approve that capability test.
 
 ## Install
 
 Paste the prompt for your agent (Claude Code, Codex CLI or Amp) from [SETUP_PROMPT.md](SETUP_PROMPT.md) into it; the
-[kit page](https://claude.ai/artifact/Bwk5gZVa365EMF8jSjN9d5) shows the same prompts behind an agent switch.
+[kit page](https://hieunguyen7337.github.io/coding-tool-optimizer/) shows the same prompts behind an agent switch. Each prompt downloads the bundle from the
+latest GitHub Release, checks it against `SHA256SUMS`, shows you a dry run and waits for your "go".
 
-With any agent or shell, clone the public releases repository and run the installer:
+From a shell, clone the public repository and run the installer, dry run first (add `--platform amp` or
+`--platform codex` for those agents):
 
 ```bash
 git clone https://github.com/hieunguyen7337/coding-tool-optimizer
-cd coding-tool-optimizer && bash install.sh
+cd coding-tool-optimizer && bash install.sh --dry-run && bash install.sh
 ```
 
-Alternatively, download the bundle from that repository's
-[Releases page](https://github.com/hieunguyen7337/coding-tool-optimizer/releases) and verify it
-against `SHA256SUMS` before running it. The kit is MIT-licensed; see [LICENSE](LICENSE).
+Or download `coding-tool-optimizer-bundle.sh` and `SHA256SUMS` from the
+[latest release](https://github.com/hieunguyen7337/coding-tool-optimizer/releases/latest), check the bundle's sha256,
+and run `bash coding-tool-optimizer-bundle.sh --dry-run`, then without `--dry-run`. The kit is MIT-licensed; see
+[LICENSE](LICENSE).
 
 ### Install or update from an existing checkout
 
@@ -433,15 +469,9 @@ The setting `band` (Claude Code's plugin options, default off) adds one line abo
 
 Developing the mod: `claude plugin validate --strict mods/sessions` and `claude plugin test mods/sessions`.
 
-## Publishing a new version
+## Contributing and releases
 
-1. Bump the version line in `POLICY.md`; bump `catalog_version` only when the catalog changes.
-2. Run the tests, confirm `lane-stats arms` loads, then run `tools/make-bundle.sh`,
-   `python3 -I tools/make-page.py` and `python3 -I tools/check-release.py`. Preview with
-   `bash install.sh --dry-run`.
-3. When publishing from a machine other than the last publisher, compare the live bundle with the source
-   using `python3 -I tools/diff-bundle.py <live bundle> [--kit DIR] [--extract DIR]` and merge differences
-   before publishing.
-4. Publish the `.sh` bundle as `contentType: "text/plain"` to the same Artifact URL.
-5. On every other machine, re-run the setup prompt. See [IMPROVING.md](IMPROVING.md) for the full release,
-   research and lessons process.
+Releases are built from a private source repository and published here by a release tool, so pull requests cannot be
+merged in this repository; open an issue instead. [IMPROVING.md](IMPROVING.md) describes how lessons become releases
+(sections 8 and 9: building, checking and publishing a release).
+

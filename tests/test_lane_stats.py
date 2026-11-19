@@ -1678,7 +1678,8 @@ class LaneStatsTests(unittest.TestCase):
                          {"codex": {"prolite": 100, "plus": 20}, "claude": {"max_20x": 200, "max_5x": 100},
                           "gemini": {"google_ai_pro": 19.99}, "cline": {}, "cursor": {}, "grok": {}, "amp": {}})
         self.assertEqual(providers["claude"]["plan_scale"], {"max_20x": 1.0, "max_5x": 2.0})
-        self.assertEqual([change["plan"] for change in providers["claude"]["plan_changes"]], ["max_5x"])
+        # A plan switch is one machine's fact (arms.local.json); the shipped catalog prices a new install's own plans.
+        self.assertNotIn("plan_changes", providers["claude"])
         self.assertTrue(all(price["checked"] in ("2026-10-31", "2026-11-14") and price["source"]
                             for settings in providers.values() for price in settings.get("plan_prices", {}).values()))
         self.assertEqual({name: settings.get("prior_plan") for name, settings in providers.items()},
@@ -1951,6 +1952,180 @@ class LaneStatsTests(unittest.TestCase):
         bad(lambda item: item.update(plan_changes=[{"plan": "max_5x", "from": "2026-11-13T12:42:39Z", "source": 3}]),
             r"plan_changes\[0\]\.source: needs text")
         bad(lambda item: item["plan_prices"]["max_5x"].update(name=3), r"plan_prices\.max_5x\.name: needs text")
+
+    def test_default_exclude_drops_a_gemini_arm_from_eligible_draw(self):
+        before, _ = stats.eligible_draw(self.context(), "hard")
+        self.assertIn("gemini", {row["entry"]["lane"] for row in before})
+        self.catalog["explore"]["default_exclude"] = ["gemini"]
+        self.save_catalog()
+        after, _ = stats.eligible_draw(self.context(), "hard")
+        self.assertEqual({row["entry"]["lane"] for row in after},
+                         {row["entry"]["lane"] for row in before} - {"gemini"})
+
+    def test_include_puts_a_default_excluded_lane_back_and_exclude_wins(self):
+        self.catalog["explore"]["default_exclude"] = ["gemini"]
+        self.save_catalog()
+        brought, _ = stats.eligible_draw(self.context(), "hard", include="gemini")
+        self.assertIn("gemini", {row["entry"]["lane"] for row in brought})
+        comma, _ = stats.eligible_draw(self.context(), "hard", include="gemini,sonnet")
+        self.assertIn("gemini", {row["entry"]["lane"] for row in comma})
+        stayed, _ = stats.eligible_draw(self.context(), "hard", "gemini", None, "gemini")
+        self.assertNotIn("gemini", {row["entry"]["lane"] for row in stayed})
+        result = self.run_cli("pick", "--class", "hard", "--exclude", "luna,sol,sonnet", "--include", "gemini",
+                              "--no-usage", "--seed", "1", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("left out by default", result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual([arm.split("/")[0] for arm in payload["arms"]], ["gemini"])
+        self.assertNotIn("default_excluded", payload)
+        repeated = self.run_cli("pick", "--class", "hard", "--exclude", "luna,sol,sonnet",
+                                "--include", "gemini", "--include", " sonnet ", "--no-usage", "--seed", "1", "--json")
+        self.assertEqual(repeated.returncode, 0, repeated.stderr)
+        self.assertEqual([arm.split("/")[0] for arm in json.loads(repeated.stdout)["arms"]], ["gemini"])
+        for command in (("pick", "--class", "hard", "--no-usage", "--include", "gemni"),
+                        ("main-picks", "--no-usage", "--include", "gemni", "--draws", "5")):
+            with self.subTest(command=command[0]):
+                bad = self.run_cli(*command)
+                self.assertEqual(bad.returncode, 2, bad.stdout + bad.stderr)
+                self.assertIn("unknown lane in --include: gemni", bad.stderr)
+                self.assertEqual(bad.stdout, "")
+
+    def test_local_overlay_with_empty_default_exclude_brings_gemini_back(self):
+        self.catalog["explore"]["default_exclude"] = ["gemini"]
+        self.save_catalog()
+        dropped, _ = stats.eligible_draw(self.context(), "hard")
+        self.assertNotIn("gemini", {row["entry"]["lane"] for row in dropped})
+        with open(os.environ["LANES_ARMS_LOCAL"], "w", encoding="utf-8") as stream:
+            json.dump({"explore": {"default_exclude": []}}, stream)
+        restored, _ = stats.eligible_draw(self.context(), "hard")
+        self.assertIn("gemini", {row["entry"]["lane"] for row in restored})
+
+    def test_unknown_lane_in_default_exclude_fails_validation(self):
+        stats.validate_catalog(self.catalog)
+        for value in (["gemni"], "gemini", ["gemini", 1], None, [""]):
+            self.catalog["explore"]["default_exclude"] = value
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(stats.CatalogError, r"invalid explore\.default_exclude"):
+                    stats.validate_catalog(self.catalog)
+        self.catalog["explore"]["default_exclude"] = ["gemni"]
+        self.save_catalog()
+        result = self.run_cli("pick", "--class", "hard", "--no-usage")
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(result.stderr.strip(), "lane-stats: invalid arms catalog "
+                         "(invalid explore.default_exclude: needs a list of known lane names)")
+        self.catalog["explore"]["default_exclude"] = []
+        stats.validate_catalog(self.catalog)
+        self.catalog["explore"]["default_exclude"] = ["gemini", "gemini"]
+        stats.validate_catalog(self.catalog)
+
+    def test_catalog_without_default_exclude_draws_gemini_as_before(self):
+        self.assertNotIn("default_exclude", self.catalog["explore"])
+        rows, _ = stats.eligible_draw(self.context(), "hard")
+        self.assertEqual({row["entry"]["lane"] for row in rows}, {"luna", "sol", "sonnet", "gemini"})
+        result = self.run_cli("pick", "--class", "hard", "--no-usage", "--seed", "1", "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "")
+        self.assertNotIn("default_excluded", json.loads(result.stdout))
+        picks = self.run_cli("main-picks", "--no-usage", "--draws", "8", "--seed", "1")
+        self.assertEqual(picks.returncode, 0, picks.stderr)
+        data = json.loads(picks.stdout)
+        self.assertEqual(data["excluded"], [])
+        self.assertIn("gemini", {row["lane"] for row in data["classes"]["hard"]["arms"]})
+
+    def test_picks_records_the_default_excluded_lanes_it_applied(self):
+        self.catalog["explore"]["default_exclude"] = ["gemini"]
+        self.save_catalog()
+        result = self.run_cli("main-picks", "--no-usage", "--draws", "8", "--seed", "1")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stderr, "")
+        data = json.loads(result.stdout)
+        self.assertEqual(data["excluded"], ["gemini"])
+        for class_name, block in data["classes"].items():
+            self.assertNotIn("gemini", {row["lane"] for row in block["arms"]}, class_name)
+        expected = {row["arm"] for row in stats.eligible_arms(self.context(), "hard")}
+        self.assertEqual({row["arm"] for row in data["classes"]["hard"]["arms"]}, expected)
+        included = json.loads(self.run_cli(
+            "main-picks", "--no-usage", "--draws", "8", "--seed", "1", "--include", "gemini").stdout)
+        self.assertEqual(included["excluded"], [])
+        self.assertEqual({row["arm"] for row in included["classes"]["hard"]["arms"]},
+                         {row["arm"] for row in stats.eligible_arms(self.context(), "hard", include="gemini")})
+        both = json.loads(self.run_cli(
+            "main-picks", "--no-usage", "--draws", "5", "--seed", "1", "--exclude", "luna").stdout)
+        self.assertEqual(both["excluded"], ["gemini", "luna"])
+        self.assertNotIn("luna", {row["lane"] for row in both["classes"]["hard"]["arms"]})
+        forced = json.loads(self.run_cli(
+            "main-picks", "--no-usage", "--draws", "5", "--seed", "1",
+            "--include", "gemini", "--exclude", "gemini").stdout)
+        self.assertEqual(forced["excluded"], ["gemini"])
+        self.assertNotIn("gemini", {row["lane"] for row in forced["classes"]["hard"]["arms"]})
+        target = os.path.join(self.temp, "include-typo.json")
+        bad = self.run_cli("main-picks", "--no-usage", "--include", "gemni", "--out", target)
+        self.assertEqual(bad.returncode, 2)
+        self.assertFalse(os.path.exists(target))
+
+    def test_pick_names_default_excluded_lanes_on_stderr_unless_json(self):
+        self.catalog["lanes"]["grok"] = {"model": "grok", "provider": "grok"}
+        self.catalog["providers"]["grok"] = {"scarcity": 0.2}
+        self.catalog["arms"].append({
+            "lane": "grok", "model": "grok", "effort": "medium", "status": "active",
+            "classes": ["hard"], "weight": 1.0, "prior_pct": 0.3, "prior_usable": 0.7})
+        # Catalog order, so a reversed list is not sorted back to alphabetical.
+        self.catalog["explore"]["default_exclude"] = ["grok", "gemini"]
+        self.save_catalog()
+        notice = "pick: left out by default (explore.default_exclude): grok, gemini; --include to draw them"
+        text = self.run_cli("pick", "--class", "hard", "--no-usage", "--seed", "1")
+        self.assertEqual(text.returncode, 0, text.stderr)
+        self.assertEqual(text.stderr.splitlines(), [notice])
+        self.assertNotIn("left out by default", text.stdout)
+        quiet = self.run_cli("pick", "--class", "hard", "--no-usage", "--seed", "1", "--json")
+        self.assertEqual(quiet.returncode, 0, quiet.stderr)
+        self.assertEqual(quiet.stderr, "")
+        self.assertEqual(json.loads(quiet.stdout)["default_excluded"], ["grok", "gemini"])
+        # grok's only class is hard, so a mechanical draw names gemini alone.
+        mechanical = self.run_cli("pick", "--class", "mechanical", "--no-usage", "--seed", "1")
+        self.assertEqual(mechanical.stderr.splitlines(), [
+            "pick: left out by default (explore.default_exclude): gemini; --include to draw them"])
+        only = self.run_cli("pick", "--class", "hard", "--no-usage", "--seed", "1", "--include", "grok")
+        self.assertEqual(only.stderr.splitlines(), [
+            "pick: left out by default (explore.default_exclude): gemini; --include to draw them"])
+        for arm in self.catalog["arms"]:
+            if arm["lane"] in ("gemini", "grok"):
+                arm["classes"] = ["hard"]
+                if arm["lane"] == "grok":
+                    arm["status"] = "manual"
+        self.catalog["explore"]["default_exclude"] = ["gemini", "grok"]
+        self.save_catalog()
+        silent = self.run_cli("pick", "--class", "mechanical", "--no-usage", "--seed", "1")
+        self.assertEqual(silent.returncode, 0, silent.stderr)
+        self.assertEqual(silent.stderr, "")
+        silent_json = json.loads(self.run_cli(
+            "pick", "--class", "mechanical", "--no-usage", "--seed", "1", "--json").stdout)
+        self.assertNotIn("default_excluded", silent_json)
+        # A manual lane is still applied: "excluded" lists it, and the notice stays quiet for this class.
+        recorded = json.loads(self.run_cli(
+            "main-picks", "--no-usage", "--draws", "5", "--seed", "1").stdout)
+        self.assertEqual(recorded["excluded"], ["gemini", "grok"])
+        empty = self.run_cli("pick", "--class", "hard", "--exclude", "luna,sol,sonnet", "--no-usage")
+        self.assertEqual(empty.returncode, 2)
+        self.assertEqual(empty.stdout, "")
+        self.assertIn("pick: left out by default (explore.default_exclude): gemini; --include to draw them",
+                      empty.stderr)
+        self.assertIn("no eligible arms for hard", empty.stderr)
+        hidden = self.run_cli("pick", "--class", "hard", "--exclude", "luna,sol,sonnet", "--no-usage", "--json")
+        self.assertEqual(hidden.returncode, 2)
+        self.assertNotIn("left out by default", hidden.stderr)
+        self.assertIn("no eligible arms", hidden.stderr)
+
+    def test_shipped_catalog_leaves_gemini_and_grok_out_of_the_picker(self):
+        with open(os.path.join(ROOT, "arms.json"), encoding="utf-8") as stream:
+            catalog = json.load(stream)
+        self.assertEqual(catalog["explore"]["default_exclude"], ["gemini", "grok"])
+        self.assertEqual(
+            catalog["explore"]["default_exclude_reason"],
+            "Gemini (Google AI Pro consumer terms) and Grok (grok.com terms not yet confirmed) may keep and review "
+            "what they are sent; the picker leaves them out until you opt in with pick --include or by emptying "
+            "explore.default_exclude in arms.local.json.")
+        stats.validate_catalog(catalog)
 
 
 class AmpStatsTests(unittest.TestCase):

@@ -7,7 +7,7 @@
     {
       "name": "coding-tool-optimizer",
       "source": "./plugins/claude-code",
-      "description": "Kit-setup skill, and a session check that the Coding Tool Optimizer core is installed and current. install.sh installs the core; this plugin does not copy its hooks."
+      "description": "Coding Tool Optimizer routes coding work across the AI plans you already pay for, meters every plan and learns the cheapest model and effort per usable result. This plugin adds the kit-setup skill, which installs the kit with install.sh after a dry run, and a session-start check that the installed kit is present and current."
     }
   ]
 }

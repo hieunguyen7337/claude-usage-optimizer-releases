@@ -60,7 +60,7 @@ Preparing ~/.config/lanes
 
 Final checklist
 Missing CLIs: none
-Logins: codex login; agy login.
+Logins: sign in to each CLI you use with its own login (for example codex login, agy login).
 Account switches: ChatGPT data controls off; Antigravity training off; Claude model-training setting off; Claude extra usage: check it (the policy assumes it is off, so there is no reserve).
 Verify: ~/.claude/usage-optimizer/bin/usage-status --no-agy
 Verify: ~/.claude/usage-optimizer/bin/lane luna -C <dir> -b <brief> -e medium --dry-run

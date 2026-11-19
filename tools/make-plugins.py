@@ -13,13 +13,16 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 VERSION_RE = re.compile(r"Coding Tool Optimizer version: (\d{4}-\d{2}-\d{2}\.\d+)")
 HOMEPAGE = "https://github.com/hieunguyen7337/coding-tool-optimizer"
-CLAUDE_DESCRIPTION = (
-    "Kit-setup skill, and a session check that the Coding Tool Optimizer core is installed and current. "
-    "install.sh installs the core; this plugin does not copy its hooks."
+KIT_SUMMARY = (
+    "Coding Tool Optimizer routes coding work across the AI plans you already pay for, meters every plan and learns "
+    "the cheapest model and effort per usable result. "
 )
-CODEX_DESCRIPTION = (
-    "Kit-setup skill for the Coding Tool Optimizer. "
-    "install.sh installs the core; this plugin does not copy its hooks."
+CLAUDE_DESCRIPTION = KIT_SUMMARY + (
+    "This plugin adds the kit-setup skill, which installs the kit with install.sh after a dry run, and a "
+    "session-start check that the installed kit is present and current."
+)
+CODEX_DESCRIPTION = KIT_SUMMARY + (
+    "This plugin adds the kit-setup skill, which installs the kit with install.sh after a dry run."
 )
 
 

@@ -1407,6 +1407,11 @@ def valid_places(value):
             and len(set(value)) == len(value))
 
 
+def valid_default_exclude(names, lanes):
+    # Empty is the opt-in (draw every lane). A duplicate names the same lane twice; the draw keeps one.
+    return isinstance(names, list) and all(isinstance(name, str) and name in lanes for name in names)
+
+
 def validate_platforms(value):
     if not isinstance(value, dict) or not value:
         raise CatalogError("invalid explore.platforms")
@@ -1557,6 +1562,9 @@ def validate_catalog(catalog):
         raise CatalogError("invalid explore.weeks_per_month: needs a number above 0")
     if "places" in config and not valid_places(config["places"]):
         raise CatalogError("invalid explore.places: needs a list of process, subagent or cloud")
+    # Absent means []: an older catalog, written before this key, keeps drawing every lane.
+    if "default_exclude" in config and not valid_default_exclude(config["default_exclude"], catalog["lanes"]):
+        raise CatalogError("invalid explore.default_exclude: needs a list of known lane names")
     if "platforms" in config:
         validate_platforms(config["platforms"])
     for name, provider in catalog["providers"].items():
@@ -2421,24 +2429,64 @@ def posterior(stat, class_name, config, now):
     return alpha, beta, count
 
 
-def eligible_arms(context, class_name, exclude="", place=None):
-    return eligible_draw(context, class_name, exclude, place)[0]
+def split_lane_list(text):
+    return [value.strip() for value in (text or "").split(",") if value.strip()]
 
 
-def eligible_draw(context, class_name, exclude="", place=None):
+def reject_unknown_lanes(names, catalog, flag):
+    # A misspelt name (gemni) would otherwise exclude nothing and leave the lane it meant drawn.
+    unknown = sorted(set(names) - set(catalog["lanes"]))
+    if unknown:
+        raise ValueError("unknown lane in {}: {} (lanes: {})".format(
+            flag, ", ".join(unknown), ", ".join(sorted(catalog["lanes"]))))
+
+
+def default_exclude_names(catalog):
+    """explore.default_exclude in catalog order, or [] when the key is absent."""
+    names = catalog["explore"].get("default_exclude", [])
+    if not isinstance(names, list):
+        return []
+    found = []
+    for name in names:
+        if isinstance(name, str) and name and name not in found:
+            found.append(name)
+    return found
+
+
+def applied_default_exclude(catalog, included):
+    """explore.default_exclude minus the lanes --include put back, in catalog order."""
+    return [name for name in default_exclude_names(catalog) if name not in included]
+
+
+def default_excluded_for_class(catalog, class_name, included):
+    """Applied default-exclude lanes with an active arm for this class, in catalog order.
+
+    pick names only these, so a lane this class has no active arm for stays quiet."""
+    active = {arm["lane"] for arm in catalog["arms"]
+              if arm["status"] == "active" and class_name in arm["classes"]}
+    return [name for name in applied_default_exclude(catalog, included) if name in active]
+
+
+def eligible_arms(context, class_name, exclude="", place=None, include=""):
+    return eligible_draw(context, class_name, exclude, place, include)[0]
+
+
+def eligible_draw(context, class_name, exclude="", place=None, include=""):
     """The arms every draw may pick, and {lane: places} for lanes dropped for their place.
 
     Only arms whose lane runs in an allowed place (or in --place, when given) are returned, so forced, floor and
-    Thompson draws all see the same set."""
+    Thompson draws all see the same set. explore.default_exclude counts as --exclude; --include puts those lanes
+    back for this call, and a lane named in --exclude stays out."""
     catalog = context["catalog"]
     if class_name not in catalog["explore"]["targets"]:
         raise ValueError("unknown class: {}".format(class_name))
-    excluded = {value.strip() for value in exclude.split(",") if value.strip()}
-    # A misspelt name (gemni) would otherwise exclude nothing and leave the lane it meant drawn.
-    unknown = sorted(excluded - set(catalog["lanes"]))
-    if unknown:
-        raise ValueError("unknown lane in --exclude: {} (lanes: {})".format(
-            ", ".join(unknown), ", ".join(sorted(catalog["lanes"]))))
+    excluded = split_lane_list(exclude)
+    included = split_lane_list(include)
+    reject_unknown_lanes(excluded, catalog, "--exclude")
+    reject_unknown_lanes(included, catalog, "--include")
+    # --include only lifts the default list. A lane named in both flags stays out.
+    excluded = set(excluded)
+    excluded.update(applied_default_exclude(catalog, set(included)))
     allowed = allowed_places(catalog)
     if place is not None:
         check_place(place, allowed)
@@ -2642,7 +2690,13 @@ def pick(args):
         raise ValueError("--approved applies to --pair only")
     context = model_context(args, args.class_name)
     catalog = context["catalog"]
-    rows, skipped = eligible_draw(context, args.class_name, ",".join(args.exclude), args.place)
+    include_text = ",".join(args.include)
+    rows, skipped = eligible_draw(context, args.class_name, ",".join(args.exclude), args.place, include_text)
+    left_out = default_excluded_for_class(catalog, args.class_name, set(split_lane_list(include_text)))
+    # Named only when this class has an active arm. --json carries the same list and stays one JSON document.
+    if left_out and not args.json:
+        print("pick: left out by default (explore.default_exclude): {}; --include to draw them".format(
+            ", ".join(left_out)), file=sys.stderr)
     allowed = allowed_places(catalog)
     if not rows:
         where = " in place {}".format(args.place) if args.place is not None else ""
@@ -2680,6 +2734,8 @@ def pick(args):
         payload = dict(record, run_lines=lines)
         if skipped:
             payload["skipped_places"] = [{"lane": lane, "places": places} for lane, places in skipped.items()]
+        if left_out:
+            payload["default_excluded"] = left_out
         print(json.dumps(payload, ensure_ascii=False, allow_nan=False))
     else:
         print("pick {} class={} mode={}".format(pick_id, args.class_name, mode))
@@ -3065,12 +3121,12 @@ def whole_shares(counts, draws):
     return shares
 
 
-def picks_class_block(base, class_name, draws, seed, exclude=""):
+def picks_class_block(base, class_name, draws, seed, exclude="", include=""):
     """One class of picks.json: the arms the picker could choose now, and how often choose_arm chooses each."""
     catalog = base["catalog"]
     config = catalog["explore"]
     context = context_for_class(base, class_name)
-    rows = eligible_arms(context, class_name, exclude)
+    rows = eligible_arms(context, class_name, exclude, include=include)
     if not rows:
         return {"status": "exploring", "arms": []}
     counts = {row["arm"]: 0 for row in rows}
@@ -3110,11 +3166,16 @@ def picks_class_block(base, class_name, draws, seed, exclude=""):
 def main_picks(args):
     """The pick table the mirror reads (picks.json): stats and the picker's own odds, no run ids, paths or notes.
 
-    --exclude leaves lanes out of every class; "excluded" records them, sorted (an empty list when none)."""
+    --exclude leaves lanes out of every class. "excluded" records those lanes and the explore.default_exclude
+    lanes this call applied (--include puts one back), sorted; an empty list when none. --exclude wins."""
     base = gather_context(args)
     catalog = base["catalog"]
-    excluded = sorted({value.strip() for item in args.exclude for value in item.split(",") if value.strip()})
-    exclude = ",".join(excluded)
+    cli_excluded = sorted({value.strip() for item in args.exclude for value in item.split(",") if value.strip()})
+    included = {value.strip() for item in args.include for value in item.split(",") if value.strip()}
+    applied = applied_default_exclude(catalog, included)
+    excluded = sorted(set(cli_excluded) | set(applied))
+    exclude = ",".join(cli_excluded)
+    include = ",".join(sorted(included))
     absent = absent_providers(catalog)
     plans = {provider: "none" if provider in absent else (base["plans"].get(provider) or "unknown")
              for provider in catalog["providers"]}
@@ -3127,7 +3188,7 @@ def main_picks(args):
     record = {"version": 1, "at": iso_now(), "kit": None, "repo": None, "plans": plans, "modes": modes,
               "modes_until": modes_until,
               "excluded": excluded,
-              "classes": {name: picks_class_block(base, name, args.draws, args.seed, exclude)
+              "classes": {name: picks_class_block(base, name, args.draws, args.seed, exclude, include)
                           for name in catalog["explore"]["targets"]}}
     text = json.dumps(record, ensure_ascii=False, allow_nan=False, indent=2) + "\n"
     if args.out:
@@ -4068,6 +4129,9 @@ def build_parser():
         pick_parser.add_argument("--pair", action="store_true")
         pick_parser.add_argument("--approved", metavar="NOTE", help="who approved this pair, and when (required with --pair)")
         pick_parser.add_argument("--exclude", action="append", default=[], help="lanes to skip; repeatable or comma-separated")
+        pick_parser.add_argument("--include", action="append", default=[],
+                                 help="lanes to draw even when explore.default_exclude leaves them out; "
+                                      "repeatable or comma-separated")
         pick_parser.add_argument("--place", help="only lanes that run in this place: process, subagent or cloud "
                                                  "(must be allowed on this machine)")
         pick_parser.add_argument("--seed", type=int)
@@ -4132,6 +4196,9 @@ def build_parser():
     picks_parser.add_argument("--no-usage", action="store_true")
     picks_parser.add_argument("--exclude", action="append", default=[],
                               help="lanes to leave out of every class; repeatable or comma-separated")
+    picks_parser.add_argument("--include", action="append", default=[],
+                              help="lanes to draw even when explore.default_exclude leaves them out; "
+                                   "repeatable or comma-separated")
     picks_parser.set_defaults(func=main_picks)
     orch_parser = commands.add_parser("import-orch", help="record the units a main cloud session reported")
     orch_parser.add_argument("repo", metavar="REPO", help="a git checkout of the project")
