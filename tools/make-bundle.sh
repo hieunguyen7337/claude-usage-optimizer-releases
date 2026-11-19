@@ -102,8 +102,17 @@ def load(relative):
         contents += b"\n"
         text += "\n"
         print("NOTE: added a final newline to " + relative + "; its recorded hash covers the added newline.")
+    # Git Bash's bash drops every CR inside a heredoc, so a CRLF file (the CSVs, kept byte for byte by
+    # .gitattributes) would extract as LF and fail its hash on Windows. Such a file travels as LF text and awk
+    # puts each CR back; a file with mixed line endings cannot be rebuilt that way, so it is refused.
+    crlf = b"\r" in contents
+    if crlf:
+        lf = contents.replace(b"\r\n", b"\n")
+        if b"\r" in lf or lf.replace(b"\n", b"\r\n") != contents:
+            raise SystemExit("refusing to bundle a file with mixed line endings: " + relative)
     return {
         "path": relative,
+        "crlf": crlf,
         "contents": contents,
         "text": text,
         "hash": hashlib.sha256(contents).hexdigest(),
@@ -157,8 +166,12 @@ def write_bundle(output, items, about, tail):
                 emit('mkdir -p "$DEST"\n')
             else:
                 emit('mkdir -p "$DEST"/' + shell_quote(parent) + "\n")
-            emit('cat > "$DEST"/' + quoted + " <<'__USAGE_OPTIMIZER_EOF__'\n")
-            stream.write(item["contents"])
+            if item["crlf"]:
+                emit("awk '{ printf \"%s\\r\\n\", $0 }' > \"$DEST\"/" + quoted + " <<'__USAGE_OPTIMIZER_EOF__'\n")
+                stream.write(item["contents"].replace(b"\r\n", b"\n"))
+            else:
+                emit('cat > "$DEST"/' + quoted + " <<'__USAGE_OPTIMIZER_EOF__'\n")
+                stream.write(item["contents"])
             emit("__USAGE_OPTIMIZER_EOF__\n")
             if item["executable"]:
                 emit('chmod 755 "$DEST"/' + quoted + "\n")

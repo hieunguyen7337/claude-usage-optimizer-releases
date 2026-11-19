@@ -1,6 +1,6 @@
 {
   "name": "coding-tool-optimizer",
-  "version": "2026.1119.1",
+  "version": "2026.1119.2",
   "description": "Coding Tool Optimizer routes coding work across the AI plans you already pay for, meters every plan and learns the cheapest model and effort per usable result. This plugin adds the kit-setup skill, which installs the kit with install.sh after a dry run.",
   "skills": "./skills/"
 }

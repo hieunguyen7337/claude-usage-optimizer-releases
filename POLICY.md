@@ -1,7 +1,7 @@
 # Coding Tool Optimizer: usage policy
 
-Coding Tool Optimizer version: 2026-11-19.1. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
-Claude Usage Optimizer version: 2026-11-19.1. (The kit's name until 2026-11-16.3; this line lets older installs find this release.)
+Coding Tool Optimizer version: 2026-11-19.2. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Claude Usage Optimizer version: 2026-11-19.2. (The kit's name until 2026-11-16.3; this line lets older installs find this release.)
 Machine-specific rules (project dispatchers, locked lanes, local paths) belong in
 `~/.claude/CLAUDE.md` above the import line, and they win when the two conflict.
 On Amp or Codex CLI, read that platform's notes first (`~/.claude/usage-optimizer/platforms/<amp|codex>/PLATFORM.md`):

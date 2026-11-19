@@ -149,10 +149,10 @@ footer { color: var(--muted); font-size: 0.86rem; border-top: 1px solid var(--ru
     <h1>Coding Tool Optimizer</h1>
     <p class="lede">One usage policy, fourteen worker lanes across Claude, ChatGPT (Codex), Gemini, Cursor, Grok and Amp, an arms catalog and a run ledger, usage meters with a per-turn cost meter, and a mobile-style terminal view, shared by every Claude Code, Codex CLI or Amp session on every machine. Your main agent plans and reviews; cheaper lanes do the writing.</p>
     <div class="meta">
-      <span class="chip">v2026-11-19.1</span>
-      <span>bundle built 2026-11-19 08:10 UTC</span>
+      <span class="chip">v2026-11-19.2</span>
+      <span>bundle built 2026-11-19 08:39 UTC</span>
     </div>
-    <div class="term" data-for="claude" aria-label="Example of the status line it installs"><span class="dim">Claude Code statusline ›</span> Opus 5.5 · xhigh · ctx 189k/250k (76%) · ETA ~13m ≈0.07% wk · Coding Tool Optimizer 2026-11-19.1
+    <div class="term" data-for="claude" aria-label="Example of the status line it installs"><span class="dim">Claude Code statusline ›</span> Opus 5.5 · xhigh · ctx 189k/250k (76%) · ETA ~13m ≈0.07% wk · Coding Tool Optimizer 2026-11-19.2
 Claude 5h 12% resets 19:00 · wk 61% resets Sun 02:00 · Fable 7% resets Sun 02:00 │ Codex wk 37% resets Mon 21:51</div>
     <div class="term" data-for="codex" hidden aria-label="Example of usage-status in a Codex setup"><span class="dim">$</span> usage-status
 Codex/luna: 5h 12%, resets 19:00; weekly 37%, resets Mon 21:51; live, read 0s ago (plan plus)
@@ -392,16 +392,16 @@ Later updates use this same prompt. Re-running the bundle is safe.
     <p>Every setup prompt installs from this single file, attached to the repository's <a href="https://github.com/hieunguyen7337/coding-tool-optimizer/releases/latest">latest GitHub Release</a> with a <code>SHA256SUMS</code> file. It extracts the kit to <code>~/claude-usage-optimizer</code>, checks every file's sha256 and runs <code>install.sh</code> with the arguments you give it (<code>--dry-run</code> first; <code>--platform amp</code> or <code>--platform codex</code> for those agents).</p>
     <dl class="facts">
       <dt>File</dt><dd><a href="https://github.com/hieunguyen7337/coding-tool-optimizer/releases/latest/download/coding-tool-optimizer-bundle.sh">coding-tool-optimizer-bundle.sh</a></dd>
-      <dt>Version</dt><dd>2026-11-19.1</dd>
-      <dt>Size</dt><dd>9,942,885 bytes (9710 KB)</dd>
-      <dt>sha256</dt><dd id="sha">233f9e4ab25a537e40c8d06b922f08885dc5e9d3851bae136de4ba824503ddc6</dd>
+      <dt>Version</dt><dd>2026-11-19.2</dd>
+      <dt>Size</dt><dd>9,944,521 bytes (9711 KB)</dd>
+      <dt>sha256</dt><dd id="sha">351da42fe56ab55d17338b2bb1284947c40fe97c278f4fbf22bd9da1f8017a9a</dd>
     </dl>
     <div class="btns">
       <button class="quiet" id="copy-sha" type="button">Copy sha256</button>
     </div>
     <div class="status" id="bundle-status" role="status"></div>
     <p>Check it with <code>sha256sum coding-tool-optimizer-bundle.sh</code> (or <code>shasum -a 256</code> on macOS) against the hash above or its line in <code>SHA256SUMS</code>, then run <code>bash coding-tool-optimizer-bundle.sh --dry-run</code>. The kit sends nothing to its authors. Its tools reach only the services you already use, through your own logins; the two exceptions are off until you turn them on (<code>lane-stats share</code>, and phone notifications from cloud sessions), and an install from a git clone checks that clone's origin for a newer release every 6 hours (<code>USAGE_OPTIMIZER_UPDATE_CHECK=off</code> stops it). The README's "What leaves your machine" section lists every connection.</p>
-    <p>The Suite R rescore evidence (FINDINGS section 8: the per-run rescores, the v2 outcomes and the v2 table) is attached to the same release as <a href="https://github.com/hieunguyen7337/coding-tool-optimizer/releases/latest/download/coding-tool-optimizer-evidence.sh"><code>coding-tool-optimizer-evidence.sh</code></a>, 4,897,575 bytes (4.9 MB), sha256 <code>fb291a36205b27474bbe04ae5bef59eb0442ef360e9354b1c73897335cf14dfb</code>. The kit runs without it. <code>bash coding-tool-optimizer-evidence.sh</code> extracts it next to the kit, checks every sha256 and installs nothing; the next install copies it into the kit.</p>
+    <p>The Suite R rescore evidence (FINDINGS section 8: the per-run rescores, the v2 outcomes and the v2 table) is attached to the same release as <a href="https://github.com/hieunguyen7337/coding-tool-optimizer/releases/latest/download/coding-tool-optimizer-evidence.sh"><code>coding-tool-optimizer-evidence.sh</code></a>, 4,897,575 bytes (4.9 MB), sha256 <code>d324c92872aae0ecd7c365182d8e60ad3b5b93236dae2e516a59bcbe786c1825</code>. The kit runs without it. <code>bash coding-tool-optimizer-evidence.sh</code> extracts it next to the kit, checks every sha256 and installs nothing; the next install copies it into the kit.</p>
   </section>
 
   <section aria-labelledby="opinions-h">
@@ -2006,6 +2006,11 @@ ships.
   version with the branch's, and bring a newer installed release's commits onto the branch first.
 - *A verify brief discovers `tests` as the start directory, with no `-t .`.* `tests/` is not a package, so
   `python3 -m unittest discover -s tests -t .` runs nothing; the first cloud verify of 2026-11-01.1 failed that way.
+- *Git Bash's heredoc drops every CR.* A bundle that wrote a CRLF file (the CSVs, which `.gitattributes` keeps
+  byte for byte) through `cat &lt;&lt;'EOF'` extracted it as LF on Windows, and the hash check stopped the install
+  (2026-11-19.1, found by extracting the published bundle under an empty `HOME`). From 2026-11-19.2 such a file
+  travels as LF text and `awk` puts each CR back; `make-bundle.sh` refuses a file with mixed line endings. Test a
+  release the way a new user meets it: download it from `releases/latest` and extract it under an empty `HOME`.
 - *GNU `sha256sum` escapes a path that holds a backslash.* It prefixes the line with `\`, so extracting a bundle into
   a `USAGE_OPTIMIZER_DIR` written with backslashes fails its hash check. Pass forward slashes; the default `$HOME`
   path is fine.
@@ -2282,8 +2287,8 @@ maps it. Where the two disagree, this page wins on Amp.
 </pre></div></div>
     <div class="policy" id="policy"><pre id="policy-raw"># Coding Tool Optimizer: usage policy
 
-Coding Tool Optimizer version: 2026-11-19.1. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
-Claude Usage Optimizer version: 2026-11-19.1. (The kit's name until 2026-11-16.3; this line lets older installs find this release.)
+Coding Tool Optimizer version: 2026-11-19.2. Installed at `~/.claude/usage-optimizer/`. This file is shared by every machine.
+Claude Usage Optimizer version: 2026-11-19.2. (The kit's name until 2026-11-16.3; this line lets older installs find this release.)
 Machine-specific rules (project dispatchers, locked lanes, local paths) belong in
 `~/.claude/CLAUDE.md` above the import line, and they win when the two conflict.
 On Amp or Codex CLI, read that platform's notes first (`~/.claude/usage-optimizer/platforms/&lt;amp|codex&gt;/PLATFORM.md`):

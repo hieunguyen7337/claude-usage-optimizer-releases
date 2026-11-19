@@ -111,17 +111,19 @@ def parse_bundle(path):
         raise BundleError("bundle has no version line")
     files = {}
     i = 0
-    cat_re = re.compile(r"^cat > \"\$DEST\"/('(?:[^']|'\"'\"'[^']*)*') <<'" +
+    # A CRLF file travels as LF text through awk, which puts each CR back (make-bundle.sh says why).
+    cat_re = re.compile(r"^(cat|awk '\{ printf \"%s\\r\\n\", \$0 \}') > \"\$DEST\"/('(?:[^']|'\"'\"'[^']*)*') <<'" +
                         re.escape(DELIMITER) + r"'$")
     def unquote(value):
         return value[1:-1].replace("'\"'\"'", "'")
     while i < len(lines):
         current = clean(lines[i])
-        if current.startswith("cat > "):
+        if current.startswith("cat > ") or current.startswith("awk '"):
             match = cat_re.match(current)
             if not match:
                 raise BundleError("malformed file block at line {}".format(i + 1))
-            path_name = unquote(match.group(1))
+            path_name = unquote(match.group(2))
+            crlf = match.group(1) != "cat"
             if not path_name or path_name.startswith("/") or "\\" in path_name or \
                     any(part in ("", ".", "..") for part in path_name.split("/")):
                 raise BundleError("unsafe bundle path: " + path_name)
@@ -132,7 +134,8 @@ def parse_bundle(path):
                 i += 1
             if i == len(lines):
                 raise BundleError("unterminated file block: " + path_name)
-            content = ("\n".join(content_lines) + "\n").encode("utf-8") if content_lines else b""
+            newline = "\r\n" if crlf else "\n"
+            content = (newline.join(content_lines) + newline).encode("utf-8") if content_lines else b""
             if path_name in files:
                 raise BundleError("duplicate bundle path: " + path_name)
             files[path_name] = {"content": content, "hash": hashlib.sha256(content).hexdigest(),

@@ -407,6 +407,11 @@ ships.
   version with the branch's, and bring a newer installed release's commits onto the branch first.
 - *A verify brief discovers `tests` as the start directory, with no `-t .`.* `tests/` is not a package, so
   `python3 -m unittest discover -s tests -t .` runs nothing; the first cloud verify of 2026-11-01.1 failed that way.
+- *Git Bash's heredoc drops every CR.* A bundle that wrote a CRLF file (the CSVs, which `.gitattributes` keeps
+  byte for byte) through `cat <<'EOF'` extracted it as LF on Windows, and the hash check stopped the install
+  (2026-11-19.1, found by extracting the published bundle under an empty `HOME`). From 2026-11-19.2 such a file
+  travels as LF text and `awk` puts each CR back; `make-bundle.sh` refuses a file with mixed line endings. Test a
+  release the way a new user meets it: download it from `releases/latest` and extract it under an empty `HOME`.
 - *GNU `sha256sum` escapes a path that holds a backslash.* It prefixes the line with `\`, so extracting a bundle into
   a `USAGE_OPTIMIZER_DIR` written with backslashes fails its hash check. Pass forward slashes; the default `$HOME`
   path is fine.
